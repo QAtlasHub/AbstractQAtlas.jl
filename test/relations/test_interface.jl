@@ -14,11 +14,11 @@ AbstractQAtlas.domain(::_NonAffineDemo) = :test_only
 
 @testset "registry + traits" begin
     rels = all_relations()
-    @test length(rels) == 12          # 4 scaling + 3 thermo + 4 fundamental + TKNN
+    @test length(rels) == 14          # 4 scaling + 3 thermo + 6 fundamental + TKNN
     @test allunique(typeof.(rels))
     @test length(all_relations(; domain=:scaling)) == 4
     @test length(all_relations(; domain=:thermodynamic)) == 3
-    @test length(all_relations(; domain=:fundamental)) == 4
+    @test length(all_relations(; domain=:fundamental)) == 6
     @test length(all_relations(; domain=:topology)) == 1
     @test variables(Widom()) == (:β, :γ, :δ)
     @test variables(SpecificHeatFDT()) == (:C, :var_E, :β)   # N optional, not listed

@@ -34,12 +34,15 @@ include("core/types.jl")
 include("core/quantities.jl")
 include("core/universality.jl")
 include("core/distributions.jl")
+include("core/fields.jl")
 
 # structure — model-independent definitional correspondences between the
-# core quantities: transition classification and the critical
-# quantity⇄exponent map from which the scaling forms are derived.
+# core quantities: transition classification, the critical
+# quantity⇄exponent map from which the scaling forms are derived, and the
+# response-function derivative genealogy rooted at the free energy.
 include("structure/transitions.jl")
 include("structure/criticality.jl")
+include("structure/response.jl")
 
 # relations — model-independent identities and forms
 include("relations/interface.jl")

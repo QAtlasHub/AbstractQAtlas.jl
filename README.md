@@ -105,6 +105,15 @@ Covered in v0.1:
 - **Transition classification**: `FirstOrder` / `ContinuousTransition`
   / `KosterlitzThouless` with `ehrenfest_order`, `has_order_parameter`,
   `has_latent_heat`, `has_critical_exponents`.
+- **Response genealogy**: `derivative_edge` encodes the derivative tree
+  rooted at the free energy — `M = −∂F/∂h`, `χ = ∂M/∂h`, `C = ∂U/∂T`,
+  `U ⟵ F`. `differentiation_chain(Susceptibility) ==
+  [Susceptibility, Magnetization, FreeEnergy]`,
+  `derivative_order(Susceptibility, MagneticField) == 2`
+  (`χ = ∂²F/∂h²`). Exact formulas live in the paired relations
+  (`MagnetizationResponse`, `SusceptibilityResponse`, `GibbsHelmholtz`);
+  the *definitional* `χ = ∂M/∂h` and the *statistical* `χ = β·Var(M)`
+  (`SusceptibilityFDT`) are the same response two ways.
 
 Every relation is tested against an *independent* expectation: exact
 rational exponent sets, derivative-vs-fluctuation cross-checks,
