@@ -95,3 +95,22 @@ Variables: `sigma_integral`, `D`, `W_reg`.
 """
 @relation :transport OpticalSumRule(sigma_integral, D, W_reg) =
     sigma_integral - (π * D + W_reg)
+
+"""
+    CurrentNoiseFDT <: AbstractRelation
+
+The Johnson–Nyquist fluctuation–dissipation theorem — the **fluctuation**
+partner of the dissipative conductivity, the current-channel analogue of
+[`DynamicalFDT`](@ref) (`S ↔ χ''`).  The symmetrized current-noise
+spectral density ([`CurrentNoise`](@ref)) is fixed by the real
+conductivity,
+
+`S^j(ω) = ω · coth(βω/2) · Re σ(ω)`,
+
+(natural units `ℏ = k_B = 1`; Nyquist, Phys. Rev. 32, 110 (1928); Callen &
+Welton, Phys. Rev. 83, 34 (1951)).  The classical limit `βω ≪ 1` gives
+the white Nyquist noise `S^j = 2 T Re σ` (`ω coth(βω/2) → 2/β`).
+
+Variables: `S_j` = `S^j(ω)`, `Reσ` = `Re σ(ω)`, `ω`, `β` (or `T`).
+"""
+@relation :transport CurrentNoiseFDT(S_j, Reσ, ω, β) = S_j - ω * coth(β * ω / 2) * Reσ

@@ -14,14 +14,14 @@ AbstractQAtlas.domain(::_NonAffineDemo) = :test_only
 
 @testset "registry + traits" begin
     rels = all_relations()
-    @test length(rels) == 45          # +5 transport (Wiedemann–Franz, Mott, Kelvin, Onsager, optical sum rule)
+    @test length(rels) == 46          # +1 transport (CurrentNoiseFDT, Johnson–Nyquist)
     @test allunique(typeof.(rels))
     @test length(all_relations(; domain=:scaling)) == 5
     @test length(all_relations(; domain=:thermodynamic)) == 12
     @test length(all_relations(; domain=:fundamental)) == 6
     @test length(all_relations(; domain=:topology)) == 3
     @test length(all_relations(; domain=:spectral)) == 8
-    @test length(all_relations(; domain=:transport)) == 5
+    @test length(all_relations(; domain=:transport)) == 6
     @test length(all_relations(; domain=:ensemble)) == 2
     @test length(all_relations(; domain=:entanglement)) == 2
     @test length(all_relations(; domain=:cft)) == 2

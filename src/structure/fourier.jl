@@ -32,6 +32,8 @@ end
 # the AC conductivity lives in (q, ω); its current–current correlation in (r, t)
 representation(::Type{<:DynamicalConductivity}) = (MomentumSpace(), FrequencyDomain())
 representation(::Type{<:CurrentCorrelation}) = (RealSpace(), TimeDomain())
+# the current-noise spectral density is the (q, ω) FT of the current correlation
+representation(::Type{<:CurrentNoise}) = (MomentumSpace(), FrequencyDomain())
 # single-particle propagators live in (q, ω)
 representation(::Type{RetardedGreensFunction}) = (MomentumSpace(), FrequencyDomain())
 representation(::Type{SelfEnergy}) = (MomentumSpace(), FrequencyDomain())
@@ -60,6 +62,9 @@ fourier_conjugate_quantity(::Type{<:AbstractQuantity}) = nothing
 fourier_conjugate_quantity(::Type{StaticStructureFactor}) = SpinCorrelation
 fourier_conjugate_quantity(::Type{DynamicalStructureFactor}) = DynamicalCorrelation
 fourier_conjugate_quantity(::Type{<:DynamicalCorrelation}) = DynamicalStructureFactor
+# current channel: S^j(q,ω) ↔ ⟨jj⟩(r,t)
+fourier_conjugate_quantity(::Type{<:CurrentNoise}) = CurrentCorrelation
+fourier_conjugate_quantity(::Type{<:CurrentCorrelation}) = CurrentNoise
 export fourier_conjugate_quantity
 
 """

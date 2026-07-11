@@ -457,6 +457,34 @@ response_order(::Type{CurrentCorrelation{I}}) where {I} = length(I) - 1
 frequency_arguments(::Type{CurrentCorrelation{I}}) where {I} = length(I) - 1
 export CurrentCorrelation
 
+"""
+    CurrentNoise{I}() <: AbstractQuantity
+    CurrentNoise(μ, ν)                            # each a Symbol
+
+The (symmetrized) current-noise spectral density `S^j_μν(q, ω)` — the
+current-channel structure factor: the space-time Fourier transform of the
+[`CurrentCorrelation`](@ref) (mirroring
+[`DynamicalStructureFactor`](@ref) ↔ [`DynamicalCorrelation`](@ref)) and
+the **fluctuation** partner of the dissipative `Re σ_μν(ω)` via the
+Johnson–Nyquist fluctuation–dissipation theorem (Nyquist, Phys. Rev. 32,
+110 (1928); Callen & Welton, Phys. Rev. 83, 34 (1951)).  `frequency_arguments == 1`.
+"""
+struct CurrentNoise{I} <: AbstractQuantity
+    function CurrentNoise{I}() where {I}
+        return (
+            length(_axistuple(I)) == 2 ||
+                error("CurrentNoise is a rank-2 tensor S^j_μν (2 indices), got $(repr(I))");
+            new{I}()
+        )
+    end
+end
+CurrentNoise(idx::Symbol...) = CurrentNoise{idx}()
+tensor_rank(::Type{CurrentNoise{I}}) where {I} = length(I)
+index_spaces(::Type{CurrentNoise{I}}) where {I} = ntuple(_ -> SpatialDirection(), length(I))
+indices(::Type{CurrentNoise{I}}) where {I} = I
+frequency_arguments(::Type{CurrentNoise{I}}) where {I} = 1
+export CurrentNoise
+
 # ─── Transport family ───────────────────────────────────────────────────
 #
 # The linear-transport quantities: the currents that respond to an

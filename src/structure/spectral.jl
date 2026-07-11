@@ -89,6 +89,11 @@ function spectral_origin(::Type{DynamicalConductivity{I}}) where {I}
     return SpectralOrigin(CurrentCorrelation{I}, :kubo)
 end
 spectral_origin(::Type{DynamicalConductivity}) = SpectralOrigin(CurrentCorrelation, :kubo)
+# the current-noise spectral density is the space-time FT of the current
+# correlation — the fluctuation side, mirroring DynamicalStructureFactor
+function spectral_origin(::Type{<:CurrentNoise})
+    return SpectralOrigin(CurrentCorrelation, :spacetime_fourier)
+end
 function spectral_origin(::Type{NMRSpinRelaxationRate})
     return SpectralOrigin(DynamicalSusceptibility, :low_frequency_limit)
 end

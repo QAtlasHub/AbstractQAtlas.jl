@@ -54,9 +54,23 @@ end
         1e-12
 end
 
+@testset "Johnson–Nyquist FDT: S^j(ω) = ω coth(βω/2) Re σ(ω)" begin
+    β, ω, Reσ = 1.5, 0.8, 2.2
+    S_j = ω * coth(β * ω / 2) * Reσ
+    @test check(CurrentNoiseFDT(); S_j=S_j, Reσ=Reσ, ω=ω, β=β, atol=1e-12)
+    @test solve(CurrentNoiseFDT(), Val(:S_j); Reσ=Reσ, ω=ω, β=β) ≈ S_j
+    # the β↔T keyword convention (like the other FDTs)
+    @test solve(CurrentNoiseFDT(), Val(:S_j); Reσ=Reσ, ω=ω, T=1 / β) ≈ S_j
+    # INDEPENDENT EXPECTATION — classical (Nyquist) limit βω ≪ 1: S^j → 2T Re σ
+    βs, ωs = 1e-4, 1e-3               # βω = 1e-7 ≪ 1
+    S_small = solve(CurrentNoiseFDT(), Val(:S_j); Reσ=Reσ, ω=ωs, β=βs)
+    @test S_small ≈ 2 * (1 / βs) * Reσ rtol = 1e-6      # white Nyquist noise
+end
+
 @testset "domain + variables wiring" begin
     @test domain(WiedemannFranz()) == :transport
     @test domain(OpticalSumRule()) == :transport
+    @test domain(CurrentNoiseFDT()) == :transport
     @test variables(WiedemannFranz()) == (:κ, :σ, :T, :L0)
     @test variables(MottFormula()) == (:S, :dlnσ_dε, :T)
     @test variables(KelvinRelation()) == (:Π, :S, :T)

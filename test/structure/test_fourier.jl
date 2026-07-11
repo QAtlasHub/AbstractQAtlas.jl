@@ -27,6 +27,7 @@ end
     @test representation(DynamicalConductivity(:x, :y)) ==
         (MomentumSpace(), FrequencyDomain())
     @test representation(CurrentCorrelation(:x, :y)) == (RealSpace(), TimeDomain())
+    @test representation(CurrentNoise(:x, :y)) == (MomentumSpace(), FrequencyDomain())
     # global thermodynamic quantities carry no space/time representation
     @test representation(Energy()) == ()
     @test representation(FreeEnergy()) == ()
@@ -39,6 +40,11 @@ end
     @test fourier_conjugate_quantity(DynamicalCorrelation(:x, :y)) ===
         DynamicalStructureFactor
     @test fourier_conjugate_quantity(Energy()) === nothing
+
+    # current channel mirrors the spin channel: S^j(q,ω) ↔ ⟨jj⟩(r,t)
+    @test fourier_conjugate_quantity(CurrentNoise(:x, :y)) === CurrentCorrelation
+    @test fourier_conjugate_quantity(CurrentCorrelation(:x, :y)) === CurrentNoise
+    @test fourier_pair(CurrentNoise(:x, :y), CurrentCorrelation(:x, :y))
 
     # spatial FT: S(q) ↔ ⟨S S⟩(r); space-time FT: S(q,ω) ↔ ⟨A A⟩(r,t)
     @test fourier_pair(StaticStructureFactor(), SpinCorrelation(:z, :z))

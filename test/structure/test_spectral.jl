@@ -63,6 +63,12 @@ end
     @test spectral_chain(NMRSpinRelaxationRate()) ==
         [NMRSpinRelaxationRate, DynamicalSusceptibility, DynamicalCorrelation]
     @test spectral_chain(SelfEnergy()) == [SelfEnergy]           # source singleton
+    # current channel mirrors the spin channel's fluctuation branch:
+    # S^j(q,ω) ⟵ ⟨jj⟩(r,t) via the space-time Fourier transform
+    @test spectral_origin(CurrentNoise(:x, :y)) ==
+        SpectralOrigin(CurrentCorrelation, :spacetime_fourier)
+    @test spectral_chain(CurrentNoise(:x, :y)) ==
+        [CurrentNoise{(:x, :y)}, CurrentCorrelation]
 end
 
 @testset "edges tie to their exact pointwise relation (or nothing)" begin
