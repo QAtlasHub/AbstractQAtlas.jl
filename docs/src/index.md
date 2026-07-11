@@ -53,6 +53,10 @@ exponents_consistent((α=0//1, β=1//8, γ=7//4, δ=15//1, ν=1//1, η=1//4); d=
 - **Scaling laws** — [`Rushbrooke`](@ref), [`Widom`](@ref),
   [`Fisher`](@ref), [`Josephson`](@ref), gated by
   [`exponents_consistent`](@ref).
+- **Fundamental equations** — [`FreeEnergyFromZ`](@ref)
+  (``F = -β^{-1}\ln Z``), [`FreeEnergyLegendre`](@ref) (``F = U - TS``),
+  [`EntropyResponse`](@ref) (``S = -∂F/∂T``), [`GibbsHelmholtz`](@ref)
+  (``U = ∂(βF)/∂β``).
 - **Thermodynamic identities** — [`SpecificHeatFDT`](@ref),
   [`SusceptibilityFDT`](@ref), [`LinearResponseFDT`](@ref)
   (conventions: ``c_v = β^2\,\mathrm{Var}(E)/N``,

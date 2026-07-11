@@ -54,6 +54,7 @@ Covered in v0.1:
 
 - **Scaling laws**: `Rushbrooke`, `Widom`, `Fisher`, `Josephson`,
   `exponents_consistent`
+- **Fundamental equations**: `FreeEnergyFromZ`, `FreeEnergyLegendre` (F = U − TS), `EntropyResponse`, `GibbsHelmholtz`
 - **Thermodynamic identities**: `SpecificHeatFDT`, `SusceptibilityFDT`,
   `LinearResponseFDT`
 - **Wick's theorem**: `wick_contraction`, `wick_density_correlation`
