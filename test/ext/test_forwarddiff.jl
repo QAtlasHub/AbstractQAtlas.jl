@@ -29,6 +29,38 @@ using ForwardDiff   # activates AbstractQAtlasForwardDiffExt
     @test χ2 ≈ -2β^2 * tanh(β * h) / cosh(β * h)^2 atol = 1e-9
 end
 
+@testset "tensor susceptibility: off-diagonal guard + multi-field mixed partial" begin
+    # a single-field F(h) fixes only the DIAGONAL χ⁽ⁿ⁾; asking for an
+    # off-diagonal component must error, not silently return the diagonal.
+    @test_throws ErrorException thermal_derivative(
+        Susceptibility(:x, :y, :z), h -> h^4, 0.5
+    )
+    # the diagonal single-field path still works: −F‴(h) = −24h
+    @test thermal_derivative(Susceptibility(:x, :x, :x), h -> h^4, 0.5) ≈ -12.0 atol = 1e-10
+
+    # multi-field: χ⁽ⁿ⁾_{α;β₁…βₙ} = −∂ⁿ⁺¹F/∂h_α∂h_{β₁}…∂h_{βₙ} over the
+    # directions in indices(χ).  G = h_x h_y h_z ⇒ ∂³/∂x∂y∂z = 1 ⇒ χ = −1,
+    # a value the single-field (diagonal) path can never produce.
+    G(v) = v[1] * v[2] * v[3]
+    @test thermal_derivative(Susceptibility(:x, :y, :z), G, [0.3, 0.7, 0.2], (:x, :y, :z)) ≈
+        -1.0 atol = 1e-10
+    # order-3 off-diagonal χ⁽³⁾_{w;xyz} = −∂⁴(h_w h_x h_y h_z) = −1
+    G4(v) = v[1] * v[2] * v[3] * v[4]
+    @test thermal_derivative(
+        Susceptibility(:w, :x, :y, :z), G4, [0.1, 0.2, 0.3, 0.4], (:w, :x, :y, :z)
+    ) ≈ -1.0 atol = 1e-10
+
+    # CONSISTENCY: on the diagonal the multi-field and single-field APIs agree.
+    H(v) = v[1]^4
+    @test thermal_derivative(Susceptibility(:x, :x, :x), H, [0.5, 0.0, 0.0], (:x, :y, :z)) ≈
+        thermal_derivative(Susceptibility(:x, :x, :x), h -> h^4, 0.5) atol = 1e-10
+
+    # an unknown field direction errors
+    @test_throws ErrorException thermal_derivative(
+        Susceptibility(:x, :q), G, [0.1, 0.2, 0.3], (:x, :y, :z)
+    )
+end
+
 @testset "temperature branch: S, C, U by AD" begin
     # entropy from a free-energy(T): S = −∂F/∂T
     Φ(T) = -T * log(2 * cosh(1.0 / T))
