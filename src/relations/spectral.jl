@@ -113,3 +113,19 @@ this convention reproduces detailed balance `S(q,−ω) = e^{−βω} S(q, ω)`
 Variables: `S` = `S(q, ω)`, `χpp` = `χ''(q, ω)`, `ω`, and `β` (or `T`).
 """
 @relation :spectral DynamicalFDT(S, χpp, ω, β) = S - χpp / (π * (1 - exp(-β * ω)))
+
+"""
+    CorrelationLengthGap <: AbstractRelation
+
+The correlation length of a gapped phase set by the gap and velocity,
+
+`ξ = v / Δ`,
+
+the real-space decay length of a relativistic dispersion
+`E(k) = √(Δ² + v²k²)` (`⟨O(r)O(0)⟩ ∼ e^{−r/ξ}`).  A staple consistency
+check for a gapped MPS/DMRG calculation: the measured correlation length
+and the measured gap must satisfy `ξΔ = v`.
+
+Variables: `ξ`, `v`, `Δ`.
+"""
+@relation :spectral CorrelationLengthGap(ξ, v, Δ) = ξ - v / Δ

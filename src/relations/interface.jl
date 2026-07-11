@@ -163,13 +163,19 @@ function _solve(rel::AbstractRelation, ::Val{X}; kwargs...) where {X}
     curv = r2 - 2r1 + r0
     isaffine = if curv isa Union{Integer,Rational}
         iszero(curv)                              # exact types: exact test
+    elseif !all(isfinite, (r0, r1, r2))
+        # A non-finite probe (a 1/x term evaluated at an integer probe, x=0)
+        # means the residual blows up — not safely affine-solvable here.
+        # Guard before `scale` goes to Inf and silently defeats the test.
+        false
     else
         scale = max(abs(r0), abs(r1), abs(r2))    # float / complex: relative tol
         abs(curv) <= 1e-8 * max(scale, oneunit(scale))
     end
     isaffine || error(
-        "solve: $(typeof(rel)) is not affine in :$X — define a specialized " *
-        "_solve(::$(typeof(rel)), ::Val{:$X}; ...) for this variable",
+        "solve: $(typeof(rel)) is not affine in :$X (or blows up at an integer " *
+        "probe) — define a specialized _solve(::$(typeof(rel)), ::Val{:$X}; ...) " *
+        "for this variable",
     )
     b = r1 - r0
     iszero(b) && error("solve: $(typeof(rel)) does not depend on :$X")
