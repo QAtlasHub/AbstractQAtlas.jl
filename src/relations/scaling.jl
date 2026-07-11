@@ -46,6 +46,22 @@ it only at `d = d_upper` (e.g. `d = 4` for Ising).
 @relation :scaling Josephson(α, ν, d) = 2 - α - d * ν
 
 """
+    DynamicalScaling <: AbstractRelation
+
+The dynamical-exponent scaling of the gap with the correlation length on
+approach to a quantum critical point,
+
+`Δ ∼ ξ^{−z}`   ⟹   `d(ln Δ)/d(ln ξ) = −z`.
+
+Supplied-derivative convention: `dlogΔ_dlogξ` is the caller-computed
+log–log slope of the gap against the correlation length.  Reads the
+dynamical critical exponent `z` off measured `(Δ, ξ)` pairs.
+
+Variables: `dlogΔ_dlogξ`, `z`.
+"""
+@relation :scaling DynamicalScaling(dlogΔ_dlogξ, z) = dlogΔ_dlogξ + z
+
+"""
     exponents_consistent(nt::NamedTuple; d, atol=0) -> Bool
 
 Gate-check a `CriticalExponents`-style NamedTuple `(α, β, γ, δ, ν, η)`

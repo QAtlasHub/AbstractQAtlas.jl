@@ -113,6 +113,7 @@ Covered in v0.1:
   Calabrese–Cardy), `page_average_entropy` (Page's random-state formula)
 - **CFT finite-size**: `CasimirCentralCharge` (`e₀(L)=e_∞−πcv/6L²`, reads off c), `FiniteSizeGap` (`E_x−E₀=2πvx/L`, reads off scaling dimensions) — extract universal data straight from finite-size MPS/ED spectra
 - **Nonlinear-tensor symmetry**: `intrinsic_permutation_symmetric`,
+- **Gaps & correlation length**: `CorrelationLengthGap` (`ξ = v/Δ`), `DynamicalScaling` (`d lnΔ/d lnξ = −z`, the dynamical critical exponent)
   `canonical_component`, `permutation_equivalent` — `χ⁽ⁿ⁾`'s field
   indices (with their frequencies) are interchangeable, so
   `χ⁽²⁾_{x;yz} = χ⁽²⁾_{x;zy}`

@@ -572,10 +572,33 @@ export CriticalTemperature
 """
     CorrelationLength() <: AbstractQuantity
 
-Correlation length ξ (units of lattice spacing).
+Correlation length ξ (units of lattice spacing).  In a gapped phase it
+is set by the gap and velocity, `ξ = v/Δ` ([`CorrelationLengthGap`](@ref)).
 """
 struct CorrelationLength <: AbstractQuantity end
 export CorrelationLength
+
+"""
+    MassGap() <: AbstractGap
+
+The spectral (mass) gap `Δ = E₁ − E₀` between the ground state and the
+first excitation.  Sets the correlation length `ξ = v/Δ` in a gapped
+phase, and vanishes as `Δ ∼ ξ^{−z}` (dynamical exponent `z`) on approach
+to a quantum critical point.
+"""
+struct MassGap <: AbstractGap end
+export MassGap
+
+"""
+    DynamicalExponent() <: AbstractQuantity
+
+The dynamical critical exponent `z` relating spatial and temporal
+scaling at a quantum critical point, `Δ ∼ ξ^{−z}` (equivalently
+`ω ∼ k^z`).  `z = 1` for a Lorentz-invariant (relativistic) critical
+point.
+"""
+struct DynamicalExponent <: AbstractQuantity end
+export DynamicalExponent
 
 """
     UniversalityClass() <: AbstractQuantity
