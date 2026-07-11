@@ -59,6 +59,7 @@ end
         DynamicalSusceptibility(:z, :y, :x, :w),
         Susceptibility(:x, :z, :y),
         Conductivity(:z, :y, :x),
+        DynamicalConductivity(:x, :z, :y),
     )
         π = field_permutation(χ)
         fields = collect(indices(χ)[2:end])

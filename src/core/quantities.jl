@@ -362,10 +362,10 @@ field directions.  `response_order = length(I) − 1`:
 This is the zero-frequency response (`frequency_arguments == 0`), the
 current-channel analogue of the static [`Susceptibility`](@ref); like it,
 it carries intrinsic permutation symmetry over its field indices (at zero
-frequency).  The frequency-resolved AC conductivity `σ⁽ⁿ⁾(ω₁, …, ωₙ)`
-(optical `σ(ω)`, the photogalvanic `σ⁽²⁾(ω₁, ω₂)`, Drude / f-sum rule) is
-the AC counterpart a future `DynamicalConductivity` will carry — the
-current-channel mirror of [`DynamicalSusceptibility`](@ref).
+frequency).  Its `ω → 0` limit fixes it from the frequency-resolved AC
+[`DynamicalConductivity`](@ref) `σ⁽ⁿ⁾(ω₁, …, ωₙ)` (optical `σ(ω)`, the
+photogalvanic `σ⁽²⁾(ω₁, ω₂)`, Drude / f-sum rule) — the current-channel
+mirror of [`DynamicalSusceptibility`](@ref).
 """
 struct Conductivity{I} <: AbstractQuantity
     function Conductivity{I}() where {I}
@@ -383,6 +383,79 @@ index_spaces(::Type{Conductivity{I}}) where {I} = ntuple(_ -> SpatialDirection()
 indices(::Type{Conductivity{I}}) where {I} = I
 response_order(::Type{Conductivity{I}}) where {I} = length(I) - 1
 export Conductivity
+
+"""
+    DynamicalConductivity{I}() <: AbstractQuantity
+    DynamicalConductivity(μ, ν₁, …, νₙ)           # each a Symbol
+
+The **AC (frequency-resolved)** electrical conductivity of arbitrary
+response order — the current-channel mirror of
+[`DynamicalSusceptibility`](@ref) and the frequency-resolved counterpart
+of the DC [`Conductivity`](@ref) (its `ω → 0` limit).
+
+The linear `DynamicalConductivity(:x, :y)` is the optical conductivity
+`σ_xy(ω)` (Drude peak, f-sum rule, Kramers–Kronig between Re and Im).
+The `n`-th order term `DynamicalConductivity(μ, ν₁, …, νₙ)` is
+`σ⁽ⁿ⁾_{μ; ν₁…νₙ}(ω₁, …, ωₙ)`: the field acts at `n` distinct times, so
+the response is intrinsically **multi-time** — `frequency_arguments ==
+n == response_order`.  `DynamicalConductivity(:x, :y, :z)` is the
+second-order `σ⁽²⁾(ω₁, ω₂)` of the photogalvanic / second-harmonic
+response.  Its microscopic Kubo expression is the retarded `n`-time
+current–current correlation ([`CurrentCorrelation`](@ref); see
+`structure/spectral.jl`).
+"""
+struct DynamicalConductivity{I} <: AbstractQuantity
+    function DynamicalConductivity{I}() where {I}
+        return (
+            length(_axistuple(I)) >= 2 || error(
+                "DynamicalConductivity needs ≥2 indices (1 current + ≥1 field), got $(repr(I))",
+            );
+            new{I}()
+        )
+    end
+end
+DynamicalConductivity(idx::Symbol...) = DynamicalConductivity{idx}()
+tensor_rank(::Type{DynamicalConductivity{I}}) where {I} = length(I)
+function index_spaces(::Type{DynamicalConductivity{I}}) where {I}
+    return ntuple(_ -> SpatialDirection(), length(I))
+end
+indices(::Type{DynamicalConductivity{I}}) where {I} = I
+response_order(::Type{DynamicalConductivity{I}}) where {I} = length(I) - 1
+# multi-time: an n-th order AC response depends on n frequencies
+frequency_arguments(::Type{DynamicalConductivity{I}}) where {I} = length(I) - 1
+export DynamicalConductivity
+
+"""
+    CurrentCorrelation{I}() <: AbstractQuantity
+    CurrentCorrelation(μ, ν₁, …, νₙ)              # each a Symbol
+
+The `n`-time current–current correlation — the microscopic Kubo kernel of
+the [`DynamicalConductivity`](@ref), the current-channel analogue of the
+[`DynamicalCorrelation`](@ref).  The linear `CurrentCorrelation(:x, :y)`
+is the two-point `⟨j_x(t) j_y(0)⟩` whose retarded part gives `σ_xy(ω)`;
+the order-`n` term is the `(n+1)`-point current correlation with `n`
+independent time differences (`frequency_arguments == n`), matching the
+order of the conductivity it feeds (order-faithful Kubo edge).
+"""
+struct CurrentCorrelation{I} <: AbstractQuantity
+    function CurrentCorrelation{I}() where {I}
+        return (
+            length(_axistuple(I)) >= 2 || error(
+                "CurrentCorrelation needs ≥2 operators (1 + n for order n), got $(repr(I))",
+            );
+            new{I}()
+        )
+    end
+end
+CurrentCorrelation(idx::Symbol...) = CurrentCorrelation{idx}()
+tensor_rank(::Type{CurrentCorrelation{I}}) where {I} = length(I)
+function index_spaces(::Type{CurrentCorrelation{I}}) where {I}
+    return ntuple(_ -> SpatialDirection(), length(I))
+end
+indices(::Type{CurrentCorrelation{I}}) where {I} = I
+response_order(::Type{CurrentCorrelation{I}}) where {I} = length(I) - 1
+frequency_arguments(::Type{CurrentCorrelation{I}}) where {I} = length(I) - 1
+export CurrentCorrelation
 
 # ─── Dynamical & spectral quantities ────────────────────────────────────
 #

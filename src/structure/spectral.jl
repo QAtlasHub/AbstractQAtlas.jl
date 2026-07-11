@@ -82,6 +82,13 @@ end
 function spectral_origin(::Type{DynamicalSusceptibility})
     return SpectralOrigin(DynamicalCorrelation, :kubo)
 end
+# Kubo edge for the AC conductivity: σ⁽ⁿ⁾{I} is the retarded part of the
+# same-order n-time current–current correlation (order-faithful, like the
+# susceptibility) — Kubo, J. Phys. Soc. Jpn. 12, 570 (1957).
+function spectral_origin(::Type{DynamicalConductivity{I}}) where {I}
+    return SpectralOrigin(CurrentCorrelation{I}, :kubo)
+end
+spectral_origin(::Type{DynamicalConductivity}) = SpectralOrigin(CurrentCorrelation, :kubo)
 function spectral_origin(::Type{NMRSpinRelaxationRate})
     return SpectralOrigin(DynamicalSusceptibility, :low_frequency_limit)
 end

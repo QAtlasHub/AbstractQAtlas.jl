@@ -23,6 +23,10 @@ end
     @test representation(DynamicalSusceptibility(:x, :y)) ==
         (MomentumSpace(), FrequencyDomain())
     @test representation(RetardedGreensFunction()) == (MomentumSpace(), FrequencyDomain())
+    # AC conductivity in (q, ω), its current–current correlation in (r, t)
+    @test representation(DynamicalConductivity(:x, :y)) ==
+        (MomentumSpace(), FrequencyDomain())
+    @test representation(CurrentCorrelation(:x, :y)) == (RealSpace(), TimeDomain())
     # global thermodynamic quantities carry no space/time representation
     @test representation(Energy()) == ()
     @test representation(FreeEnergy()) == ()

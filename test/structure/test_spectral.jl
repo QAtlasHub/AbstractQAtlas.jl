@@ -31,7 +31,8 @@ end
 @testset "n-th order response ⟺ n-time correlation (Kubo edge is order-faithful)" begin
     # the physical invariant the user asked for: the Kubo correlation partner
     # of an order-n response has exactly n time differences = n frequencies,
-    # matching the response's own frequency count.
+    # matching the response's own frequency count — in BOTH channels (the
+    # spin-response susceptibility and the current-response conductivity).
     using AbstractQAtlas: frequency_arguments, response_order
     for I in ((:x, :y), (:x, :y, :z), (:x, :x, :x, :x))
         χ = DynamicalSusceptibility(I...)
@@ -40,6 +41,13 @@ end
         @test frequency_arguments(χ) == n                       # n-th order → n frequencies
         @test frequency_arguments(corr) == n                    # …and its correlation is n-time
         @test frequency_arguments(corr) == frequency_arguments(χ)
+
+        σ = DynamicalConductivity(I...)
+        jj = spectral_origin(σ).from              # the CurrentCorrelation{I}
+        @test spectral_origin(σ) == SpectralOrigin(CurrentCorrelation{I}, :kubo)
+        @test frequency_arguments(σ) == n
+        @test frequency_arguments(jj) == frequency_arguments(σ)  # current corr is n-time too
+        @test spectral_chain(σ) == [DynamicalConductivity{I}, CurrentCorrelation{I}]
     end
 end
 

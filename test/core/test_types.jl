@@ -73,9 +73,24 @@ end
     @test frequency_arguments(Magnetization(:z)) == 0
     # Conductivity is the DC (static) response — the current-channel analogue
     # of the static Susceptibility — so it has NO frequency arguments at any
-    # order (the AC σ⁽ⁿ⁾(ω₁…ωₙ) is a future DynamicalConductivity).
+    # order.  Its AC counterpart DynamicalConductivity is frequency-resolved.
     @test frequency_arguments(Conductivity(:x, :y)) == 0
     @test frequency_arguments(Conductivity(:x, :y, :z)) == 0
+    # AC conductivity σ⁽ⁿ⁾(ω₁…ωₙ): n-th order ⇒ n frequencies (like the
+    # dynamical susceptibility), rank n+1 in SpatialDirection space
+    @test frequency_arguments(DynamicalConductivity(:x, :y)) == 1
+    @test frequency_arguments(DynamicalConductivity(:x, :y, :z)) == 2
+    @test response_order(DynamicalConductivity(:x, :y, :z)) == 2
+    @test index_spaces(DynamicalConductivity(:x, :y, :z)) ==
+        (SpatialDirection(), SpatialDirection(), SpatialDirection())
+    # its Kubo kernel, the current–current correlation, is n-time to match
+    @test frequency_arguments(CurrentCorrelation(:x, :y)) == 1
+    @test frequency_arguments(CurrentCorrelation(:x, :y, :z)) == 2
+    @test index_spaces(CurrentCorrelation(:x, :y)) ==
+        (SpatialDirection(), SpatialDirection())
+    # both need ≥2 indices
+    @test_throws ErrorException DynamicalConductivity(:x)
+    @test_throws ErrorException CurrentCorrelation(:x)
 end
 
 @testset "Energy granularity" begin

@@ -31,6 +31,7 @@ intrinsic_permutation_symmetric(::Type{<:AbstractQuantity}) = false
 intrinsic_permutation_symmetric(::Type{<:Susceptibility}) = true
 intrinsic_permutation_symmetric(::Type{<:DynamicalSusceptibility}) = true
 intrinsic_permutation_symmetric(::Type{<:Conductivity}) = true
+intrinsic_permutation_symmetric(::Type{<:DynamicalConductivity}) = true
 export intrinsic_permutation_symmetric
 
 """
@@ -57,6 +58,10 @@ end
 function canonical_component(χ::Conductivity)
     i = indices(χ)
     return Conductivity(i[1], sort!(collect(i[2:end]))...)
+end
+function canonical_component(χ::DynamicalConductivity)
+    i = indices(χ)
+    return DynamicalConductivity(i[1], sort!(collect(i[2:end]))...)
 end
 export canonical_component
 
