@@ -457,6 +457,145 @@ response_order(::Type{CurrentCorrelation{I}}) where {I} = length(I) - 1
 frequency_arguments(::Type{CurrentCorrelation{I}}) where {I} = length(I) - 1
 export CurrentCorrelation
 
+# ─── Transport family ───────────────────────────────────────────────────
+#
+# The linear-transport quantities: the currents that respond to an
+# electric field / temperature gradient, and the rank-2 transport
+# coefficients that relate them.  The identities linking them
+# (Wiedemann–Franz, Mott, Kelvin, Onsager, the optical sum rule) live in
+# `relations/transport.jl`.
+
+"""
+    ElectricCurrent() <: AbstractQuantity
+
+The electric (charge) current density `j_μ` — a rank-1 vector in
+[`SpatialDirection`](@ref) space; the response half of the
+[`Conductivity`](@ref) (`j_μ = σ_μν E_ν`) and one of the two currents of
+the Onsager transport matrix (with [`HeatCurrent`](@ref)).
+"""
+struct ElectricCurrent <: AbstractQuantity end
+export ElectricCurrent
+tensor_rank(::Type{ElectricCurrent}) = 1
+index_spaces(::Type{ElectricCurrent}) = (SpatialDirection(),)
+
+"""
+    HeatCurrent() <: AbstractQuantity
+
+The heat (thermal energy) current density `j^Q_μ` — a rank-1 vector in
+[`SpatialDirection`](@ref) space; the current driven by a temperature
+gradient (`j^Q_μ = −κ_μν ∂_ν T` at zero electric current) and the Onsager
+partner of the [`ElectricCurrent`](@ref).
+"""
+struct HeatCurrent <: AbstractQuantity end
+export HeatCurrent
+tensor_rank(::Type{HeatCurrent}) = 1
+index_spaces(::Type{HeatCurrent}) = (SpatialDirection(),)
+
+"""
+    DrudeWeight{I}() <: AbstractQuantity
+    DrudeWeight(μ, ν)                             # each a Symbol
+
+The Drude weight (charge stiffness) tensor `D_μν` — the coefficient of
+the zero-frequency delta in the real optical conductivity,
+`Re σ_μν(ω) = π D_μν δ(ω) + σ^reg_μν(ω)` (Scalapino, White & Zhang, Phys.
+Rev. B 47, 7995 (1993)).  A rank-2 tensor in [`SpatialDirection`](@ref)
+space; `D_μν > 0` signals a (perfect) conductor.  Fixed by the
+[`DynamicalConductivity`](@ref) via the optical sum rule.
+"""
+struct DrudeWeight{I} <: AbstractQuantity
+    function DrudeWeight{I}() where {I}
+        return (
+            length(_axistuple(I)) == 2 ||
+                error("DrudeWeight is a rank-2 tensor D_μν (2 indices), got $(repr(I))");
+            new{I}()
+        )
+    end
+end
+DrudeWeight(idx::Symbol...) = DrudeWeight{idx}()
+tensor_rank(::Type{DrudeWeight{I}}) where {I} = length(I)
+index_spaces(::Type{DrudeWeight{I}}) where {I} = ntuple(_ -> SpatialDirection(), length(I))
+indices(::Type{DrudeWeight{I}}) where {I} = I
+export DrudeWeight
+
+"""
+    ThermalConductivity{I}() <: AbstractQuantity
+    ThermalConductivity(μ, ν)                     # each a Symbol
+
+The (DC) thermal conductivity tensor `κ_μν` — the heat-current response to
+a temperature gradient, `j^Q_μ = −κ_μν ∂_ν T`.  Rank-2 in
+[`SpatialDirection`](@ref) space; its ratio to the electrical
+[`Conductivity`](@ref) is fixed by the Wiedemann–Franz law.
+"""
+struct ThermalConductivity{I} <: AbstractQuantity
+    function ThermalConductivity{I}() where {I}
+        return (
+            length(_axistuple(I)) == 2 || error(
+                "ThermalConductivity is a rank-2 tensor κ_μν (2 indices), got $(repr(I))",
+            );
+            new{I}()
+        )
+    end
+end
+ThermalConductivity(idx::Symbol...) = ThermalConductivity{idx}()
+tensor_rank(::Type{ThermalConductivity{I}}) where {I} = length(I)
+function index_spaces(::Type{ThermalConductivity{I}}) where {I}
+    return ntuple(_ -> SpatialDirection(), length(I))
+end
+indices(::Type{ThermalConductivity{I}}) where {I} = I
+export ThermalConductivity
+
+"""
+    Thermopower{I}() <: AbstractQuantity
+    Thermopower(μ, ν)                             # each a Symbol
+
+The thermopower (Seebeck coefficient) tensor `S_μν` — the electric field
+generated per unit temperature gradient at zero current,
+`E_μ = S_μν ∂_ν T`.  Rank-2 in [`SpatialDirection`](@ref) space; fixed by
+the Mott formula and linked to the [`PeltierCoefficient`](@ref) by the
+Kelvin relation.
+"""
+struct Thermopower{I} <: AbstractQuantity
+    function Thermopower{I}() where {I}
+        return (
+            length(_axistuple(I)) == 2 ||
+                error("Thermopower is a rank-2 tensor S_μν (2 indices), got $(repr(I))");
+            new{I}()
+        )
+    end
+end
+Thermopower(idx::Symbol...) = Thermopower{idx}()
+tensor_rank(::Type{Thermopower{I}}) where {I} = length(I)
+index_spaces(::Type{Thermopower{I}}) where {I} = ntuple(_ -> SpatialDirection(), length(I))
+indices(::Type{Thermopower{I}}) where {I} = I
+export Thermopower
+
+"""
+    PeltierCoefficient{I}() <: AbstractQuantity
+    PeltierCoefficient(μ, ν)                      # each a Symbol
+
+The Peltier coefficient tensor `Π_μν` — the heat current carried per unit
+electric current, `j^Q_μ = Π_μν j_ν`.  Rank-2 in [`SpatialDirection`](@ref)
+space; the Kelvin (second Thomson) relation ties it to the
+[`Thermopower`](@ref), `Π = T S`.
+"""
+struct PeltierCoefficient{I} <: AbstractQuantity
+    function PeltierCoefficient{I}() where {I}
+        return (
+            length(_axistuple(I)) == 2 || error(
+                "PeltierCoefficient is a rank-2 tensor Π_μν (2 indices), got $(repr(I))"
+            );
+            new{I}()
+        )
+    end
+end
+PeltierCoefficient(idx::Symbol...) = PeltierCoefficient{idx}()
+tensor_rank(::Type{PeltierCoefficient{I}}) where {I} = length(I)
+function index_spaces(::Type{PeltierCoefficient{I}}) where {I}
+    return ntuple(_ -> SpatialDirection(), length(I))
+end
+indices(::Type{PeltierCoefficient{I}}) where {I} = I
+export PeltierCoefficient
+
 # ─── Dynamical & spectral quantities ────────────────────────────────────
 #
 # The frequency-resolved family.  These tags name the quantities; the

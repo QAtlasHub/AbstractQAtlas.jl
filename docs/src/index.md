@@ -140,7 +140,15 @@ Known inter-quantity relationships accumulate as first-class relations:
 (Mayer's `c_p − c_v = T v α²/κ_T`) for heat capacity; `MicrocanonicalTemperature`
 (`β = ∂S/∂E`, the microcanonical–canonical bridge) and `CanonicalTPQ`
 (`Z = D·⟨ψ₀|e^{−βH}|ψ₀⟩`, Sugiura–Shimizu) for statistical ensembles and
-thermal-pure-quantum estimators. References are DOI-verified in
+thermal-pure-quantum estimators.  The **transport** family
+([`Conductivity`](@ref) with its AC [`DynamicalConductivity`](@ref),
+[`ThermalConductivity`](@ref), [`Thermopower`](@ref),
+[`PeltierCoefficient`](@ref), [`DrudeWeight`](@ref), and the
+[`ElectricCurrent`](@ref) / [`HeatCurrent`](@ref)) carries
+`WiedemannFranz` (`κ = L₀σT`), the Mott `MottFormula`
+(`S = −(π²/3)T d ln σ/dε`), the Kelvin `KelvinRelation` (`Π = TS`),
+`OnsagerReciprocity` (`L_{μν} = L_{νμ}`), and the optical `OpticalSumRule`
+(`∫Re σ dω = πD + W_reg`).  References are DOI-verified in
 `docs/references.bib`.
 
 **Scope note.** The Berry curvature is the *imaginary* part of the

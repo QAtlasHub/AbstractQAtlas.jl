@@ -52,6 +52,21 @@ end
     @test_throws ErrorException Susceptibility{(:x, 2)}()        # non-symbol index
 end
 
+@testset "transport family tensor structure" begin
+    # currents are rank-1 vectors in SpatialDirection space
+    @test tensor_rank(ElectricCurrent()) == 1
+    @test tensor_rank(HeatCurrent()) == 1
+    @test index_spaces(HeatCurrent()) == (SpatialDirection(),)
+    # the transport coefficients are rank-2 tensors
+    for Q in (DrudeWeight, ThermalConductivity, Thermopower, PeltierCoefficient)
+        @test tensor_rank(Q(:x, :y)) == 2
+        @test index_spaces(Q(:x, :y)) == (SpatialDirection(), SpatialDirection())
+        @test indices(Q(:x, :y)) == (:x, :y)
+        @test_throws ErrorException Q(:x)          # rank-2: needs exactly 2 indices
+        @test_throws ErrorException Q(:x, :y, :z)
+    end
+end
+
 @testset "multi-time: frequency_arguments (dynamical nonlinear response)" begin
     # static χ⁽ⁿ⁾ = ∂ⁿM/∂hⁿ is the zero-frequency limit — no frequency args
     @test frequency_arguments(Susceptibility(:x, :y)) == 0
