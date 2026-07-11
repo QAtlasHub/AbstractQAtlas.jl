@@ -114,9 +114,4 @@ Chern number of the occupied bands.
 
 Variables (in units of `e²/h`): `σxy`, `C`.
 """
-struct TKNN <: AbstractRelation end
-export TKNN
-
-residual(::TKNN; σxy, C) = σxy - C
-solve(::TKNN, ::Val{:σxy}; C) = C
-solve(::TKNN, ::Val{:C}; σxy) = σxy
+@relation :topology TKNN(σxy, C) = σxy - C

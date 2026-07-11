@@ -29,26 +29,57 @@ independently of any model.  Expressing each one once, as a tested
 object, means downstream packages stop re-deriving them ad hoc in
 comments and per-model tests.
 
-## The three-verb interface
+## Declare once, derive everything
+
+A relation is written **exactly once** — one line, one mathematical
+statement:
+
+```julia
+@relation :scaling Rushbrooke(α, β, γ) = α + 2β + γ - 2
+```
+
+That single declaration yields the struct, the residual kernel, the
+`variables`/`domain` introspection traits, registry membership, and —
+with **no hand-written rearrangements** — `solve` for every variable the
+expression is affine in (three exact kernel probes; a non-affine
+variable is *refused*, never silently mis-solved).  The β-or-T keyword
+convention is normalized once, in the verb layer.
 
 ```julia
 using AbstractQAtlas
 using AbstractQAtlas: residual, check, solve
 
-# 2D Ising exponents are exact rationals — relations hold EXACTLY
-# (Rational in ⇒ Rational out; no silent float promotion):
+# Rational in ⇒ Rational out; exactly-known values satisfy EXACTLY:
 residual(Rushbrooke(); α=0//1, β=1//8, γ=7//4)   # 0//1
-solve(Widom(), Val(:γ); β=1//8, δ=15//1)          # 7//4
+solve(Widom(), Val(:δ); β=1//8, γ=7//4)           # 15//1 — derived, not hand-coded
 check(Fisher(); γ=7//4, ν=1//1, η=1//4)           # true
 
-# gate a whole exponent table at once:
-exponents_consistent((α=0//1, β=1//8, γ=7//4, δ=15//1, ν=1//1, η=1//4); d=2)
-
-# fluctuation–dissipation: solve() doubles as the estimator downstream
-# codes should use, so the formula lives in exactly one place:
-#   c_v = β² Var(E) / N
-solve(SpecificHeatFDT(), Val(:C); var_E=var_E, β=β, N=N)
+# fluctuation–dissipation: solve() doubles as the downstream estimator
+solve(SpecificHeatFDT(), Val(:C); var_E=var_E, T=T, N=N)   # c_v = β²Var(E)/N
 ```
+
+## Adopting from another package: one call
+
+A consumer never hand-lists relations.  Hand over a `NamedTuple` of
+whatever it measured or declares; every applicable relation is selected
+by its variables and checked:
+
+```julia
+# gate an exponent table (atlas registry, MC-extracted exponents, …):
+check_all((α=0//1, β=1//8, γ=7//4, δ=15//1, ν=1//1, η=1//4, d=2))   # true, exactly
+
+# cross-check measured thermodynamics, with per-relation diagnostics:
+relation_report((C=c, var_E=v, T=T, N=N); atol=tol)
+
+# discover what would be checked:
+applicable_relations((F=f, U=u, S=s, β=β))    # → [FreeEnergyLegendre()]
+```
+
+An empty match is `false`, never a silent green.  Pass `domain=` when a
+data set mixes families (physics overloads names: the exponent `β` vs
+the inverse temperature `β`).  Downstream packages declare their own
+relations with the same `@relation` macro — methods land on these
+generics, and the verbs and report machinery apply unchanged.
 
 Covered in v0.1:
 

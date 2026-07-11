@@ -19,34 +19,56 @@ statement true independently of any model.  Expressing each one once,
 as a tested object, means downstream packages stop re-deriving them ad
 hoc in comments and per-model tests.
 
-## The three-verb interface
+## Declare once, derive everything
 
-Every relation implements a uniform contract:
+A relation is written exactly once, with [`@relation`](@ref):
 
-- `residual(rel; vars...)` — signed violation; `0` ⇔ satisfied,
-- `check(rel; atol=0, vars...)` — `|residual| ≤ atol`,
-- `solve(rel, Val(:x); vars...)` — the value of `x` implied by the rest.
+```julia
+@relation :scaling Rushbrooke(α, β, γ) = α + 2β + γ - 2
+```
+
+One declaration yields the struct, the residual kernel, the
+[`variables`](@ref)/[`domain`](@ref) introspection traits, registry
+membership, and — with no hand-written rearrangements — [`solve`](@ref)
+for every variable the expression is affine in (a non-affine variable is
+*refused*, never silently mis-solved).
+
+The uniform verbs:
+
+- [`residual`](@ref)`(rel; vars...)` — signed violation; `0` ⇔ satisfied,
+- [`check`](@ref)`(rel; atol=0, vars...)` — `|residual| ≤ atol`,
+- [`solve`](@ref)`(rel, Val(:x); vars...)` — the value of `x` implied by the rest,
 
 with an **exact-arithmetic contract**: `Rational` in ⇒ `Rational` out,
 so exactly-known values satisfy their relations exactly, not merely to
-floating-point tolerance.
+floating-point tolerance.  Relations taking an inverse temperature
+accept `β` or `T` at every verb; normalization happens once, in the verb
+layer.
 
 ```julia
 using AbstractQAtlas
 using AbstractQAtlas: residual, check, solve
 
-# 2D Ising exponents are exact rationals — the relations hold EXACTLY:
-residual(Rushbrooke(); α=0//1, β=1//8, γ=7//4)   # 0//1
-solve(Widom(), Val(:γ); β=1//8, δ=15//1)          # 7//4
+residual(Rushbrooke(); α=0//1, β=1//8, γ=7//4)   # 0//1 — exact
+solve(Widom(), Val(:δ); β=1//8, γ=7//4)           # 15//1 — derived, not hand-coded
 check(Fisher(); γ=7//4, ν=1//1, η=1//4)           # true
-
-# gate a whole exponent table at once:
-exponents_consistent((α=0//1, β=1//8, γ=7//4, δ=15//1, ν=1//1, η=1//4); d=2)  # true
-
-# fluctuation–dissipation: solve() doubles as the estimator
-# c_v = β² Var(E) / N
-# solve(SpecificHeatFDT(), Val(:C); var_E=var_E, β=β, N=N)
 ```
+
+## Adopting from another package: one call
+
+A consumer never hand-lists relations — [`applicable_relations`](@ref)
+selects by variable names, [`relation_report`](@ref) evaluates and
+reports, [`check_all`](@ref) gates (an empty match is `false`, never a
+silent green):
+
+```julia
+check_all((α=0//1, β=1//8, γ=7//4, δ=15//1, ν=1//1, η=1//4, d=2))   # exponent table gate
+relation_report((C=c, var_E=v, T=T, N=N); atol=tol)                  # thermodynamics sweep
+```
+
+Pass `domain=` when a data set mixes families (physics overloads names:
+the exponent `β` vs the inverse temperature `β`).  Downstream packages
+declare their own relations with the same [`@relation`](@ref) macro.
 
 ## What is covered (v0.1)
 
