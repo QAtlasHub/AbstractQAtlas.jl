@@ -35,6 +35,12 @@ include("core/quantities.jl")
 include("core/universality.jl")
 include("core/distributions.jl")
 
+# structure — model-independent definitional correspondences between the
+# core quantities: transition classification and the critical
+# quantity⇄exponent map from which the scaling forms are derived.
+include("structure/transitions.jl")
+include("structure/criticality.jl")
+
 # relations — model-independent identities and forms
 include("relations/interface.jl")
 include("relations/scaling.jl")
@@ -43,6 +49,5 @@ include("relations/fundamental.jl")
 include("relations/statistics.jl")
 include("relations/wick.jl")
 include("relations/topology.jl")
-include("relations/universality_forms.jl")
 
 end # module AbstractQAtlas

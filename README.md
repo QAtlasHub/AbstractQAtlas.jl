@@ -19,15 +19,13 @@ In the spirit of `AbstractFFTs`: concrete atlases
 ([QAtlas.jl](https://github.com/sotashimozono/QAtlas.jl)) *implement*
 this package, never the reverse.
 
-| lives here | lives in the implementing atlas |
-|---|---|
-| type vocabulary — `AbstractQAtlasModel`, `AbstractQuantity` (+ hierarchy), `BoundaryCondition` (`Infinite`/`OBC`/`PBC`), the generic `fetch` verb, `Universality{C}` | concrete models and registered `fetch` methods |
-| generic **relations** — scaling laws, fluctuation–dissipation identities, Wick's theorem, topological invariants, FSS forms | reference **values** — critical temperatures, exact magnetizations, exponent tables |
+Three layers, each model-independent:
 
-A relation is an *identity among observables or exponents* — true
-independently of any model.  Expressing each one once, as a tested
-object, means downstream packages stop re-deriving them ad hoc in
-comments and per-model tests.
+- **`core/` — the nouns.** `AbstractQAtlasModel`, `AbstractQuantity` (+ hierarchy), `BoundaryCondition` (`Infinite`/`OBC`/`PBC`), the generic `fetch` verb, `Universality{C}`, the distribution vocabulary.
+- **`structure/` — the definitions.** The generic *correspondences* between quantities that hold by definition: which critical exponent governs which observable (`Susceptibility ↦ γ`, `SpontaneousMagnetization ↦ β`), the phase-transition classification (first-order / continuous / BKT). From these, the singular and finite-size-scaling forms are *derived* — `χ_max ∼ L^{γ/ν}` falls out of `critical_scaling(Susceptibility)`, it is not a number you pass by hand.
+- **`relations/` — the checks.** Identities among observables/exponents as first-class, tested objects (scaling laws, fluctuation–dissipation, Wick, topological invariants), verified against numbers via `residual`/`check`/`solve`.
+
+The implementing atlas holds the **values** — critical temperatures, exact magnetizations, exponent tables. This package holds only what is true *independently of any model*: the vocabulary, the definitional correspondences, and the identities they must satisfy.
 
 ## Declare once, derive everything
 
@@ -93,14 +91,26 @@ Covered in v0.1:
   (number-conserving Gaussian fermions)
 - **Topological invariants**: `winding_number` (1D two-band),
   `chern_number` (Fukui–Hatsugai–Suzuki lattice method), `TKNN`
-- **FSS forms**: `collapse_coordinates`, `fss_peak_scaling`,
-  `order_parameter_form`, `correlation_length_form`,
-  `susceptibility_form`
+
+**Structure — definitional correspondences** (the `structure/` layer):
+
+- **Critical correspondence**: `critical_scaling(quantity)` maps each
+  observable to the exponent governing its singularity
+  (`Susceptibility ↦ γ`, `SpontaneousMagnetization ↦ β`, `SpecificHeat
+  ↦ α`, `CorrelationLength ↦ ν`; plus `critical_isotherm ↦ δ`,
+  `correlation_decay ↦ η`). From it the forms are *derived*:
+  `singular_form`, `fss_size_exponent` (`χ_max ∼ L^{γ/ν}`),
+  `fss_peak`, `collapse_coordinates` — the exponent combination is
+  looked up, never hand-passed.
+- **Transition classification**: `FirstOrder` / `ContinuousTransition`
+  / `KosterlitzThouless` with `ehrenfest_order`, `has_order_parameter`,
+  `has_latent_heat`, `has_critical_exponents`.
 
 Every relation is tested against an *independent* expectation: exact
 rational exponent sets, derivative-vs-fluctuation cross-checks,
-Fock-space ED vs the Wick determinant, and known topological phase
-structures (SSH, QWZ).
+Fock-space ED vs the Wick determinant, known topological phase
+structures (SSH, QWZ), and the correspondence reproducing the exact
+textbook power laws.
 
 ## Installation
 
@@ -114,7 +124,8 @@ Pkg.add(url="https://github.com/sotashimozono/AbstractQAtlas.jl")
 - [QAtlas.jl](https://github.com/sotashimozono/QAtlas.jl) — declares the
   reference values; adopts this package as its type + relations base.
 - [ClassicalMonteCarlo.jl](https://github.com/sotashimozono/ClassicalMonteCarlo.jl)
-  — finite-size-scaling validation consumes the FSS forms and gates
+  — finite-size-scaling validation consumes the critical correspondence
+  and gates
   extracted exponents with the scaling relations.
 
 ## Roadmap

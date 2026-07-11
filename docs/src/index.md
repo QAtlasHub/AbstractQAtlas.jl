@@ -93,9 +93,25 @@ declare their own relations with the same [`@relation`](@ref) macro.
   fermion states; BdG/Pfaffian generalization tracked).
 - **Topological invariants** — [`winding_number`](@ref) (1D two-band),
   [`chern_number`](@ref) (Fukui–Hatsugai–Suzuki), [`TKNN`](@ref).
-- **FSS forms** — [`collapse_coordinates`](@ref),
-  [`fss_peak_scaling`](@ref) and friends: the vocabulary of a
-  finite-size-scaling analysis.
+
+## Structure — definitional correspondences
+
+The `structure/` layer holds the generic facts that are true *by
+definition*, from which the forms above are derived rather than
+restated:
+
+- **Critical correspondence** — [`critical_scaling`](@ref) maps each
+  observable to the exponent governing its singularity
+  (`Susceptibility ↦ γ`, `SpontaneousMagnetization ↦ β`, …). The
+  singular and finite-size forms follow: [`singular_form`](@ref),
+  [`fss_size_exponent`](@ref) (so `χ_max ∼ L^{γ/ν}` is *derived*, not a
+  hand-passed ratio), [`fss_peak`](@ref), [`collapse_coordinates`](@ref).
+  Field-driven and distance-driven laws: [`critical_isotherm`](@ref)
+  (δ), [`correlation_decay`](@ref) (η).
+- **Transition classification** — [`FirstOrder`](@ref) /
+  [`ContinuousTransition`](@ref) / [`KosterlitzThouless`](@ref), each
+  carrying [`ehrenfest_order`](@ref), [`has_order_parameter`](@ref),
+  [`has_latent_heat`](@ref), [`has_critical_exponents`](@ref).
 
 ## API reference
 

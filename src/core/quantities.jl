@@ -245,6 +245,37 @@ struct SusceptibilityZZ <: AbstractSusceptibility end
 component(::Type{SusceptibilityZZ}) = :zz
 export SusceptibilityZZ
 
+# ─── Two-point correlations ─────────────────────────────────────────────
+
+"""
+    XXCorrelation() <: AbstractTwoPointCorrelation
+
+Two-point correlation `⟨S^x_i S^x_j⟩` (connected or full per the
+implementing atlas).  At criticality its decay is governed by the
+anomalous dimension η — see the `correlation_decay` correspondence.
+"""
+struct XXCorrelation <: AbstractTwoPointCorrelation end
+component(::Type{XXCorrelation}) = :xx
+export XXCorrelation
+
+"""
+    YYCorrelation() <: AbstractTwoPointCorrelation
+
+Two-point correlation `⟨S^y_i S^y_j⟩`.
+"""
+struct YYCorrelation <: AbstractTwoPointCorrelation end
+component(::Type{YYCorrelation}) = :yy
+export YYCorrelation
+
+"""
+    ZZCorrelation() <: AbstractTwoPointCorrelation
+
+Two-point correlation `⟨S^z_i S^z_j⟩`.
+"""
+struct ZZCorrelation <: AbstractTwoPointCorrelation end
+component(::Type{ZZCorrelation}) = :zz
+export ZZCorrelation
+
 # ─── Criticality ────────────────────────────────────────────────────────
 
 """
