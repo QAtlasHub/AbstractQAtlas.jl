@@ -6,13 +6,17 @@
 # Thomson) relation, Onsager reciprocity, and the optical (Drude/regular)
 # sum rule.  Domain tag :transport throughout.
 #
-# Natural units (k_B = e = 1) as elsewhere in the package; the Sommerfeld
-# constants are carried as supplied values (e.g. the Lorenz number `L0`)
-# so the caller checks a computed coefficient against the identity.
+# Natural units (k_B = 1) as elsewhere in the package; Sommerfeld
+# constants are carried as supplied values (e.g. the Lorenz number `L0`).
+# The elementary charge `e` is kept as an explicit variable in the
+# carrier / Hall / Drude relations, where it clarifies the identity (pass
+# `e = 1` for natural units).
 #
 # References (doiget-verified, docs/references.bib): Onsager, Phys. Rev.
 # 37, 405 (1931) and 38, 2265 (1931); Cutler & Mott, Phys. Rev. 181, 1336
-# (1969); Scalapino, White & Zhang, Phys. Rev. B 47, 7995 (1993).
+# (1969); Scalapino, White & Zhang, Phys. Rev. B 47, 7995 (1993); Drude,
+# Ann. Phys. 306, 566 (1900); Einstein, Ann. Phys. 322, 549 (1905); Hall,
+# Am. J. Math. 2, 287 (1879).
 
 """
     WiedemannFranz <: AbstractRelation
@@ -114,3 +118,74 @@ the white Nyquist noise `S^j = 2 T Re σ` (`ω coth(βω/2) → 2/β`).
 Variables: `S_j` = `S^j(ω)`, `Reσ` = `Re σ(ω)`, `ω`, `β` (or `T`).
 """
 @relation :transport CurrentNoiseFDT(S_j, Reσ, ω, β) = S_j - ω * coth(β * ω / 2) * Reσ
+
+"""
+    MobilityConductivity <: AbstractRelation
+
+The Drude relation between conductivity, carrier density and mobility,
+
+`σ = n e μ`,
+
+the current-channel definition of the [`Mobility`](@ref) `μ`
+([`CarrierDensity`](@ref) `n`, charge `e`).
+
+Variables: `σ`, `n`, `e`, `μ`.
+"""
+@relation :transport MobilityConductivity(σ, n, e, μ) = σ - n * e * μ
+
+"""
+    DrudeMobility <: AbstractRelation
+
+The Drude mobility from the transport scattering time and effective mass
+(Drude, Ann. Phys. 306, 566 (1900)),
+
+`μ = e τ / m`,
+
+([`ScatteringTime`](@ref) `τ`, [`EffectiveMass`](@ref) `m`).  Composed
+with [`MobilityConductivity`](@ref) it gives `σ = n e² τ / m`.
+
+Variables: `μ`, `e`, `τ`, `m`.
+"""
+@relation :transport DrudeMobility(μ, e, τ, m) = μ - e * τ / m
+
+"""
+    EinsteinRelation <: AbstractRelation
+
+The Einstein (Einstein–Smoluchowski) relation between mobility and the
+diffusion constant (Einstein, Ann. Phys. 322, 549 (1905)),
+
+`μ = e D / k_B T = e D β`,
+
+the fluctuation–dissipation link for transport ([`DiffusionConstant`](@ref)
+`D`).  With [`DrudeMobility`](@ref) it fixes `D = k_B T τ / m`.
+
+Variables: `μ`, `e`, `D`, and `β` (or `T`).
+"""
+@relation :transport EinsteinRelation(μ, e, D, β) = μ - e * D * β
+
+"""
+    SingleBandHall <: AbstractRelation
+
+The single-band Hall coefficient (Hall, Am. J. Math. 2, 287 (1879)),
+
+`R_H = 1 / (n e)`,
+
+fixing the [`HallCoefficient`](@ref) `R_H` (and its sign) from the carrier
+density and charge (`R_H·n·e = 1`; the sign of `e` gives the carrier sign).
+
+Variables: `R_H`, `n`, `e`.
+"""
+@relation :transport SingleBandHall(R_H, n, e) = R_H * n * e - 1
+
+"""
+    HallAngle <: AbstractRelation
+
+The Hall angle from the conductivity tensor,
+
+`tan θ_H = σ_xy / σ_xx`  (`= ω_c τ` in the Drude picture),
+
+the ratio of the transverse (Hall) to longitudinal conductivity.
+
+Variables: `tanθ_H`, `σxy`, `σxx`.
+"""
+@relation :transport HallAngle(tanθ_H, σxy, σxx) = tanθ_H - σxy / σxx

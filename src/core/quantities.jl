@@ -624,6 +624,64 @@ end
 indices(::Type{PeltierCoefficient{I}}) where {I} = I
 export PeltierCoefficient
 
+"""
+    CarrierDensity() <: AbstractQuantity
+
+The charge-carrier number density `n` — sets the electrical conductivity
+through the mobility (`σ = n e μ`) and the Hall coefficient
+(`R_H = 1/n e`).
+"""
+struct CarrierDensity <: AbstractQuantity end
+export CarrierDensity
+
+"""
+    Mobility() <: AbstractQuantity
+
+The carrier mobility `μ = v_drift / E` — the drift response to a field;
+`μ = e τ / m` in the Drude picture, and `μ = e D / k_B T` by the Einstein
+relation.
+"""
+struct Mobility <: AbstractQuantity end
+export Mobility
+
+"""
+    ScatteringTime() <: AbstractQuantity
+
+The transport (momentum-relaxation) time `τ` — the Drude scattering time
+setting the mobility `μ = e τ / m`.
+"""
+struct ScatteringTime <: AbstractQuantity end
+export ScatteringTime
+
+"""
+    EffectiveMass() <: AbstractQuantity
+
+The band effective mass `m*` — the inertial mass entering the Drude
+mobility `μ = e τ / m*`.
+"""
+struct EffectiveMass <: AbstractQuantity end
+export EffectiveMass
+
+"""
+    DiffusionConstant() <: AbstractQuantity
+
+The (charge / particle) diffusion constant `D` — tied to the mobility by
+the Einstein relation `μ = e D / k_B T` and to the conductivity by
+`σ = e² D N(ε_F)`.
+"""
+struct DiffusionConstant <: AbstractQuantity end
+export DiffusionConstant
+
+"""
+    HallCoefficient() <: AbstractQuantity
+
+The Hall coefficient `R_H = E_y / (j_x B_z)` — for a single carrier band
+`R_H = 1/(n e)`, fixing the carrier density and sign from the transverse
+(Hall) voltage.
+"""
+struct HallCoefficient <: AbstractQuantity end
+export HallCoefficient
+
 # ─── Dynamical & spectral quantities ────────────────────────────────────
 #
 # The frequency-resolved family.  These tags name the quantities; the

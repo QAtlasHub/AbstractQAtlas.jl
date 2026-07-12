@@ -2,7 +2,7 @@
 # values and cross-relation consistency.
 
 using AbstractQAtlas
-using AbstractQAtlas: check, solve, residual, variables, domain
+using AbstractQAtlas: check, solve, residual, variables, domain, tensor_rank
 
 @testset "Wiedemann–Franz κ = L₀ σ T" begin
     L0 = π^2 / 3                       # Sommerfeld Lorenz number (k_B = e = 1)
@@ -74,4 +74,57 @@ end
     @test variables(WiedemannFranz()) == (:κ, :σ, :T, :L0)
     @test variables(MottFormula()) == (:S, :dlnσ_dε, :T)
     @test variables(KelvinRelation()) == (:Π, :S, :T)
+end
+
+@testset "carrier transport: mobility / Drude / Einstein / Hall" begin
+    e = 1.0                                   # natural units
+    n, μ = 3.0, 0.4
+    # σ = n e μ
+    σ = n * e * μ
+    @test check(MobilityConductivity(); σ=σ, n=n, e=e, μ=μ, atol=1e-12)
+    @test solve(MobilityConductivity(), Val(:μ); σ=σ, n=n, e=e) ≈ μ
+
+    # Drude mobility μ = e τ / m
+    τ, m = 0.8, 2.0
+    μ_drude = e * τ / m
+    @test check(DrudeMobility(); μ=μ_drude, e=e, τ=τ, m=m, atol=1e-12)
+
+    # CROSS-RELATION: MobilityConductivity ∘ DrudeMobility ⇒ σ = n e² τ / m
+    σ_drude = solve(MobilityConductivity(), Val(:σ); n=n, e=e, μ=μ_drude)
+    @test σ_drude ≈ n * e^2 * τ / m atol = 1e-12
+
+    # Einstein relation μ = e D β, with the β↔T convention
+    D, β = 0.6, 1.3
+    μ_ein = e * D * β
+    @test check(EinsteinRelation(); μ=μ_ein, e=e, D=D, β=β, atol=1e-12)
+    @test solve(EinsteinRelation(), Val(:μ); e=e, D=D, T=1 / β) ≈ μ_ein
+    # CROSS-RELATION: Einstein + Drude ⇒ D = k_B T τ / m  (= τ/(mβ))
+    D_from = solve(EinsteinRelation(), Val(:D); μ=μ_drude, e=e, β=β)
+    @test D_from ≈ τ / (m * β) atol = 1e-12
+
+    # single-band Hall coefficient R_H = 1/(n e)
+    @test check(SingleBandHall(); R_H=1 / (n * e), n=n, e=e, atol=1e-12)
+    @test solve(SingleBandHall(), Val(:R_H); n=n, e=e) ≈ 1 / (n * e)
+    @test !check(SingleBandHall(); R_H=2 / (n * e), n=n, e=e, atol=1e-9)
+
+    # Hall angle tan θ_H = σ_xy/σ_xx
+    @test check(HallAngle(); tanθ_H=0.3 / 2.0, σxy=0.3, σxx=2.0, atol=1e-12)
+    @test solve(HallAngle(), Val(:tanθ_H); σxy=0.3, σxx=2.0) ≈ 0.15
+end
+
+@testset "carrier-transport wiring" begin
+    @test domain(MobilityConductivity()) == :transport
+    @test domain(SingleBandHall()) == :transport
+    @test variables(EinsteinRelation()) == (:μ, :e, :D, :β)
+    # the new scalar quantities are rank-0 observables
+    for Q in (
+        CarrierDensity,
+        Mobility,
+        ScatteringTime,
+        EffectiveMass,
+        DiffusionConstant,
+        HallCoefficient,
+    )
+        @test tensor_rank(Q()) == 0
+    end
 end
