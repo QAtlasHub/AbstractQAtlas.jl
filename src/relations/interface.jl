@@ -132,6 +132,38 @@ check(rel::AbstractRelation; atol=0, kwargs...) = abs(residual(rel; kwargs...)) 
 export check
 
 """
+    AbstractInequality <: AbstractRelation
+
+A relation asserting an **inequality** rather than an equality.  Its
+[`residual`](@ref) is the **slack in the `≥ 0` form**: the relation holds
+iff `residual ≥ 0` (within tolerance), so [`check`](@ref) tests that
+direction instead of `abs(residual) ≤ atol`.  [`solve`](@ref) still
+returns the **saturation** value — where the slack vanishes, i.e. the
+tight bound (e.g. `solve(Subadditivity(), Val(:S_AB))` gives the maximum
+`S_A + S_B`).  Declared with [`@inequality`](@ref).
+"""
+abstract type AbstractInequality <: AbstractRelation end
+export AbstractInequality
+
+# an inequality holds when its slack is non-negative (float noise: ≥ −atol)
+check(rel::AbstractInequality; atol=0, kwargs...) = residual(rel; kwargs...) >= -atol
+
+"""
+    slack(ineq::AbstractInequality; vars...) -> Number
+
+The non-negativity margin of an inequality — its [`residual`](@ref): how
+far from saturation, negative iff the inequality is violated.
+"""
+slack(rel::AbstractInequality; kwargs...) = residual(rel; kwargs...)
+export slack
+
+# whether a relation passes on the given (already-normalized) data — the
+# polymorphic per-kind test used by `relation_report`/`check_all`, so an
+# `AbstractInequality` is judged by its `≥ 0` direction, not `abs ≤ atol`.
+_passes(rel::AbstractRelation, r, atol) = abs(r) <= atol
+_passes(rel::AbstractInequality, r, atol) = r >= -atol
+
+"""
     solve(rel::AbstractRelation, ::Val{x}; vars...) -> Number
 
 The value of variable `x` implied by the relation and the remaining
@@ -207,13 +239,15 @@ module `__init__` if you need registry visibility across sessions.
 @relation :scaling Rushbrooke(α, β, γ) = α + 2β + γ - 2
 ```
 """
-macro relation(dom, defn)
-    Meta.isexpr(defn, :(=), 2) ||
-        error("@relation expects `Name(vars...) = expr`, got $defn")
+# Shared code generation for `@relation` (equality) and `@inequality`
+# (≥ 0 slack).  `super` is the supertype the generated struct subtypes,
+# `what` names the macro for error messages.
+function _build_relation(dom, defn, super::Symbol, what::String)
+    Meta.isexpr(defn, :(=), 2) || error("$what expects `Name(vars...) = expr`, got $defn")
     call, body = defn.args
-    Meta.isexpr(call, :call) || error("@relation: left side must be a call, got $call")
+    Meta.isexpr(call, :call) || error("$what: left side must be a call, got $call")
     name = call.args[1]
-    name isa Symbol || error("@relation: relation name must be a Symbol")
+    name isa Symbol || error("$what: relation name must be a Symbol")
     required = Symbol[]
     kwargsig = Any[]
     for p in call.args[2:end]
@@ -223,7 +257,7 @@ macro relation(dom, defn)
         elseif Meta.isexpr(p, :(=), 2) || Meta.isexpr(p, :kw, 2)
             push!(kwargsig, Expr(:kw, esc(p.args[1]), esc(p.args[2])))
         else
-            error("@relation: cannot parse parameter $p")
+            error("$what: cannot parse parameter $p")
         end
     end
     # kernels slurp extra keywords so relation_report can splat full data
@@ -231,7 +265,7 @@ macro relation(dom, defn)
     ename = esc(name)
     # NB: every generated method is module-QUALIFIED — short-form
     # definitions inside a macro quote are otherwise hygienized into
-    # gensym locals, and qualification also makes @relation usable from
+    # gensym locals, and qualification also makes the macros usable from
     # downstream modules (methods land on OUR generics, on THEIR type —
     # the intended extension pattern, not piracy).
     kernel_sig = Expr(
@@ -240,8 +274,9 @@ macro relation(dom, defn)
     kernel = Expr(:function, kernel_sig, esc(body))
     reqtuple = Expr(:tuple, (QuoteNode(s) for s in required)...)
     domval = QuoteNode(dom isa QuoteNode ? dom.value : dom)
+    supertype = :(AbstractQAtlas.$super)
     return quote
-        Core.@__doc__ struct $ename <: AbstractQAtlas.AbstractRelation end
+        Core.@__doc__ struct $ename <: $supertype end
         $kernel
         AbstractQAtlas.variables(::$ename) = $reqtuple
         AbstractQAtlas.domain(::$ename) = $domval
@@ -250,7 +285,28 @@ macro relation(dom, defn)
         $ename
     end
 end
+
+macro relation(dom, defn)
+    return _build_relation(dom, defn, :AbstractRelation, "@relation")
+end
 export var"@relation"
+
+"""
+    @inequality :domain Name(x, y, z, opt=default) = expr
+
+Declare an INEQUALITY relation, `expr ≥ 0`.  Identical to
+[`@relation`](@ref) but the generated struct subtypes
+[`AbstractInequality`](@ref): `residual` returns the slack `expr`,
+`check` tests `expr ≥ −atol`, and `solve` returns the saturation value.
+
+```julia
+@inequality :entanglement Subadditivity(S_A, S_B, S_AB) = S_A + S_B - S_AB
+```
+"""
+macro inequality(dom, defn)
+    return _build_relation(dom, defn, :AbstractInequality, "@inequality")
+end
+export var"@inequality"
 
 # ─── Adoption surface: one-call verification over a data set ────────────
 
@@ -297,7 +353,7 @@ function relation_report(data::NamedTuple; atol=0, domain::Union{Nothing,Symbol}
     out = @NamedTuple{relation::AbstractRelation, residual::Number, pass::Bool}[]
     for rel in applicable_relations(d; domain=domain)
         r = _residual(rel; d...)
-        push!(out, (relation=rel, residual=r, pass=abs(r) <= atol))
+        push!(out, (relation=rel, residual=r, pass=_passes(rel, r, atol)))
     end
     return out
 end

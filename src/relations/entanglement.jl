@@ -54,3 +54,80 @@ function page_average_entropy(dA::Integer, dB::Integer)
     return harmonic - (dA - 1) / (2 * dB)
 end
 export page_average_entropy
+
+# ─── Entropy / quantum-information inequalities (≥ 0 slack; @inequality) ──
+#
+# The bound-type constraints a many-body entanglement calculation must
+# satisfy — the first users of the AbstractInequality kind.  Each holds
+# iff its slack `≥ 0`; `check` tests that direction, `solve` gives the
+# saturation (tight-bound) value.
+
+"""
+    EntropyNonNegativity <: AbstractInequality
+
+The von Neumann / Rényi entanglement entropy is non-negative, `S ≥ 0`
+(slack `S`).  Saturated by a pure (unentangled) subsystem.
+
+Variables: `S`.
+"""
+@inequality :entanglement EntropyNonNegativity(S) = S
+
+"""
+    MaxEntropyBound <: AbstractInequality
+
+The entropy of a subsystem cannot exceed the log of its Hilbert-space
+dimension, `S ≤ ln d` (slack `ln d − S`).  Saturated by the maximally
+mixed state; the gap `ln d − S` is the maximal-entanglement deficit.
+
+Variables: `S`, `log_d` = `ln d`.
+"""
+@inequality :entanglement MaxEntropyBound(S, log_d) = log_d - S
+
+"""
+    Subadditivity <: AbstractInequality
+
+Subadditivity of the von Neumann entropy, `S(AB) ≤ S(A) + S(B)` (slack
+`S_A + S_B − S_AB` — the mutual information `I(A:B) ≥ 0`; Araki & Lieb,
+Commun. Math. Phys. 18, 160 (1970)).  Saturated by a product state
+`ρ_AB = ρ_A ⊗ ρ_B`.
+
+Variables: `S_A`, `S_B`, `S_AB`.
+"""
+@inequality :entanglement Subadditivity(S_A, S_B, S_AB) = S_A + S_B - S_AB
+
+"""
+    ArakiLieb <: AbstractInequality
+
+The Araki–Lieb triangle inequality, `S(AB) ≥ |S(A) − S(B)|` (slack
+`S_AB − |S_A − S_B|`; Araki & Lieb, Commun. Math. Phys. 18, 160 (1970)) —
+the lower companion of [`Subadditivity`](@ref).  Saturated when one
+subsystem purifies the other.
+
+Variables: `S_AB`, `S_A`, `S_B`.
+"""
+@inequality :entanglement ArakiLieb(S_AB, S_A, S_B) = S_AB - abs(S_A - S_B)
+
+"""
+    StrongSubadditivity <: AbstractInequality
+
+Strong subadditivity of the quantum entropy,
+`S(ABC) + S(B) ≤ S(AB) + S(BC)` (slack `S_AB + S_BC − S_ABC − S_B`; Lieb
+& Ruskai, J. Math. Phys. 14, 1938 (1973)) — equivalently the conditional
+mutual information `I(A:C|B) ≥ 0`.  The deepest entropy inequality; the
+monogamy backbone of quantum information.
+
+Variables: `S_AB`, `S_BC`, `S_ABC`, `S_B`.
+"""
+@inequality :entanglement StrongSubadditivity(S_AB, S_BC, S_ABC, S_B) =
+    S_AB + S_BC - S_ABC - S_B
+
+"""
+    RenyiMonotonicity <: AbstractInequality
+
+The Rényi entropy `S_α` is non-increasing in the order `α`: for
+`α_low < α_high`, `S_{α_low} ≥ S_{α_high}` (slack `S_low − S_high`).  In
+particular `S_0 ≥ S_1 (von Neumann) ≥ S_2 ≥ … ≥ S_∞`.
+
+Variables: `S_low` = `S_{α_low}`, `S_high` = `S_{α_high}` (with `α_low < α_high`).
+"""
+@inequality :entanglement RenyiMonotonicity(S_low, S_high) = S_low - S_high

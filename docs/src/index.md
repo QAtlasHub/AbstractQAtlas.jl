@@ -54,6 +54,20 @@ solve(Widom(), Val(:δ); β=1//8, γ=7//4)           # 15//1 — derived, not ha
 check(Fisher(); γ=7//4, ν=1//1, η=1//4)           # true
 ```
 
+**Equalities and inequalities.** Most relations are equalities
+(`check` ≡ `abs(residual) ≤ atol`); bound-type constraints are declared
+with [`@inequality`](@ref) as [`AbstractInequality`](@ref), whose residual
+is the `≥ 0` **slack** — `check` tests that direction, [`slack`](@ref)
+reports the margin, and `solve` returns the **saturation** (tight-bound)
+value.  The quantum-information entropy inequalities are the first users:
+`EntropyNonNegativity`, `MaxEntropyBound` (`S ≤ ln d`), `Subadditivity`,
+`ArakiLieb`, `StrongSubadditivity` (Lieb–Ruskai), `RenyiMonotonicity`.
+
+```julia
+check(StrongSubadditivity(); S_AB, S_BC, S_ABC, S_B)   # S_AB + S_BC ≥ S_ABC + S_B ?
+solve(Subadditivity(), Val(:S_AB); S_A, S_B)           # the tight bound S_A + S_B
+```
+
 ## Adopting from another package: one call
 
 A consumer never hand-lists relations — [`applicable_relations`](@ref)
