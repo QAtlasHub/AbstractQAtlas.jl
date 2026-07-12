@@ -14,7 +14,7 @@ AbstractQAtlas.domain(::_NonAffineDemo) = :test_only
 
 @testset "registry + traits" begin
     rels = all_relations()
-    @test length(rels) == 83          # +1 entanglement (Peschel free-fermion entanglement spectrum)
+    @test length(rels) == 85          # +2 wick (Bloch–De Dominicis Fermi/Bose thermal contractions)
     @test allunique(typeof.(rels))
     @test length(all_relations(; domain=:scaling)) == 5
     @test length(all_relations(; domain=:thermodynamic)) == 12
@@ -25,6 +25,7 @@ AbstractQAtlas.domain(::_NonAffineDemo) = :test_only
     @test length(all_relations(; domain=:quantum)) == 6
     @test length(all_relations(; domain=:ensemble)) == 2
     @test length(all_relations(; domain=:entanglement)) == 17
+    @test length(all_relations(; domain=:wick)) == 2
     @test length(all_relations(; domain=:cft)) == 2
     @test variables(Widom()) == (:β, :γ, :δ)
     @test variables(SpecificHeatFDT()) == (:C, :var_E, :β)   # N optional, not listed

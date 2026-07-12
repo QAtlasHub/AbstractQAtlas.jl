@@ -73,3 +73,44 @@ end
     G = [0.5 0.0; 0.0 0.5]
     @test_throws ErrorException wick_contraction(G, [1, 2], [1])
 end
+
+@testset "anomalous / BdG Wick: the Pfaffian" begin
+    using AbstractQAtlas: wick_pfaffian
+    using LinearAlgebra: det
+    # a 4×4 antisymmetric matrix: Pf = A12 A34 − A13 A24 + A14 A23 (definition)
+    a12, a13, a14, a23, a24, a34 = 0.7, -0.3, 0.9, 0.4, -0.6, 0.2
+    A = [0 a12 a13 a14; -a12 0 a23 a24; -a13 -a23 0 a34; -a14 -a24 -a34 0]
+    @test wick_pfaffian(A) ≈ a12 * a34 - a13 * a24 + a14 * a23 atol = 1e-12
+    # the defining identity Pf(A)² = det(A) (independent construction)
+    @test wick_pfaffian(A)^2 ≈ det(A) atol = 1e-10
+    # a larger random antisymmetric 6×6
+    R = [i < j ? (0.13 * i - 0.07 * j + 0.5) : 0.0 for i in 1:6, j in 1:6]
+    Aanti = R - R'
+    @test wick_pfaffian(Aanti)^2 ≈ det(Aanti) atol = 1e-8
+    # odd dimension ⇒ Pfaffian 0
+    @test wick_pfaffian(zeros(3, 3)) == 0.0
+end
+
+@testset "bosonic Wick: the permanent, contrasted with the fermion determinant" begin
+    using AbstractQAtlas: wick_permanent, wick_contraction
+    n = 0.8
+    G = fill(n, 1, 1)                       # single mode, ⟨a†a⟩ = n
+    # bosons: ⟨a†a†aa⟩ = perm = 2n² = ⟨n(n−1)⟩ (super-Poissonian Gaussian boson)
+    @test wick_permanent(G, [1, 1], [1, 1]) ≈ 2 * n^2 atol = 1e-12
+    # fermions: ⟨c†c†cc⟩ = det = 0 (Pauli exclusion) — same indices, opposite statistics
+    @test wick_contraction(G, [1, 1], [1, 1]) ≈ 0.0 atol = 1e-14
+    # 2×2 permanent perm([[a,b],[c,d]]) = ad + bc
+    M = [0.4 0.6; 0.3 0.9]
+    @test wick_permanent(M, [1, 2], [1, 2]) ≈ 0.4 * 0.9 + 0.6 * 0.3 atol = 1e-12
+    @test_throws ErrorException wick_permanent(M, [1, 2], [1])
+end
+
+@testset "Bloch–De Dominicis thermal contractions (Fermi / Bose occupations)" begin
+    ε, β = 0.7, 1.5
+    @test check(FermiDiracContraction(); n=1 / (exp(β * ε) + 1), ε=ε, β=β, atol=1e-12)
+    @test check(BoseEinsteinContraction(); n=1 / (exp(β * ε) - 1), ε=ε, β=β, atol=1e-12)
+    # β↔T convention, and the physical limits
+    @test solve(FermiDiracContraction(), Val(:n); ε=ε, T=1 / β) ≈ 1 / (exp(β * ε) + 1)
+    @test solve(FermiDiracContraction(), Val(:n); ε=0.0, β=β) ≈ 0.5      # ε=0 ⇒ half-filling
+    @test solve(FermiDiracContraction(), Val(:n); ε=100.0, β=β) ≈ 0.0 atol = 1e-9  # empty high above E_F
+end
