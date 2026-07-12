@@ -209,6 +209,31 @@ restated:
   (`θ_NMR = 2Δ_op − 1`). Transform / BZ-sum / limit edges have no
   pointwise form — their *evaluation* is the functional sibling's job.
 
+## The scope line: definitional vs functional
+
+Where does a dynamical quantity's *value* come from — this package or the
+future ParaLA-based functional sibling? [`operation_scope`](@ref) draws
+the line (issue #14):
+
+- **`:definitional`** (here) — a **pointwise** identity relating quantity
+  *values* at a single `(q, ω)`, or a *supplied* scalar (an integral, a
+  derivative): `Dyson`, `SpectralFromGreens`, the sum rules,
+  `KramersKronigReal`/`Imag`, every `@relation`. This package holds these
+  as stdlib-only tested identities.
+- **`:functional`** (sibling) — a **transform / sum / limit** that
+  represents a quantity as a *function* and acts on it globally: the BZ
+  average, the space-time Fourier transform, an `ω → 0` limit, the Kubo
+  response. Only the structural edge lives here; the numerical evaluation
+  is deferred.
+
+The **grey zone** (cf. #6) resolves by the *supplied-value* convention: a
+sum rule or Kramers–Kronig relation is `:definitional` — the relation
+*checks a supplied number* here, while *computing* that number from the
+function (the principal-value Hilbert transform, the spectral integral) is
+`:functional`, the sibling's job. So the boundary is exactly
+[`origin_relation`](@ref)'s split: definitional ⟺ a pointwise `@relation`
+exists.
+
 ## API reference
 
 ```@autodocs

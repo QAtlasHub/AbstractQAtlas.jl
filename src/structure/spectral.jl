@@ -124,6 +124,35 @@ origin_relation(::Val) = nothing
 export origin_relation
 
 """
+    operation_scope(via::Symbol) -> Symbol
+
+Which layer owns the dynamical-graph operation `via` — the **scope line**
+of issue #14:
+
+- `:definitional` — a **pointwise** identity relating quantity *values* at
+  a single `(q, ω)` (or a supplied scalar: an integral, a derivative). It
+  lives HERE, in this stdlib-only definitional package, as an
+  [`@relation`](@ref) (`:dyson`, `:neg_im_over_pi`; and every
+  supplied-integral / supplied-derivative relation such as the sum rules
+  and Kramers–Kronig).
+- `:functional` — a **transform / sum / limit** that must represent a
+  quantity as a FUNCTION and act on it globally (a BZ average, a
+  space-time Fourier transform, an ω → 0 limit, the Kubo response). Its
+  *evaluation* belongs to the future ParaLA-based functional sibling;
+  only its structural edge lives here (`spectral_origin`).
+
+The line is exactly `origin_relation`'s split: an operation is
+`:definitional` iff it has a pointwise `@relation`.  Grey zone (issue #14,
+cf. #6): a sum rule is `:definitional` — the RELATION checks a supplied
+number here, while COMPUTING that number from the function is
+`:functional` (the sibling's job).
+"""
+function operation_scope(via::Symbol)
+    return origin_relation(via) === nothing ? :functional : :definitional
+end
+export operation_scope
+
+"""
     spectral_chain(quantity) -> Vector{Any}
 
 The dynamical-graph path from `quantity` back to its source, as the list

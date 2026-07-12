@@ -88,3 +88,36 @@ end
         @test rel in all_relations(; domain=:spectral)
     end
 end
+
+@testset "operation_scope: the definitional/functional line (issue #14)" begin
+    using AbstractQAtlas: operation_scope
+    # pointwise identities are definitional (owned here)
+    @test operation_scope(:dyson) == :definitional
+    @test operation_scope(:neg_im_over_pi) == :definitional
+    # transforms / sums / limits are functional (the sibling evaluates them)
+    for via in (:bz_average, :spacetime_fourier, :low_frequency_limit, :kubo)
+        @test operation_scope(via) == :functional
+    end
+    # INVARIANT: the scope line is exactly origin_relation's split
+    for via in (
+        :dyson,
+        :neg_im_over_pi,
+        :bz_average,
+        :spacetime_fourier,
+        :low_frequency_limit,
+        :kubo,
+    )
+        @test (operation_scope(via) == :definitional) == (origin_relation(via) !== nothing)
+    end
+    # every functional edge in the graph has no pointwise relation, and vice versa
+    for q in (
+        RetardedGreensFunction(),
+        SpectralFunction(),
+        DensityOfStates(),
+        DynamicalStructureFactor(),
+        DynamicalSusceptibility(:x, :y),
+    )
+        via = spectral_origin(q).via
+        @test (operation_scope(via) == :functional) == (origin_relation(via) === nothing)
+    end
+end
