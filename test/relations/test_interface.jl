@@ -14,7 +14,7 @@ AbstractQAtlas.domain(::_NonAffineDemo) = :test_only
 
 @testset "registry + traits" begin
     rels = all_relations()
-    @test length(rels) == 79          # +5 entanglement (Rényi/Tsallis moment, mutual & conditional info, Klein non-neg)
+    @test length(rels) == 82          # +3 entanglement (measurement-entropy ×2, Markov/conditional-mutual-info)
     @test allunique(typeof.(rels))
     @test length(all_relations(; domain=:scaling)) == 5
     @test length(all_relations(; domain=:thermodynamic)) == 12
@@ -24,7 +24,7 @@ AbstractQAtlas.domain(::_NonAffineDemo) = :test_only
     @test length(all_relations(; domain=:transport)) == 20
     @test length(all_relations(; domain=:quantum)) == 6
     @test length(all_relations(; domain=:ensemble)) == 2
-    @test length(all_relations(; domain=:entanglement)) == 13
+    @test length(all_relations(; domain=:entanglement)) == 16
     @test length(all_relations(; domain=:cft)) == 2
     @test variables(Widom()) == (:β, :γ, :δ)
     @test variables(SpecificHeatFDT()) == (:C, :var_E, :β)   # N optional, not listed

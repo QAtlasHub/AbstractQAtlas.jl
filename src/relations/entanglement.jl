@@ -206,3 +206,50 @@ subadditivity and the second law (Lindblad, Commun. Math. Phys. 40, 147
 Variables: `S_rel` = `S(ρ‖σ)`.
 """
 @inequality :entanglement RelativeEntropyNonNegativity(S_rel) = S_rel
+
+# ─── Measurement and quantum-Markov entropies ───────────────────────────
+
+"""
+    MeasurementEntropyIncrease <: AbstractInequality
+
+A projective measurement (dephasing) does not decrease the entropy,
+
+`S(Δρ) ≥ S(ρ)`
+
+(slack `S_meas − S`; [`MeasurementEntropy`](@ref)).  Saturated iff `ρ` is
+already diagonal in the measurement basis (`Δρ = ρ`).
+
+Variables: `S_meas` = `S(Δρ)`, `S` = `S(ρ)`.
+"""
+@inequality :entanglement MeasurementEntropyIncrease(S_meas, S) = S_meas - S
+
+"""
+    MeasurementEntropyRelative <: AbstractRelation
+
+The entropy gain from a projective measurement equals the relative entropy
+to the dephased state,
+
+`S(Δρ) − S(ρ) = S(ρ‖Δρ)`,
+
+tying the [`MeasurementEntropy`](@ref) to the [`RelativeEntropy`](@ref)
+(Vedral, Rev. Mod. Phys. 74, 197 (2002)).
+
+Variables: `S_meas` = `S(Δρ)`, `S` = `S(ρ)`, `S_rel` = `S(ρ‖Δρ)`.
+"""
+@relation :entanglement MeasurementEntropyRelative(S_meas, S, S_rel) = (S_meas - S) - S_rel
+
+"""
+    MarkovEntropyDefinition <: AbstractRelation
+
+The conditional mutual information (the [`MarkovEntropy`](@ref)),
+
+`I(A:C|B) = S(AB) + S(BC) − S(ABC) − S(B)`,
+
+equal to the strong-subadditivity slack ([`StrongSubadditivity`](@ref));
+its vanishing marks a quantum Markov chain `A–B–C` (Hayden, Jozsa, Petz &
+Winter, Commun. Math. Phys. 246, 359 (2004)).
+
+Variables: `I_cmi`, `S_AB`, `S_BC`, `S_ABC`, `S_B`.
+"""
+@relation :entanglement MarkovEntropyDefinition(I_cmi, S_AB, S_BC, S_ABC, S_B) =
+    I_cmi - (S_AB + S_BC - S_ABC - S_B)

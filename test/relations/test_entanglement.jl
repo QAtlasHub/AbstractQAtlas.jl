@@ -108,3 +108,45 @@ end
     @test slack(RelativeEntropyNonNegativity(); S_rel=0.0) == 0.0        # ρ = σ saturates
     @test !check(RelativeEntropyNonNegativity(); S_rel=-1e-3, atol=1e-9)
 end
+
+@testset "measurement + Markov entropies on concrete states" begin
+    using AbstractQAtlas: check, solve, slack, AbstractInequality
+    using LinearAlgebra: eigvals, diagm, Hermitian
+
+    # a 2×2 density matrix with coherences; measure (dephase) in the z basis
+    a, c = 0.7, 0.3               # populations
+    off = 0.35                    # coherence (|off|² ≤ a·c for positivity: 0.1225 ≤ 0.21 ✓)
+    ρ = [a off; off c]
+    Δρ = [a 0.0; 0.0 c]           # dephased (diagonal part)
+    ent(M) = (λ=filter(>(1e-15), real(eigvals(Hermitian(M)))); -sum(x -> x * log(x), λ))
+    S = ent(ρ)
+    S_meas = ent(Δρ)
+    # relative entropy S(ρ‖Δρ) = Tr ρ(ln ρ − ln Δρ)
+    using LinearAlgebra: tr
+    lnρ = log(Hermitian(ρ))
+    lnΔρ = diagm([log(a), log(c)])
+    S_rel = real(tr(ρ * (lnρ - lnΔρ)))
+
+    # measurement does not decrease entropy: S(Δρ) ≥ S(ρ)
+    @test check(MeasurementEntropyIncrease(); S_meas=S_meas, S=S)
+    @test slack(MeasurementEntropyIncrease(); S_meas=S_meas, S=S) > 0     # strict, coherences present
+    # …and the gain equals the relative entropy to the dephased state (exact identity)
+    @test check(MeasurementEntropyRelative(); S_meas=S_meas, S=S, S_rel=S_rel, atol=1e-10)
+    @test (S_meas - S) ≈ S_rel atol = 1e-10
+    # a state already diagonal saturates the inequality (Δρ = ρ)
+    @test slack(MeasurementEntropyIncrease(); S_meas=S, S=S) == 0.0
+
+    # MarkovEntropy = conditional mutual information = strong-subadditivity slack
+    S_A, S_B, S_C = 0.4, 0.7, 0.5
+    S_AB, S_BC, S_ABC = S_A + S_B, S_B + S_C, S_A + S_B + S_C          # product (Markov) state
+    I_cmi = solve(
+        MarkovEntropyDefinition(), Val(:I_cmi); S_AB=S_AB, S_BC=S_BC, S_ABC=S_ABC, S_B=S_B
+    )
+    @test I_cmi ≈ slack(StrongSubadditivity(); S_AB=S_AB, S_BC=S_BC, S_ABC=S_ABC, S_B=S_B) atol =
+        1e-12
+    @test I_cmi ≈ 0 atol = 1e-12                                        # a Markov chain: I(A:C|B)=0
+
+    @test MeasurementEntropyIncrease() isa AbstractInequality
+    @test tensor_rank(MeasurementEntropy()) == 0
+    @test tensor_rank(MarkovEntropy()) == 0
+end

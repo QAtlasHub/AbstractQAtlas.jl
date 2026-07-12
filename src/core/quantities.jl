@@ -1109,6 +1109,31 @@ struct RelativeEntropy <: AbstractEntanglementMeasure end
 export RelativeEntropy
 
 """
+    MeasurementEntropy() <: AbstractEntanglementMeasure
+
+The post-measurement (dephasing) entropy `S(Δρ)`, where a projective
+measurement in a basis `{|i⟩}` maps `ρ → Δρ = Σ_i ⟨i|ρ|i⟩ |i⟩⟨i|`.  Never
+below the pre-measurement `S(ρ)` (measurement does not decrease entropy),
+and the increase is exactly the relative entropy to the dephased state,
+`S(Δρ) − S(ρ) = S(ρ‖Δρ)` (Ohya & Petz; Vedral, Rev. Mod. Phys. 74, 197
+(2002)).
+"""
+struct MeasurementEntropy <: AbstractEntanglementMeasure end
+export MeasurementEntropy
+
+"""
+    MarkovEntropy() <: AbstractEntanglementMeasure
+
+The conditional mutual information `I(A:C|B) = S(AB) + S(BC) − S(ABC) −
+S(B)` — the deviation of `ρ_ABC` from a **quantum Markov chain** `A–B–C`
+(zero iff Markov).  Non-negative by strong subadditivity
+([`StrongSubadditivity`](@ref)); its vanishing is the structure theorem of
+Hayden, Jozsa, Petz & Winter, Commun. Math. Phys. 246, 359 (2004).
+"""
+struct MarkovEntropy <: AbstractEntanglementMeasure end
+export MarkovEntropy
+
+"""
     Purity() <: AbstractQuantity
 
 The purity `Tr(ρ_A²) ∈ (0, 1]` of a (reduced) density matrix — `1` for a
