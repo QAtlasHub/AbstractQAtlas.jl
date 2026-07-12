@@ -253,6 +253,42 @@ Nodes are quantity *families* (the index-erased `Susceptibility`, not
 index is still used to *resolve* an edge (`χ⁽²⁾ ⟶ χ⁽¹⁾ ⟶ M`) before the
 endpoints collapse to their families.
 
+## Deriving a quantity by route
+
+Read each equality as a computation — [`solve`](@ref) turns a relation into
+"given all-but-one variable, produce the last" — and the whole registry
+becomes a **directed derivation graph** ([`derivation_steps`](@ref)): a node
+per variable, a directed edge for every variable a relation can be solved for.
+From a set of known quantities you can then ask what else is reachable and,
+lazily, get one route run for you:
+
+```julia
+derivable(; Z = 2.0, β = 1.0)                # Set([:Z, :β, :f, …])  reachable
+derive(:f; Z = 2.0, β = 1.0)                 # -0.6931…   (F = −β⁻¹ ln Z)
+derive(:δ; α = 0//1, β = 1//8)               # 15//1  — two exact hops, Rushbrooke→Widom
+```
+
+Two safety guarantees, because a *chained* result is weaker than a directly
+implemented one:
+
+- **Equalities only.** Inequalities are excluded — their `solve` returns a
+  *saturation bound*, not an equational value, so a bound can never
+  masquerade as a derived quantity.
+- **Auditable provenance.** [`derive`](@ref)`(…; debug=true)` returns a
+  [`DerivationTrace`](@ref) — the value, the exact route (which relation
+  produced each intermediate, from which inputs), and an `indirect` flag —
+  so an indirectly derived number is inspected by its route, not trusted
+  blindly. The route is discovered by calling the *real* `solve`, so a step
+  whose relation is non-affine in its output is skipped, never faked; an
+  unreachable target fails loudly.
+
+```julia
+derive(:δ; α = 0//1, β = 1//8, debug = true)
+# DerivationTrace(:δ = 15//1  [indirect])
+#   1. Rushbrooke: {α, β} → :γ
+#   2. Widom: {β, γ} → :δ
+```
+
 ## The scope line: definitional vs functional
 
 Where does a dynamical quantity's *value* come from — this package or the

@@ -154,6 +154,12 @@ include("relations/quantity_links.jl")
 # relation↔quantity map at the top level.
 include("structure/graph.jl")
 
+# the DIRECTED derivation graph + lazy solver: reads the registry as a graph
+# whose edges are `solve` directions, so a target quantity can be derived from
+# known ones by finding and running one route (`derive` / `derivable`), with a
+# debug trace naming the indirect path for safety.  Needs the full registry.
+include("relations/derivation.jl")
+
 # automatic-differentiation entry point (methods live in ext/, ForwardDiff)
 include("autodiff.jl")
 
