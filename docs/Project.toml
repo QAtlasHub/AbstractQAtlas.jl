@@ -1,7 +1,7 @@
 [deps]
+AbstractQAtlas = "dcea2817-62f8-4a75-b498-1b50a9ed1e4d"
 Documenter = "e30172f5-a6a5-5a46-863b-614d45cd2de4"
 Downloads = "f43a241f-c20a-4ad4-852c-f6b1247861c6"
-AbstractQAtlas = "dcea2817-62f8-4a75-b498-1b50a9ed1e4d"
 
 [sources]
-AbstractQAtlas = {path = ".."}
+AbstractQAtlas = {path = "/home/souta/work/Vault/dev/AbstractQAtlas.jl"}

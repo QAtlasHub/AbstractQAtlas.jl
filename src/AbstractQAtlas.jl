@@ -58,20 +58,87 @@ include("structure/tensor_symmetry.jl")
 include("structure/spectral.jl")
 include("structure/fourier.jl")
 
-# relations — model-independent identities and forms
+# relations — the CORE relation machinery (the AbstractFFTs-like interface:
+# the @relation / @inequality macros, residual/check/solve/slack, the
+# registry, relation_report/applicable_relations) lives in the parent…
 include("relations/interface.jl")
-include("relations/scaling.jl")
-include("relations/thermodynamic.jl")
-include("relations/fundamental.jl")
-include("relations/statistics.jl")
-include("relations/wick.jl")
-include("relations/topology.jl")
-include("relations/spectral.jl")
-include("relations/transport.jl")
-include("relations/quantum.jl")
-include("relations/ensembles.jl")
-include("relations/entanglement.jl")
-include("relations/cft.jl")
+
+# …and the physics is organized into submodules by PHYSICAL DOMAIN (not by
+# file): each `using ..AbstractQAtlas` for the macro + shared vocabulary,
+# includes its (bare) relation files, and is flat-re-exported below — so
+# `using AbstractQAtlas` and `AbstractQAtlas.Name` keep working while the
+# source reflects the physics.  The fine-grained per-relation `domain` tag
+# is preserved (for `relation_report` filtering) INSIDE each module.
+
+"Equilibrium statistical mechanics: occupation statistics → ensembles → thermodynamic potentials → response, FDT & stability."
+module StatisticalMechanics
+    using ..AbstractQAtlas
+    using ..AbstractQAtlas: _beta          # β-or-T normalization (occupation functions)
+    import ..AbstractQAtlas: _solve        # extended for a non-affine variable (FreeEnergyFromZ:Z)
+    include("relations/thermodynamic.jl")
+    include("relations/ensembles.jl")
+    include("relations/statistics.jl")
+    include("relations/fundamental.jl")
+end
+
+"Critical phenomena and conformal field theory: scaling laws, finite-size scaling, Cardy, the c-theorem."
+module Criticality
+    using ..AbstractQAtlas
+    include("relations/scaling.jl")
+    include("relations/cft.jl")
+end
+
+"Correlations, Green's functions and response: the spectral graph (Dyson, A=−ImG/π), Wick / Bloch–De Dominicis (Gaussian factorization), Kramers–Kronig, detailed balance."
+module Correlations
+    using ..AbstractQAtlas
+    using LinearAlgebra: inv, det
+    include("relations/spectral.jl")
+    include("relations/wick.jl")
+end
+
+"Transport: DC/AC conductivity, thermal & thermoelectric coefficients, the Hall family, Onsager, Wiedemann–Franz, optical sum rule, Johnson–Nyquist."
+module Transport
+    using ..AbstractQAtlas
+    include("relations/transport.jl")
+end
+
+"Quantum information & entanglement: the entropy zoo, its inequalities, multipartite entanglement, measurement and topological entanglement entropy."
+module QuantumInformation
+    using ..AbstractQAtlas
+    include("relations/entanglement.jl")
+end
+
+"Quantum-mechanical foundations & bounds: virial, Hellmann–Feynman, Ehrenfest, zero-variance eigenstate, the uncertainty relation and the Lieb–Robinson bound."
+module QuantumFoundations
+    using ..AbstractQAtlas
+    include("relations/quantum.jl")
+end
+
+"Topological invariants: Chern number, TKNN, winding, bulk–boundary correspondence."
+module Topology
+    using ..AbstractQAtlas
+    using LinearAlgebra: det, eigen, Hermitian
+    include("relations/topology.jl")
+end
+
+# flat re-export: lift every physics submodule's public names to the top
+# level (stdlib-only — no Reexport.jl), preserving the flat API.
+const _PHYSICS_MODULES = (
+    StatisticalMechanics,
+    Criticality,
+    Correlations,
+    Transport,
+    QuantumInformation,
+    QuantumFoundations,
+    Topology,
+)
+for _M in _PHYSICS_MODULES
+    for _n in names(_M)
+        _n === nameof(_M) && continue
+        @eval using .$(nameof(_M)): $_n
+        @eval export $_n
+    end
+end
 
 # automatic-differentiation entry point (methods live in ext/, ForwardDiff)
 include("autodiff.jl")

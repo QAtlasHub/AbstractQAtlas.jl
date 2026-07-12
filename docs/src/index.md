@@ -237,5 +237,14 @@ exists.
 ## API reference
 
 ```@autodocs
-Modules = [AbstractQAtlas]
+Modules = [
+    AbstractQAtlas,
+    AbstractQAtlas.StatisticalMechanics,
+    AbstractQAtlas.Criticality,
+    AbstractQAtlas.Correlations,
+    AbstractQAtlas.Transport,
+    AbstractQAtlas.QuantumInformation,
+    AbstractQAtlas.QuantumFoundations,
+    AbstractQAtlas.Topology,
+]
 ```
