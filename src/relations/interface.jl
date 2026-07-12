@@ -214,31 +214,8 @@ function _solve(rel::AbstractRelation, ::Val{X}; kwargs...) where {X}
     return -r0 / b
 end
 
-# ─── The declaration macro ──────────────────────────────────────────────
+# ─── The declaration macros ─────────────────────────────────────────────
 
-"""
-    @relation :domain Name(x, y, z, opt=default) = expr
-
-Declare a relation ONCE.  Expands to the complete implementation:
-
-- `struct Name <: AbstractRelation end` (docstring-attachable),
-- the residual kernel `_residual(::Name; x, y, z, opt=default) = expr`
-  (kernels tolerate extra keywords, so a whole data set can be splatted
-  through [`relation_report`](@ref)),
-- `variables(::Name) = (:x, :y, :z)` — required variables only,
-- `domain(::Name) = :domain`,
-- registry insertion and `export Name`.
-
-`residual`/`check` work immediately; `solve` works for every variable
-the expression is affine in.  Note for downstream packages declaring
-their own relations: the struct and methods precompile fine, but the
-registry insertion is a load-time side effect — re-register from your
-module `__init__` if you need registry visibility across sessions.
-
-```julia
-@relation :scaling Rushbrooke(α, β, γ) = α + 2β + γ - 2
-```
-"""
 # Shared code generation for `@relation` (equality) and `@inequality`
 # (≥ 0 slack).  `super` is the supertype the generated struct subtypes,
 # `what` names the macro for error messages.
@@ -286,6 +263,29 @@ function _build_relation(dom, defn, super::Symbol, what::String)
     end
 end
 
+"""
+    @relation :domain Name(x, y, z, opt=default) = expr
+
+Declare a relation ONCE.  Expands to the complete implementation:
+
+- `struct Name <: AbstractRelation end` (docstring-attachable),
+- the residual kernel `_residual(::Name; x, y, z, opt=default) = expr`
+  (kernels tolerate extra keywords, so a whole data set can be splatted
+  through [`relation_report`](@ref)),
+- `variables(::Name) = (:x, :y, :z)` — required variables only,
+- `domain(::Name) = :domain`,
+- registry insertion and `export Name`.
+
+`residual`/`check` work immediately; `solve` works for every variable
+the expression is affine in.  Note for downstream packages declaring
+their own relations: the struct and methods precompile fine, but the
+registry insertion is a load-time side effect — re-register from your
+module `__init__` if you need registry visibility across sessions.
+
+```julia
+@relation :scaling Rushbrooke(α, β, γ) = α + 2β + γ - 2
+```
+"""
 macro relation(dom, defn)
     return _build_relation(dom, defn, :AbstractRelation, "@relation")
 end
