@@ -214,4 +214,40 @@ function derive(target::Symbol; debug::Bool=false, knowns...)
     return DerivationTrace(target, known[target], _prune(used, target, given), true)
 end
 
-export DerivationStep, DerivationTrace, derivation_steps, derivable, derive
+"""
+    derivation_graph() -> KnowledgeGraph{Symbol}
+
+The derivation graph as a [`KnowledgeGraph`](@ref) instance, for a network VIEW
+and structural inspection: one DIRECTED edge `input →[relation] output` per
+(step, input), the simple-graph projection of the [`derivation_steps`](@ref)
+hyperedges.
+
+!!! warning "Structural, not computational"
+    Each `@relation`'s output needs ALL of its inputs, but the projection fans
+    each hyperedge out to one edge per input — so [`graph_reachable`](@ref) on
+    this graph OVER-APPROXIMATES computability (a single known input already
+    "reaches" the output, and non-affine outputs are edges too).  For the
+    HONEST "can I actually compute it" use [`derivable`](@ref) / [`derive`](@ref),
+    which require every input and call the real `solve`.  Use this graph for
+    rendering and structural connectivity only.
+
+Edge `kind` is the relation's name.
+"""
+function derivation_graph()
+    edges = TypedEdge{Symbol}[]
+    for step in derivation_steps()
+        rname = Symbol(nameof(typeof(step.relation)))
+        for inp in step.inputs
+            push!(
+                edges,
+                TypedEdge(
+                    rname, inp, step.output, string(nameof(typeof(step.relation))), true
+                ),
+            )
+        end
+    end
+    return KnowledgeGraph(edges)
+end
+
+export DerivationStep,
+    DerivationTrace, derivation_steps, derivation_graph, derivable, derive

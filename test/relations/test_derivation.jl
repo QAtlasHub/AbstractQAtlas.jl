@@ -84,6 +84,28 @@ end
     @test :χ ∉ r
 end
 
+@testset "derivation_graph is a directed KnowledgeGraph instance" begin
+    using AbstractQAtlas: derivation_graph, KnowledgeGraph, TypedEdge, graph_reachable
+    dg = derivation_graph()
+    @test dg isa KnowledgeGraph{Symbol}
+    @test !isempty(dg)
+    @test all(e -> e.directed, dg)          # every derivation edge is directed
+    # each edge is input →[relation] output of some derivation step
+    outs = Set(s.output for s in derivation_steps())
+    ins = Set(i for s in derivation_steps() for i in s.inputs)
+    for e in dg
+        @test e.to in outs
+        @test e.from in ins
+    end
+    # structural reachability OVER-approximates computability: the simple-edge
+    # projection drops the hyperedges' AND-semantics.  Concretely, FreeEnergy
+    # F = U − TS needs U AND S AND β, but the projection gives an edge U → F,
+    # so `:U` structurally "reaches" `:F` while it cannot honestly derive it —
+    # the whole point of keeping `derivable`/`derive` as the safe evaluators.
+    @test :F in graph_reachable(dg, :U)          # structural: U alone reaches F
+    @test :F ∉ derivable(; U=1.5)                # honest: cannot compute F from U alone
+end
+
 @testset "an unreachable target fails loudly (never a silent bad value)" begin
     err = try
         derive(:σxy; α=0 // 1)

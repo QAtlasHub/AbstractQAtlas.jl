@@ -269,6 +269,16 @@ Nodes are quantity *families* (the index-erased `Susceptibility`, not
 index is still used to *resolve* an edge (`χ⁽²⁾ ⟶ χ⁽¹⁾ ⟶ M`) before the
 endpoints collapse to their families.
 
+Under the hood this is one instance of a generic parent, the
+[`KnowledgeGraph`](@ref)`{N}` kernel — a bag of [`TypedEdge`](@ref)s over nodes
+of type `N`, with the traversal/reachability/shortest-path/export
+([`graph_reachable`](@ref), [`graph_shortest_path`](@ref),
+[`graph_jsonl`](@ref)) written once.  `quantity_graph()` is a
+`KnowledgeGraph{Type}`; the derivation graph below is a `KnowledgeGraph{Symbol}`
+([`derivation_graph`](@ref)); and QAtlas's model graph becomes a third instance
+once refactored onto this package — so a single graph-view renders
+models ⊕ quantities ⊕ derivations.
+
 ## Deriving a quantity by route
 
 Read each equality as a computation — [`solve`](@ref) turns a relation into

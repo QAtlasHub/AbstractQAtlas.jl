@@ -149,11 +149,16 @@ end
 # via `quantities` / `relations_constraining`.
 include("relations/quantity_links.jl")
 
-# the UNIFIED quantity-relationship graph: folds the separate typed edges
-# (derivative_edge / spectral_origin / fourier_conjugate + the relation↔quantity
-# links) into one queryable graph — related_quantities / quantity_path /
-# quantity_graph_jsonl.  Included last: it needs every edge accessor AND the
-# relation↔quantity map at the top level.
+# the abstract typed-graph PARENT: one KnowledgeGraph{N} kernel (nodes, typed
+# edges, traversal, reachability, shortest-path, JSONL export) that every
+# concrete graph below — quantity, derivation, and QAtlas's model graph — is an
+# instance of.  Generic, stdlib-only, no rendering.
+include("graph/kernel.jl")
+
+# the quantity-relationship graph as a KnowledgeGraph{Type}: folds the separate
+# typed edges (derivative_edge / spectral_origin / fourier_conjugate + the
+# relation↔quantity links) into one graph — related_quantities / quantity_path /
+# quantity_graph_jsonl.  Needs every edge accessor AND the relation↔quantity map.
 include("structure/graph.jl")
 
 # the DIRECTED derivation graph + lazy solver: reads the registry as a graph
