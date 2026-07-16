@@ -36,10 +36,15 @@ The spectral representation of the retarded Green's function at `(q, ω)`:
 
 `A = −(1/π) Im G^R`   ⟺   `A + Im(G^R)/π = 0`.
 
-Pass `ImGR = Im G^R(q, ω)` (a real number) and the real spectral weight
-`A`.
+Takes the **complex** retarded Green's function `G = G^R(q, ω)` directly
+(the same variable Dyson speaks of, so one `G` in a measurement bag fires
+both), and the real spectral weight `A`; only `Im G^R` enters here (the
+real part is fixed separately by Kramers–Kronig).  This makes the relation
+turnkey against a raw measurement — no need to pre-project the imaginary
+part.  Exact-arithmetic-safe: `imag` of a `Complex{Rational}` stays
+`Rational`.
 """
-@relation :spectral SpectralFromGreens(A, ImGR) = A + ImGR / π
+@relation :spectral SpectralFromGreens(A, G) = A + imag(G) / π
 
 """
     SpectralSumRule <: AbstractRelation

@@ -89,7 +89,7 @@ end
         # Keldysh spectral bridge reproduces the same A …
         @test residual(SpectralFromKeldysh(); A=A, GR=GR, GA=GA) ≈ 0 atol = 1e-12
         # … and agrees with the existing Matsubara-side definition
-        @test residual(SpectralFromGreens(); A=A, ImGR=imag(GR)) ≈ 0 atol = 1e-12
+        @test residual(SpectralFromGreens(); A=A, G=GR) ≈ 0 atol = 1e-12
     end
 end
 

@@ -26,7 +26,7 @@ end
     for ω in (0.0, 0.3, 0.7)
         GR = 1 / (ω - ε + im * γ)
         A = (1 / π) * γ / ((ω - ε)^2 + γ^2)
-        @test check(SpectralFromGreens(); A=A, ImGR=imag(GR), atol=1e-13)
+        @test check(SpectralFromGreens(); A=A, G=GR, atol=1e-13)
     end
     # and the sum rule: ∫ A dω = 1 for the Lorentzian (analytic)
     @test check(SpectralSumRule(); spectral_integral=1.0, atol=0)
