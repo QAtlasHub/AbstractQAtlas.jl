@@ -115,9 +115,12 @@ variable_types(::AbstractRelation) = ()
 export variable_types
 
 # The AbstractQuantity subset of a variable-type tuple, family-erased via
-# `_family` (`Susceptibility{I}` → `Susceptibility`; core/relation_variables.jl),
-# for the auto-derived `quantities`.
-_auto_quantities(types::Tuple) = Tuple(_family(T) for T in types if T <: AbstractQuantity)
+# `_family` (`Susceptibility{I}` → `Susceptibility`; core/relation_variables.jl)
+# and de-duplicated — a relation with two components of one family (HallAngle's
+# `σxy`, `σxx`) constrains that family once — for the auto-derived `quantities`.
+function _auto_quantities(types::Tuple)
+    return Tuple(unique(_family(T) for T in types if T <: AbstractQuantity))
+end
 
 # ─── Registry ───────────────────────────────────────────────────────────
 

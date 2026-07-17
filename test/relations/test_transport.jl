@@ -173,3 +173,40 @@ end
     @test slack(IoffeRegel(); kFℓ=1.0) == 0.0          # at the MIR limit (saturated)
     @test !check(IoffeRegel(); kFℓ=0.4, atol=1e-9)     # bad metal — criterion violated
 end
+
+@testset "type-keyed transport: concrete component keys" begin
+    L0, σ, T = π^2 / 3, 3.0, 1.5
+    # Wiedemann–Franz through a bag: κ_xx, σ_xx by concrete component, T by field
+    @test check(
+        WiedemannFranz(),
+        bag(
+            ThermalConductivity{(:x, :x)} => L0 * σ * T,
+            Conductivity{(:x, :x)} => σ,
+            Temperature => T,
+        );
+        L0=L0,
+        atol=1e-12,
+    )
+    # HallAngle: σ_xy and σ_xx are DISTINCT concrete keys in ONE bag — the parametric
+    # payoff (a bare-family key could not tell the two components apart)
+    σxx, σxy = 3.0, 0.6
+    b = bag(Conductivity{(:x, :y)} => σxy, Conductivity{(:x, :x)} => σxx)
+    @test check(HallAngle(), b; tanθ_H=σxy / σxx, atol=1e-12)
+    @test !check(HallAngle(), b; tanθ_H=σxx / σxy, atol=1e-12)   # swapped ratio ⇒ fails
+    # auto-derived quantities: two Conductivity components de-dup to one family
+    @test quantities(HallAngle()) == (Conductivity,)
+    @test Set(quantities(WiedemannFranz())) == Set((ThermalConductivity, Conductivity))
+    # the two INTENTIONAL graph-link shifts vs the old hand-links, pinned so they
+    # can't silently drift: MottFormula's conductivity enters only as a supplied
+    # derivative (dlnσ/dε), and RighiLeduc now also constrains Conductivity via σxy
+    @test quantities(MottFormula()) == (Thermopower,)
+    @test Set(quantities(RighiLeduc())) == Set((ThermalConductivity, Conductivity))
+    # β-or-T typed conversion carries into transport (Einstein μ = e D β)
+    e, D, β = 1.0, 0.5, 2.0
+    @test check(
+        EinsteinRelation(),
+        bag(Mobility => e * D * β, DiffusionConstant => D, InverseTemperature => β);
+        e=e,
+        atol=1e-12,
+    )
+end

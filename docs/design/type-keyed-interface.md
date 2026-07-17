@@ -241,7 +241,57 @@ Then, as a separate epic (§5):
   reachability hyperedge-aware (require all inputs) or keep the current
   structural-graph + honest-`derivable` split. Not a blocker.
 
-## 8. Status of the in-flight symbol-based work
+## 8. Parametric tensor quantities — the next-wave resolution
+
+Transport, and the tensor response quantities generally, are index-parametric —
+`Conductivity{I}`, `Susceptibility{I}`, `Thermopower{I}`, `Resistivity{I}`,
+`ThermalConductivity{I}`, `DrudeWeight{I}`, `Magnetization{A}`,
+`DynamicalSusceptibility{I}`, … The Phase-1 review flagged (finding C4) that the
+bag matches by `===` while the quantity graph erases to `_family`, so a slot keyed
+on the bare family `Conductivity` can never `===`-match a concrete
+`Conductivity{(:x,:x)}` bag entry — and the load-time guard now rejects such a
+bare-family declaration loudly. This section resolves how the parametric domains
+migrate.
+
+**Three index structures appear across the relations:**
+
+| structure | example | slots |
+|---|---|---|
+| same index on every slot | `WiedemannFranz` κ_ii = L₀ σ_ii T | `ThermalConductivity{ii}`, `Conductivity{ii}` |
+| fixed, *different* indices | `HallAngle` tanθ = σ_xy / σ_xx | `Conductivity{(:x,:y)}`, `Conductivity{(:x,:x)}` |
+| index *unification* across slots | `SusceptibilityFDT` χ_AB = β Cov(M_A, M_B) | `Susceptibility{(A,B)}`, `Magnetization{A}`, `Magnetization{B}` |
+
+**Key insight — concrete component keys work with the SHIPPED machinery, today.**
+A concrete instantiation like `Conductivity{(:x,:y)}` is `isconcretetype`, is
+`<: RelationVariable`, and `Conductivity{(:x,:y)} !== Conductivity{(:x,:x)}` — so
+distinct components are distinct `VariableKey`s that pass both load guards
+(concrete ✓, distinct ✓) and match by `===` exactly. So the **fixed-index** and
+**same-index-when-written-concretely** cases (HallAngle, the Hall/resistivity
+family, and any per-component check) migrate **now, with no new machinery** — each
+relation is simply component-specific, which is physically what HallAngle *is*.
+
+**Phased plan:**
+
+- **Phase 1 (no new machinery):** migrate the parametric domains declaring
+  **concrete component types** where the component is fixed. Component-agnostic
+  scalar laws (WF, Mott, …) are declared on their canonical (longitudinal)
+  component. `_auto_quantities` must `unique`-dedup (a relation with two
+  `Conductivity{…}` slots erases to `(Conductivity, Conductivity)`; the old
+  hand-link was `(Conductivity,)`).
+- **Phase 2 (the real §7 — deferred):** **family-generic slots with index
+  unification**, so the verify-engine *auto-discovers* every component instance
+  from a bag (drop `χ_xy, M_x, M_y` → find `χ_xy = β Cov(M_x, M_y)` without a
+  hand-written per-component relation). This needs (a) macro support for a type
+  variable — `SusceptibilityFDT(χ::Susceptibility{(A,B)}, M_A::Magnetization{A},
+  M_B::Magnetization{B}) where {A,B}` — and (b) a bag matcher that unifies the
+  variable across slots against the concrete keys present. This is the tensor
+  analogue of the entanglement `Region` auto-discovery (§5–§6) and shares its
+  "quantified relations" machinery; build them together.
+
+The load guard is the safety net between the phases: until Phase 2 lands, a
+bare-family declaration fails at load rather than silently matching nothing.
+
+## 9. Status of the in-flight symbol-based work
 
 PR #78 (the symbol-based D1: complex `SpectralFromGreens`, `Dyson` `:G → :GR`
 alignment, bag-adoption test) and the `feat/spectral-bag-turnkey` branch are

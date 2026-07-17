@@ -37,7 +37,9 @@ Sommerfeld constant.
 
 Variables: `κ`, `σ`, `T`, `L0`.
 """
-@relation :transport WiedemannFranz(κ, σ, T, L0) = κ - L0 * σ * T
+@relation :transport WiedemannFranz(
+    κ::ThermalConductivity{(:x, :x)}, σ::Conductivity{(:x, :x)}, T::Temperature, L0
+) = κ - L0 * σ * T
 
 """
     MottFormula <: AbstractRelation
@@ -53,7 +55,8 @@ level.
 
 Variables: `S`, `dlnσ_dε` = `d ln σ/dε |_{ε_F}`, `T`.
 """
-@relation :transport MottFormula(S, dlnσ_dε, T) = S + (π^2 / 3) * T * dlnσ_dε
+@relation :transport MottFormula(S::Thermopower{(:x, :x)}, dlnσ_dε, T::Temperature) =
+    S + (π^2 / 3) * T * dlnσ_dε
 
 """
     KelvinRelation <: AbstractRelation
@@ -66,7 +69,9 @@ coefficient to the thermopower,
 
 Variables: `Π`, `S`, `T`.
 """
-@relation :transport KelvinRelation(Π, S, T) = Π - T * S
+@relation :transport KelvinRelation(
+    Π::PeltierCoefficient{(:x, :x)}, S::Thermopower{(:x, :x)}, T::Temperature
+) = Π - T * S
 
 """
     OnsagerReciprocity <: AbstractRelation
@@ -101,7 +106,7 @@ The total `sigma_integral` is the caller-supplied f-sum weight (e.g.
 
 Variables: `sigma_integral`, `D`, `W_reg`.
 """
-@relation :transport OpticalSumRule(sigma_integral, D, W_reg) =
+@relation :transport OpticalSumRule(sigma_integral, D::DrudeWeight{(:x, :x)}, W_reg) =
     sigma_integral - (π * D + W_reg)
 
 """
@@ -121,7 +126,9 @@ the white Nyquist noise `S^j = 2 T Re σ` (`ω coth(βω/2) → 2/β`).
 
 Variables: `S_j` = `S^j(ω)`, `Reσ` = `Re σ(ω)`, `ω`, `β` (or `T`).
 """
-@relation :transport CurrentNoiseFDT(S_j, Reσ, ω, β) = S_j - ω * coth(β * ω / 2) * Reσ
+@relation :transport CurrentNoiseFDT(
+    S_j::CurrentNoise{(:x, :x)}, Reσ, ω, β::InverseTemperature
+) = S_j - ω * coth(β * ω / 2) * Reσ
 
 """
     MobilityConductivity <: AbstractRelation
@@ -135,7 +142,9 @@ the current-channel definition of the [`Mobility`](@ref) `μ`
 
 Variables: `σ`, `n`, `e`, `μ`.
 """
-@relation :transport MobilityConductivity(σ, n, e, μ) = σ - n * e * μ
+@relation :transport MobilityConductivity(
+    σ::Conductivity{(:x, :x)}, n::CarrierDensity, e, μ::Mobility
+) = σ - n * e * μ
 
 """
     EinsteinRelation <: AbstractRelation
@@ -150,7 +159,9 @@ the universal fluctuation–dissipation link for transport
 
 Variables: `μ`, `e`, `D`, and `β` (or `T`).
 """
-@relation :transport EinsteinRelation(μ, e, D, β) = μ - e * D * β
+@relation :transport EinsteinRelation(
+    μ::Mobility, e, D::DiffusionConstant, β::InverseTemperature
+) = μ - e * D * β
 
 """
     HallAngle <: AbstractRelation
@@ -163,7 +174,9 @@ the ratio of the transverse (Hall) to longitudinal conductivity.
 
 Variables: `tanθ_H`, `σxy`, `σxx`.
 """
-@relation :transport HallAngle(tanθ_H, σxy, σxx) = tanθ_H - σxy / σxx
+@relation :transport HallAngle(
+    tanθ_H, σxy::Conductivity{(:x, :y)}, σxx::Conductivity{(:x, :x)}
+) = tanθ_H - σxy / σxx
 
 """
     LongitudinalResistivity <: AbstractRelation
@@ -178,7 +191,9 @@ dissipationless Hall state (`σ_xx = 0`) it vanishes.
 
 Variables: `ρxx`, `σxx`, `σxy`.
 """
-@relation :transport LongitudinalResistivity(ρxx, σxx, σxy) = ρxx - σxx / (σxx^2 + σxy^2)
+@relation :transport LongitudinalResistivity(
+    ρxx::Resistivity{(:x, :x)}, σxx::Conductivity{(:x, :x)}, σxy::Conductivity{(:x, :y)}
+) = ρxx - σxx / (σxx^2 + σxy^2)
 
 """
     HallResistivity <: AbstractRelation
@@ -193,7 +208,9 @@ Hall conductivity `ρ_xy = 1/σ_xy`.
 
 Variables: `ρxy`, `σxx`, `σxy`.
 """
-@relation :transport HallResistivity(ρxy, σxx, σxy) = ρxy - σxy / (σxx^2 + σxy^2)
+@relation :transport HallResistivity(
+    ρxy::Resistivity{(:x, :y)}, σxx::Conductivity{(:x, :x)}, σxy::Conductivity{(:x, :y)}
+) = ρxy - σxy / (σxx^2 + σxy^2)
 
 """
     CyclotronFrequency <: AbstractRelation
@@ -207,7 +224,8 @@ Hall angle `tan θ_H = ω_c τ` ([`HallAngle`](@ref)).
 
 Variables: `ωc`, `e`, `B`, `m`.
 """
-@relation :transport CyclotronFrequency(ωc, e, B, m) = ωc - e * B / m
+@relation :transport CyclotronFrequency(ωc, e, B::MagneticFluxDensity, m::EffectiveMass) =
+    ωc - e * B / m
 
 """
     RighiLeduc <: AbstractRelation
@@ -221,7 +239,9 @@ the off-diagonal companion of [`WiedemannFranz`](@ref) (`L₀ = π²/3`).
 
 Variables: `κxy`, `L0`, `T`, `σxy`.
 """
-@relation :transport RighiLeduc(κxy, L0, T, σxy) = κxy - L0 * T * σxy
+@relation :transport RighiLeduc(
+    κxy::ThermalConductivity{(:x, :y)}, L0, T::Temperature, σxy::Conductivity{(:x, :y)}
+) = κxy - L0 * T * σxy
 
 """
     VonKlitzing <: AbstractRelation
@@ -236,7 +256,8 @@ with the von Klitzing constant `R_K = h/e²` and the integer
 
 Variables: `Rxy`, `ν`, `e`, `h`.
 """
-@relation :transport VonKlitzing(Rxy, ν, e, h) = Rxy * ν * e^2 - h
+@relation :transport VonKlitzing(Rxy::Resistivity{(:x, :y)}, ν::FillingFactor, e, h) =
+    Rxy * ν * e^2 - h
 
 """
     ThermoelectricFigureOfMerit <: AbstractRelation
@@ -251,7 +272,13 @@ setting the Carnot-fraction efficiency of a thermoelectric
 
 Variables: `ZT`, `S`, `σ`, `T`, `κ`.
 """
-@relation :transport ThermoelectricFigureOfMerit(ZT, S, σ, T, κ) = ZT - S^2 * σ * T / κ
+@relation :transport ThermoelectricFigureOfMerit(
+    ZT,
+    S::Thermopower{(:x, :x)},
+    σ::Conductivity{(:x, :x)},
+    T::Temperature,
+    κ::ThermalConductivity{(:x, :x)},
+) = ZT - S^2 * σ * T / κ
 
 """
     PowerFactor <: AbstractRelation
@@ -265,7 +292,8 @@ the numerator of `ZT`; the material's electrical thermoelectric quality
 
 Variables: `PF`, `S`, `σ`.
 """
-@relation :transport PowerFactor(PF, S, σ) = PF - S^2 * σ
+@relation :transport PowerFactor(PF, S::Thermopower{(:x, :x)}, σ::Conductivity{(:x, :x)}) =
+    PF - S^2 * σ
 
 """
     NernstCoefficient <: AbstractRelation
@@ -280,7 +308,9 @@ the thermoelectric analogue of the Hall effect ([`MagneticFluxDensity`](@ref)
 
 Variables: `νN`, `S_xy`, `B`.
 """
-@relation :transport NernstCoefficient(νN, S_xy, B) = νN - S_xy / B
+@relation :transport NernstCoefficient(
+    νN, S_xy::Thermopower{(:x, :y)}, B::MagneticFluxDensity
+) = νN - S_xy / B
 
 """
     IoffeRegel <: AbstractInequality

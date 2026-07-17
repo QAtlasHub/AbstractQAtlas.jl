@@ -48,23 +48,14 @@ end
 # ── Keldysh RAK structure & fluctuation–dissipation: now type-keyed (keldysh.jl),
 #    `quantities` auto-derived — see the note above. ──
 
-# ── Transport ──
-quantities(::WiedemannFranz) = (ThermalConductivity, Conductivity)
-quantities(::RighiLeduc) = (ThermalConductivity,)
-quantities(::MottFormula) = (Thermopower, Conductivity)
-quantities(::KelvinRelation) = (PeltierCoefficient, Thermopower)
-quantities(::OpticalSumRule) = (DrudeWeight,)
-quantities(::CurrentNoiseFDT) = (CurrentNoise,)
-quantities(::ThermoelectricFigureOfMerit) = (Thermopower, Conductivity, ThermalConductivity)
-quantities(::LongitudinalResistivity) = (Resistivity, Conductivity)
-quantities(::HallResistivity) = (Resistivity, Conductivity)
-quantities(::VonKlitzing) = (Resistivity, FillingFactor)
-quantities(::MobilityConductivity) = (Conductivity, Mobility, CarrierDensity)
-quantities(::EinsteinRelation) = (Mobility, DiffusionConstant)
-quantities(::HallAngle) = (Conductivity,)
-quantities(::CyclotronFrequency) = (EffectiveMass, MagneticFluxDensity)
-quantities(::PowerFactor) = (Thermopower, Conductivity)
-quantities(::NernstCoefficient) = (Thermopower, MagneticFluxDensity)
+# ── Transport: now type-keyed (transport.jl) with CONCRETE component types
+#    (Conductivity{(:x,:x)} etc.), `quantities` auto-derived. OnsagerReciprocity
+#    (generic L_μν) and IoffeRegel (dimensionless k_Fℓ) stay symbol-keyed — no
+#    named quantity subject, so `quantities` == () by default.
+#    Two INTENTIONAL graph-link shifts vs the old hand-links (regression-tested in
+#    test_transport.jl): MottFormula drops Conductivity (its dlnσ/dε is a supplied
+#    derivative, not a typed subject → (Thermopower,)); RighiLeduc gains it (σxy is
+#    now typed → (ThermalConductivity, Conductivity)). Both are more precise. ──
 
 # ── Quantum information & entanglement ──
 quantities(::RenyiTwoPurity) = (RenyiEntropy, Purity)

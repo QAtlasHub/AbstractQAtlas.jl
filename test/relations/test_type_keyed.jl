@@ -248,10 +248,11 @@ end
     )
     @test !check(SpectralFromKeldysh(), swapped; atol=1e-12)
 
-    # a legacy symbol-only relation is NEVER pulled into a type-keyed bag report,
-    # so a Green's bag can't accidentally trigger, say, a thermoelectric relation
-    @test isempty(variable_types(KelvinRelation()))              # not migrated
-    @test !(KelvinRelation() in applicable_relations(good))
+    # a symbol-only relation (no named quantity subject — here Onsager's generic
+    # L_μν, which stays symbol-keyed even though its transport domain migrated) is
+    # NEVER pulled into a type-keyed bag report
+    @test isempty(variable_types(OnsagerReciprocity()))
+    @test !(OnsagerReciprocity() in applicable_relations(good))
 end
 
 # ── Review-hardening (PR #79 review): empty/violated reports, matrix inputs,
