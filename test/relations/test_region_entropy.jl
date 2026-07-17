@@ -213,6 +213,28 @@ end
     )
     @test only(region_tee_report(triv)).topological_entanglement_entropy ≈ 0.0 atol = 1e-12
 
+    # MULTIPLE simultaneous tripartitions: 4 disjoint atoms with every pair+triple union
+    # present ⇒ C(4,3)=4 unordered triples, each discovered exactly once — the multipartite
+    # analog of the SSA multiplicity test above (guards the i<j<k enumeration against
+    # dup/omission, which the single-triple cases cannot)
+    s = Dict(1 => 0.4, 2 => 0.5, 3 => 0.6, 4 => 0.7)
+    prod4 = bag(
+        (ee(i) => s[i] for i in 1:4)...,
+        (
+            ee(p...) => sum(s[i] for i in p) for
+            p in ((1, 2), (1, 3), (1, 4), (2, 3), (2, 4), (3, 4))
+        )...,
+        (
+            ee(t...) => sum(s[i] for i in t) for
+            t in ((1, 2, 3), (1, 2, 4), (1, 3, 4), (2, 3, 4))
+        )...,
+    )
+    rep4 = region_tee_report(prod4)
+    @test length(rep4) == 4                                  # C(4,3): one row per unordered triple
+    @test Set(Set(r.regions) for r in rep4) ==
+        Set(Set(Region.(t)) for t in ((1, 2, 3), (1, 2, 4), (1, 3, 4), (2, 3, 4)))
+    @test all(r -> isapprox(r.topological_entanglement_entropy, 0.0; atol=1e-12), rep4)
+
     # no valid tripartition ⇒ empty, never a silent zero: fewer than 3 disjoint regions…
     @test isempty(region_tee_report(bag(ee(1) => 0.5, ee(2) => 0.5, ee(1, 2) => 1.0)))
     # …or the full-triple entropy S(A∪B∪C) is absent
