@@ -125,7 +125,7 @@ end
         FreeEnergyLegendre(),
         bag(
             FreeEnergy => F,
-            Energy{:natural} => U,
+            Energy{:per_site} => U,
             ThermalEntropy => S,
             InverseTemperature => β,
         );

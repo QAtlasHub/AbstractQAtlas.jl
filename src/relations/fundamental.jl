@@ -45,11 +45,14 @@ fixed temperature,
 
 `F = U − T·S`   ⟺   `S = β(U − F)`,
 
-with all three potentials in the same granularity (all-total or
-all-per-site).  Purely algebraic: exact inputs give exact residuals.
+with all three potentials in the same granularity.  Type-keyed on the
+**per-site** convention — `F` ([`FreeEnergy`](@ref)) and `S`
+([`ThermalEntropy`](@ref)) are per-site tags, so `U` is keyed
+`Energy{:per_site}` to match (a total-energy value must be per-site-normalized
+before it goes in the bag).  Purely algebraic: exact inputs give exact residuals.
 """
 @relation :fundamental FreeEnergyLegendre(
-    F::FreeEnergy, U::Energy{:natural}, S::ThermalEntropy, β::InverseTemperature
+    F::FreeEnergy, U::Energy{:per_site}, S::ThermalEntropy, β::InverseTemperature
 ) = F - (U - S / β)
 
 """
@@ -77,7 +80,7 @@ Supplied-derivative convention: `dβF_dβ` is the caller-computed value
 of `∂(βF)/∂β` (equivalently `−∂ln Z/∂β`, since `βF = −ln Z`) evaluated
 at the same state point as `U`.
 """
-@relation :fundamental GibbsHelmholtz(U::Energy{:natural}, dβF_dβ) = U - dβF_dβ
+@relation :fundamental GibbsHelmholtz(U::Energy{:per_site}, dβF_dβ) = U - dβF_dβ
 
 """
     MagnetizationResponse <: AbstractRelation
