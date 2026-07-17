@@ -124,3 +124,58 @@ function mutual_information(b::Bag, A::Region, B::Region)
     return ents[A] + ents[B] - ents[A ∪ B]
 end
 export mutual_information
+
+# fetch S(R) for each region, erroring by name (`what`) if any is absent
+function _region_S(b::Bag, what::String, regions...)
+    ents = _region_entropies(b)
+    for R in regions
+        haskey(ents, R) || error("$what: S($R) is not in the bag")
+    end
+    return (ents[R] for R in regions)
+end
+
+"""
+    conditional_mutual_information(b::Bag, A::Region, B::Region, C::Region) -> Number
+
+The conditional mutual information
+`I(A:C|B) = S(A∪B) + S(B∪C) − S(A∪B∪C) − S(B)`, computed from the region entropies
+in `b` (the [`StrongSubadditivity`](@ref) / [`MarkovEntropyDefinition`](@ref) slack;
+`≥ 0` by SSA).  Errors if any of the four entropies is absent.
+"""
+function conditional_mutual_information(b::Bag, A::Region, B::Region, C::Region)
+    S_AB, S_BC, S_ABC, S_B = _region_S(
+        b, "conditional_mutual_information", A ∪ B, B ∪ C, A ∪ B ∪ C, B
+    )
+    return S_AB + S_BC - S_ABC - S_B
+end
+export conditional_mutual_information
+
+"""
+    tripartite_information(b::Bag, A::Region, B::Region, C::Region) -> Number
+
+The tripartite (interaction) information
+`I₃ = S(A)+S(B)+S(C) − S(A∪B)−S(A∪C)−S(B∪C) + S(A∪B∪C) = I(A:B) + I(A:C) − I(A:B∪C)`,
+from the region entropies in `b` — equal to `−`[`topological_entanglement_entropy`](@ref)
+(the Kitaev–Preskill combination).  Errors if any of the seven entropies is absent.
+"""
+function tripartite_information(b::Bag, A::Region, B::Region, C::Region)
+    S_A, S_B, S_C, S_AB, S_AC, S_BC, S_ABC = _region_S(
+        b, "tripartite_information", A, B, C, A ∪ B, A ∪ C, B ∪ C, A ∪ B ∪ C
+    )
+    return S_A + S_B + S_C - S_AB - S_AC - S_BC + S_ABC
+end
+export tripartite_information
+
+"""
+    topological_entanglement_entropy(b::Bag, A::Region, B::Region, C::Region) -> Number
+
+The Kitaev–Preskill topological entanglement entropy `γ = ln 𝒟` from a tripartition
+(Kitaev & Preskill, Phys. Rev. Lett. 96, 110404 (2006)),
+`γ = −[S(A)+S(B)+S(C) − S(A∪B)−S(B∪C)−S(C∪A) + S(A∪B∪C)]` — the area-law-independent
+constant isolated by the alternating tripartite sum ([`KitaevPreskillTEE`](@ref);
+`γ > 0` ⇒ topological order).  Equals `−`[`tripartite_information`](@ref).
+"""
+function topological_entanglement_entropy(b::Bag, A::Region, B::Region, C::Region)
+    return -tripartite_information(b, A, B, C)
+end
+export topological_entanglement_entropy

@@ -136,3 +136,32 @@ end
     ) ≈ 0.4
     @test_throws ErrorException mutual_information(bag(ee(1) => 0.5), Region(1), Region(2))
 end
+
+@testset "multipartite region helpers: CMI, tripartite info, KP topological EE" begin
+    ee = entanglement_entropy
+    A, B, C = Region(1), Region(2), Region(3)
+    b = bag(
+        ee(1) => 0.5,
+        ee(2) => 0.5,
+        ee(3) => 0.5,
+        ee(1, 2) => 1.0,
+        ee(1, 3) => 1.0,
+        ee(2, 3) => 1.0,
+        ee(1, 2, 3) => 1.2,
+    )
+    # I(A:C|B) = S(A∪B)+S(B∪C)−S(A∪B∪C)−S(B)   (the SSA slack)
+    cmi = conditional_mutual_information(b, A, B, C)
+    @test cmi ≈ 0.3
+    # I₃ = S_A+S_B+S_C−S_AB−S_AC−S_BC+S_ABC ; Kitaev–Preskill γ = −I₃
+    @test tripartite_information(b, A, B, C) ≈ -0.3
+    @test topological_entanglement_entropy(b, A, B, C) ≈ 0.3
+    @test topological_entanglement_entropy(b, A, B, C) ≈ -tripartite_information(b, A, B, C)
+    # CMI agrees with the auto-discovered StrongSubadditivity slack for the same triple
+    @test any(r -> r.relation isa StrongSubadditivity && r.slack ≈ cmi, region_report(b))
+    # a missing entropy is a loud error, never silently wrong
+    @test_throws ErrorException tripartite_information(bag(ee(1) => 0.5), A, B, C)
+    @test_throws ErrorException conditional_mutual_information(
+        bag(ee(1, 2) => 1.0), A, B, C
+    )
+    @test_throws ErrorException topological_entanglement_entropy(bag(ee(1) => 0.5), A, B, C)
+end
