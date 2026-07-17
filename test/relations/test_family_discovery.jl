@@ -59,6 +59,28 @@ end
     @test all(r -> r.subject === nothing, rep)       # concrete relations: no auto-instantiation
 end
 
+@testset "§8a review #86 regression: concrete-only + loud guards" begin
+    # HIGH: solve rejects a bare FAMILY target (concrete-only; a family is ambiguous)
+    @test_throws ErrorException solve(
+        SusceptibilityPositivity(), Susceptibility, bag(SpecificHeat => 1.0)
+    )
+    # a family target is not derivable through the typed graph either
+    @test_throws ErrorException derive(Susceptibility, bag(InverseTemperature => 2.0))
+
+    # MEDIUM: a bag entry keyed on the bare family ITSELF is not a component…
+    @test isempty(AQ._bag_components(Susceptibility, bag(Susceptibility => 3.0)))
+    # …so it produces no bogus report row (subject must be a concrete component)
+    @test isempty(relation_report(bag(Susceptibility => 3.0); atol=1e-9))
+
+    # MEDIUM: `subject` on a NON-family-generic relation is a loud error, not ignored
+    @test_throws ErrorException residual(
+        SpecificHeatPositivity(), bag(SpecificHeat => 1.5); subject=Susceptibility{(:x, :x)}
+    )
+    @test_throws ErrorException check(
+        SpecificHeatPositivity(), bag(SpecificHeat => 1.5); subject=Susceptibility{(:x, :x)}
+    )
+end
+
 @testset "§8a load guard: >1 family slot rejected (needs §8b unification)" begin
     # two family-generic slots need cross-slot index unification (§8b) — rejected at load
     @test_throws Exception @eval @relation :test _TwoFam(

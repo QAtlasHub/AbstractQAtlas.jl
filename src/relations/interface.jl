@@ -674,9 +674,13 @@ function _symbol_for(rel::AbstractRelation, @nospecialize(ty::Type))
     return nothing
 end
 
-# Every concrete component of a parametric family present in the bag, as
+# Every CONCRETE component of a parametric family present in the bag, as
 # `VariableKey`s (§8a auto-discovery) — e.g. Susceptibility → its χ_xx, χ_zz keys.
-_bag_components(@nospecialize(family), b::Bag) = [k for k in keys(b) if k.type <: family]
+# `isconcretetype` excludes a bag entry keyed on the bare family itself (`family <:
+# family` is trivially true), so a `subject` is always a genuine component.
+function _bag_components(@nospecialize(family), b::Bag)
+    return [k for k in keys(b) if k.type <: family && isconcretetype(k.type)]
+end
 
 # The (single, §8a) family-generic slot's key, or `nothing` if the relation is
 # fully concrete.
@@ -761,6 +765,9 @@ residual(SpectralFromGreens(), bag(SpectralFunction => A, RetardedGreensFunction
 function residual(
     rel::AbstractRelation, b::Bag; subject::Union{Nothing,Type}=nothing, extras...
 )
+    subject !== nothing &&
+        _family_slot(rel) === nothing &&
+        error("$(nameof(typeof(rel))) is not family-generic — drop the `subject` keyword")
     ex = values(extras)
     sk = subject === nothing ? nothing : VariableKey(subject)
     return _residual(
@@ -794,6 +801,15 @@ solve(KeldyshComponent(), KeldyshGreensFunction,
 ```
 """
 function solve(rel::AbstractRelation, @nospecialize(Q::Type), b::Bag; extras...)
+    # `derive`/`solve` are concrete-only: a bare family (`Susceptibility`) as the
+    # target is ambiguous over its components.  Reject it before `_symbol_for` can
+    # "match" the family slot and skip it (which would return a component-blind value);
+    # this also keeps the typed derivation graph honest — `_try_typed_step` catches
+    # the throw and treats such a step as non-firing.
+    _is_family(Q) && error(
+        "solve: $(nameof(Q)) is a parametric family, not a concrete component — " *
+        "pass e.g. $(nameof(Q)){(:x, :x)}",
+    )
     sym = _symbol_for(rel, Q)
     sym === nothing && error("$(nameof(typeof(rel))) has no variable of type $(nameof(Q))")
     ex = values(extras)
