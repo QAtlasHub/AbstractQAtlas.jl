@@ -100,6 +100,22 @@ end
     @test Set(ssa[1].regions) == Set((Region(1), Region(2), Region(3)))
     @test region_check_all(b)                             # SSA + subadditivity + Araki–Lieb all hold
 
+    # a FULLY-connected triple: all 3 choices of the shared middle B are valid, so the
+    # enumeration must emit exactly 3 distinct SSA instances (no dup, no omission)
+    full = bag(
+        ee(1) => 0.5,
+        ee(2) => 0.5,
+        ee(3) => 0.5,
+        ee(1, 2) => 1.0,
+        ee(1, 3) => 1.0,
+        ee(2, 3) => 1.0,
+        ee(1, 2, 3) => 1.2,
+    )
+    ssa_full = [r for r in region_report(full) if r.relation isa StrongSubadditivity]
+    @test length(ssa_full) == 3                           # one per choice of the middle B
+    @test length(unique(r.regions[2] for r in ssa_full)) == 3      # 3 distinct middles
+    @test all(r -> r.pass, ssa_full)
+
     # a broken calc — negative conditional mutual information I(A:C|B) < 0 — is caught
     bad = bag(
         ee(1) => 0.5,

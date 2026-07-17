@@ -1,14 +1,14 @@
 # relations/region_entropy.jl — auto-discovery of the entanglement-entropy
-# inequalities over the REGIONS present in a bag (design §5/§8b, Phase-2 P1).
+# inequalities over the REGIONS present in a bag (design §5/§8b, Phase-2).
 #
-# The bipartite entropy inequalities (subadditivity, Araki–Lieb) hold for ANY
-# disjoint pair of regions (A, B).  Keyed on a Region support (`entropy(A)`), they
-# become auto-discoverable: `region_report` scans a bag of region-entropies, finds
-# every disjoint (A, B) whose S(A), S(B), S(A∪B) are all present, and checks the
-# inequalities on that instance — no hand-labeled A/B/AB.  The relations' scalar
-# kernels (Subadditivity, ArakiLieb) are reused verbatim; this is the region-matching
-# layer over them.  SSA / multipartite / §8b index-unification follow in P2 on this
-# same matcher.
+# The entropy inequalities hold for ANY (disjoint) regions.  Keyed on a Region
+# support (`entanglement_entropy(A)`), they become auto-discoverable: `region_report`
+# scans a bag of region-entropies and checks, on every matching region combination,
+# subadditivity + Araki–Lieb (disjoint PAIRS) and strong subadditivity (pairwise-
+# disjoint TRIPLES) — no hand-labeled A/B/AB/ABC.  The relations' scalar kernels
+# (Subadditivity, ArakiLieb, StrongSubadditivity) are reused verbatim; this is the
+# region-matching layer over them.  Multipartite (KP/LW TEE) + §8b index-unification
+# follow on this same matcher.
 
 """
     RegionReportRow
@@ -94,8 +94,8 @@ export region_report
 """
     region_check_all(b::Bag; atol=0) -> Bool
 
-`true` iff every bipartite entropy inequality auto-discovered by
-[`region_report`](@ref) holds on the bag `b` — and at least one instance was found
+`true` iff every entropy inequality (bipartite + strong subadditivity) auto-discovered
+by [`region_report`](@ref) holds on the bag `b` — and at least one instance was found
 (an empty match is `false`, never a silent green).
 """
 function region_check_all(b::Bag; atol=0)
