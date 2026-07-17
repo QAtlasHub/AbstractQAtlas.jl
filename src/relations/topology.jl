@@ -116,7 +116,7 @@ component of the rank-2 conductivity tensor `σ_μν`
 
 Variables (in units of `e²/h`): `σxy`, `C`.
 """
-@relation :topology TKNN(σxy, C) = σxy - C
+@relation :topology TKNN(σxy::Conductivity{(:x, :y)}, C::ChernNumber) = σxy - C
 
 """
     ChernFromBerryCurvature <: AbstractRelation
@@ -134,7 +134,8 @@ the Berry curvature (Xiao, Chang & Niu, Rev. Mod. Phys. 82, 1959 (2010)).
 
 Variables: `C`, `berry_flux`.
 """
-@relation :topology ChernFromBerryCurvature(C, berry_flux) = C - berry_flux / (2π)
+@relation :topology ChernFromBerryCurvature(C::ChernNumber, berry_flux) =
+    C - berry_flux / (2π)
 
 """
     BulkBoundary <: AbstractRelation

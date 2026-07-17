@@ -35,7 +35,7 @@ quantities(::DetailedBalance) = (DynamicalStructureFactor,)
 quantities(::DynamicalFDT) = (DynamicalStructureFactor, DynamicalSusceptibility)
 quantities(::CorrelationLengthGap) = (CorrelationLength, MassGap)
 quantities(::NMRExponent) = (NMRSpinRelaxationRate,)
-quantities(::FiniteSizeGap) = (MassGap,)
+# FiniteSizeGap is type-keyed (cft.jl), `quantities` auto-derived (MassGap, ScalingDimension).
 function quantities(::StaticFromDynamicalStructureFactor)
     return (StaticStructureFactor, DynamicalStructureFactor)
 end
@@ -82,4 +82,6 @@ quantities(::CFTEntanglementSlope) = (VonNeumannEntropy,)
 quantities(::EnergyVarianceEigenstate) = (EnergyVariance,)
 
 # ── Topology ──
-quantities(::TKNN) = (Conductivity,)
+# TKNN + ChernFromBerryCurvature are type-keyed (topology.jl), `quantities`
+# auto-derived (TKNN → Conductivity, ChernNumber). BulkBoundary stays symbol-keyed
+# (generic bulk invariant ν — Chern / winding / ℤ₂, no single named type).

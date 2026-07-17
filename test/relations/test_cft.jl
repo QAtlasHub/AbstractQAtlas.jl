@@ -64,3 +64,21 @@ end
     @test slack(CTheorem(); c_UV=1 // 2, c_IR=1 // 2) == 0 // 1     # a fixed point (no flow)
     @test !check(CTheorem(); c_UV=1 // 2, c_IR=7 // 10)            # c increasing ⇒ forbidden
 end
+
+@testset "type-keyed: cft" begin
+    @test quantities(CasimirCentralCharge()) == (CentralCharge,)
+    @test Set(quantities(FiniteSizeGap())) == Set((MassGap, ScalingDimension))
+    @test Set(quantities(CardyDensityOfStates())) == Set((CentralCharge, ScalingDimension))
+    # finite-size gap Δ = 2π v x / L via bag (MassGap, ScalingDimension typed; v, L supplied)
+    v, L, x = 1.0, 10.0, 0.125
+    @test check(
+        FiniteSizeGap(),
+        bag(MassGap => 2π * v * x / L, ScalingDimension => x);
+        v=v,
+        L=L,
+        atol=1e-12,
+    )
+    # CTheorem c_UV ≥ c_IR stays symbol-keyed — c_UV/c_IR are two CentralCharge
+    # instances (UV/IR), the multi-instance-of-one-type case (Phase-2 decoration)
+    @test isempty(variable_types(CTheorem()))
+end

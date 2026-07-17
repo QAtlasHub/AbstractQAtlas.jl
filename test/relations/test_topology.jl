@@ -73,3 +73,13 @@ end
     @test !check(BulkBoundary(); n=1, ν=2)
     @test solve(BulkBoundary(), Val(:n); ν=-4) == 4
 end
+
+@testset "type-keyed: topology" begin
+    @test Set(quantities(TKNN())) == Set((Conductivity, ChernNumber))
+    @test quantities(ChernFromBerryCurvature()) == (ChernNumber,)
+    # σ_xy = C in units of e²/h: a Chern number 2 ⇒ σ_xy = 2
+    @test check(TKNN(), bag(Conductivity{(:x, :y)} => 2.0, ChernNumber => 2.0); atol=1e-12)
+    @test !check(TKNN(), bag(Conductivity{(:x, :y)} => 2.0, ChernNumber => 3.0); atol=1e-9)
+    # BulkBoundary's generic bulk invariant ν stays symbol-keyed
+    @test isempty(variable_types(BulkBoundary()))
+end

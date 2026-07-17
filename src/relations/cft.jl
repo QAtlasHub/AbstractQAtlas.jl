@@ -21,7 +21,7 @@ ground-state energy per site.
 
 Variables: `dE`, `c`, `v`, `L`.
 """
-@relation :cft CasimirCentralCharge(dE, c, v, L) = dE + π * c * v / (6 * L^2)
+@relation :cft CasimirCentralCharge(dE, c::CentralCharge, v, L) = dE + π * c * v / (6 * L^2)
 
 """
     FiniteSizeGap <: AbstractRelation
@@ -37,7 +37,7 @@ universal amplitude `2πvx`.  Reads `x` off the measured finite-size gap.
 
 Variables: `gap` = `E_x(L) − E₀(L)`, `x`, `v`, `L`.
 """
-@relation :cft FiniteSizeGap(gap, x, v, L) = gap - 2π * v * x / L
+@relation :cft FiniteSizeGap(gap::MassGap, x::ScalingDimension, v, L) = gap - 2π * v * x / L
 
 """
     CardyDensityOfStates <: AbstractRelation
@@ -53,7 +53,8 @@ the microcanonical entropy of a CFT from its central charge `c`).
 
 Variables: `ln_ρ` = `ln ρ(Δ)`, `c`, `Δ`.
 """
-@relation :cft CardyDensityOfStates(ln_ρ, c, Δ) = ln_ρ - 2π * sqrt(c * Δ / 6)
+@relation :cft CardyDensityOfStates(ln_ρ, c::CentralCharge, Δ::ScalingDimension) =
+    ln_ρ - 2π * sqrt(c * Δ / 6)
 
 """
     CTheorem <: AbstractInequality
