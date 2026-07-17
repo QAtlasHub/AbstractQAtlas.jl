@@ -78,11 +78,13 @@ export domain
 
 The physical-quantity TYPES a relation directly constrains — the machine
 link from a relation to the vocabulary it speaks about (beyond the bare
-variable *symbols* of [`variables`](@ref)).  E.g.
-`quantities(SusceptibilityFDT()) == (Susceptibility,)`.  Defaults to `()`
-for relations that constrain parameters/exponents rather than named
-quantities (scaling laws, Maxwell relations).  The reverse index is
-[`relations_constraining`](@ref).
+variable *symbols* of [`variables`](@ref)).  For a type-keyed relation this is
+auto-derived: the `AbstractQuantity` subset of its [`variable_types`](@ref)
+(family-erased) unioned with [`also_constrains`](@ref) — e.g.
+`quantities(SusceptibilityFDT()) == (Susceptibility, Magnetization)`, the typed
+`χ` plus the `Var(M)` association.  Defaults to `()` for relations that constrain
+parameters/exponents rather than named quantities (scaling laws, Maxwell
+relations).  The reverse index is [`relations_constraining`](@ref).
 """
 quantities(::AbstractRelation) = ()
 export quantities
@@ -107,9 +109,10 @@ export variable_slots
 
 The identity TYPES of a relation's identity-bearing variables, in declaration
 order (the non-`nothing` keys of [`variable_slots`](@ref)).  Empty for a legacy
-symbol-only relation.  `quantities(rel)` is the `AbstractQuantity` subset of
-this, auto-derived — so a type-keyed relation never needs a hand-written entry
-in `quantity_links.jl`.
+symbol-only relation.  `quantities(rel)` is the `AbstractQuantity` subset of this
+(family-erased), auto-derived and unioned with [`also_constrains`](@ref) — so a
+type-keyed relation needs a hand-written link only for a quantity that enters
+through a supplied variance/derivative slot.
 """
 variable_types(::AbstractRelation) = ()
 export variable_types
@@ -120,6 +123,30 @@ export variable_types
 # `σxy`, `σxx`) constrains that family once — for the auto-derived `quantities`.
 function _auto_quantities(types::Tuple)
     return Tuple(unique(_family(T) for T in types if T <: AbstractQuantity))
+end
+
+"""
+    also_constrains(rel::AbstractRelation) -> Tuple{Vararg{Type}}
+
+Extra quantity TYPES a relation constrains that do NOT appear as a typed identity
+slot — a quantity entering only through a SUPPLIED variance or derivative.  The
+`Var(M)` in the susceptibility FDT constrains [`Magnetization`](@ref); the
+`dlnσ/dε` in the Mott formula constrains [`Conductivity`](@ref).  Auto-derivation
+from [`variable_types`](@ref) cannot see these, so they are hand-declared and
+unioned into [`quantities`](@ref) (which keeps the physics graph complete without a
+full hand-written link).  Defaults to `()`.
+"""
+also_constrains(::AbstractRelation) = ()
+export also_constrains
+
+# A typed relation's full constrained-quantity set: its typed subjects (auto) ∪ its
+# hand-declared hidden associations (`also_constrains`), family-erased and deduped.
+function _merged_quantities(rel::AbstractRelation)
+    return Tuple(
+        unique((
+            _auto_quantities(variable_types(rel))..., map(_family, also_constrains(rel))...
+        )),
+    )
 end
 
 # ─── Registry ───────────────────────────────────────────────────────────
@@ -359,10 +386,7 @@ function _build_relation(dom, defn, super::Symbol, what::String)
     # needs no hand entry in quantity_links.jl; a legacy symbol-only relation keeps
     # the default / its quantity_links override.
     quantities_method = if has_typed
-        :(
-            AbstractQAtlas.quantities(r::$ename) =
-                AbstractQAtlas._auto_quantities(AbstractQAtlas.variable_types(r))
-        )
+        :(AbstractQAtlas.quantities(r::$ename) = AbstractQAtlas._merged_quantities(r))
     else
         nothing
     end
@@ -656,6 +680,13 @@ function _bag_kwargs(
     return out
 end
 
+# Extras NOT consumed by any required slot (e.g. an OPTIONAL kernel parameter such
+# as a site count `N=1`, which is not a `variable_slots` entry) — forwarded verbatim
+# to the kernel, so the bag path can set them and never SILENTLY drops one.
+function _unconsumed_extras(rel::AbstractRelation, extras::NamedTuple)
+    return Base.structdiff(extras, NamedTuple{variables(rel)})
+end
+
 """
     residual(rel::AbstractRelation, b::Bag; extras...) -> Number
 
@@ -669,7 +700,8 @@ residual(SpectralFromGreens(), bag(SpectralFunction => A, RetardedGreensFunction
 ```
 """
 function residual(rel::AbstractRelation, b::Bag; extras...)
-    return _residual(rel; _bag_kwargs(rel, b, values(extras))...)
+    ex = values(extras)
+    return _residual(rel; _bag_kwargs(rel, b, ex)..., _unconsumed_extras(rel, ex)...)
 end
 
 """
@@ -698,7 +730,10 @@ solve(KeldyshComponent(), KeldyshGreensFunction,
 function solve(rel::AbstractRelation, @nospecialize(Q::Type), b::Bag; extras...)
     sym = _symbol_for(rel, Q)
     sym === nothing && error("$(nameof(typeof(rel))) has no variable of type $(nameof(Q))")
-    return solve(rel, Val(sym); _bag_kwargs(rel, b, values(extras); skip=sym)...)
+    ex = values(extras)
+    return solve(
+        rel, Val(sym); _bag_kwargs(rel, b, ex; skip=sym)..., _unconsumed_extras(rel, ex)...
+    )
 end
 
 """

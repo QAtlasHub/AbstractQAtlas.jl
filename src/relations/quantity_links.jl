@@ -10,25 +10,28 @@
 # exponents rather than named quantities (scaling laws, Maxwell relations,
 # the uncertainty relation) keep the default `quantities(rel) == ()`.
 
-# ── Statistical mechanics ──
+# ── Statistical mechanics / fundamental / ensemble (symbol-keyed, awaiting
+#    migration) ──
 quantities(::MagnetizationResponse) = (Magnetization,)
 quantities(::SusceptibilityResponse) = (Susceptibility,)
-quantities(::SusceptibilityFDT) = (Susceptibility, Magnetization)
-quantities(::SusceptibilityPositivity) = (Susceptibility,)
-quantities(::StructureFactorSusceptibility) = (Susceptibility, StaticStructureFactor)
-quantities(::SpecificHeatFDT) = (SpecificHeat, Energy)
-quantities(::SpecificHeatFromEntropy) = (SpecificHeat, ThermalEntropy)
-quantities(::SpecificHeatPositivity) = (SpecificHeat,)
-quantities(::HeatCapacityDifference) = (SpecificHeat, IsobaricSpecificHeat)
-quantities(::CompressibilityPositivity) = (IsothermalCompressibility,)
 quantities(::EntropyResponse) = (ThermalEntropy, FreeEnergy)
 quantities(::GibbsHelmholtz) = (Energy, FreeEnergy)
 quantities(::FreeEnergyFromZ) = (FreeEnergy, PartitionFunction)
 quantities(::FreeEnergyLegendre) = (FreeEnergy, Energy, ThermalEntropy)
-quantities(::ClausiusClapeyron) = (LatentHeat,)
-quantities(::GibbsDuhem) = (ThermalEntropy, Volume, ParticleNumber)
 quantities(::MicrocanonicalTemperature) = (ThermalEntropy, Energy)
 quantities(::CanonicalTPQ) = (PartitionFunction,)
+# The :thermodynamic relations are now TYPE-KEYED (thermodynamic.jl); `quantities`
+# is auto-derived from the typed slots, UNIONED with the `also_constrains` hints
+# below. Those relations constrain a quantity through a SUPPLIED variance/derivative
+# (not a typed subject), so the association is declared here to keep the physics
+# graph complete (e.g. Var(M) → Magnetization in the susceptibility FDT):
+also_constrains(::SusceptibilityFDT) = (Magnetization,)
+also_constrains(::SpecificHeatFDT) = (Energy,)
+also_constrains(::SpecificHeatFromEntropy) = (ThermalEntropy,)
+also_constrains(::MottFormula) = (Conductivity,)   # transport: dlnσ/dε → Conductivity
+# HeatCapacityDifference GAINS ThermalExpansionCoefficient + IsothermalCompressibility
+# (α, κT are now typed subjects → auto). LinearResponseFDT + the 4 Maxwell relations
+# stay symbol-keyed (generic / pure-derivative — no named quantity subject).
 
 # ── Correlations / Green's functions ──
 # NB: Dyson, SpectralFromGreens and the whole Keldysh block below are now
@@ -52,10 +55,9 @@ end
 #    (Conductivity{(:x,:x)} etc.), `quantities` auto-derived. OnsagerReciprocity
 #    (generic L_μν) and IoffeRegel (dimensionless k_Fℓ) stay symbol-keyed — no
 #    named quantity subject, so `quantities` == () by default.
-#    Two INTENTIONAL graph-link shifts vs the old hand-links (regression-tested in
-#    test_transport.jl): MottFormula drops Conductivity (its dlnσ/dε is a supplied
-#    derivative, not a typed subject → (Thermopower,)); RighiLeduc gains it (σxy is
-#    now typed → (ThermalConductivity, Conductivity)). Both are more precise. ──
+#    MottFormula's dlnσ/dε → Conductivity association is kept via `also_constrains`
+#    above (it is a supplied derivative, not a typed subject); RighiLeduc also
+#    constrains Conductivity now that σxy is typed. ──
 
 # ── Quantum information & entanglement ──
 quantities(::RenyiTwoPurity) = (RenyiEntropy, Purity)

@@ -134,3 +134,75 @@ end
     @test check(CompressibilityPositivity(); κT=0.7)
     @test !check(CompressibilityPositivity(); κT=-0.2, atol=1e-9)
 end
+
+@testset "type-keyed thermodynamic: bag + auto-quantities shifts" begin
+    varE, β, N = 2.5, 1.3, 4
+    C = β^2 * varE / N
+    # SpecificHeatFDT via bag: SpecificHeat by type, β field; var_E + optional N via
+    # extras (N ≠ 1 exercises the unconsumed-extras forwarding — no silent drop)
+    @test check(
+        SpecificHeatFDT(),
+        bag(SpecificHeat => C, InverseTemperature => β);
+        var_E=varE,
+        N=N,
+        atol=1e-12,
+    )
+    @test !check(
+        SpecificHeatFDT(),
+        bag(SpecificHeat => C, InverseTemperature => β);
+        var_E=varE,
+        N=1,
+        atol=1e-9,
+    )                                                # wrong N ⇒ fails (N was not dropped)
+
+    # SusceptibilityFDT keyed on the (:z,:z) component; β-or-T carries through
+    varM = 1.8
+    χ = β * varM / N
+    @test check(
+        SusceptibilityFDT(),
+        bag(Susceptibility{(:z, :z)} => χ, InverseTemperature => β);
+        var_M=varM,
+        N=N,
+        atol=1e-12,
+    )
+    @test check(
+        SusceptibilityFDT(),
+        bag(Susceptibility{(:z, :z)} => χ, Temperature => 1 / β);
+        var_M=varM,
+        N=N,
+        atol=1e-12,
+    )
+
+    # GibbsDuhem: three distinct scalar quantity subjects, one bag; S dT − V dp + N dμ = 0
+    @test check(
+        GibbsDuhem(),
+        bag(ThermalEntropy => 2.0, Volume => 3.0, ParticleNumber => 1.0);
+        dT=1.0,
+        dp=1.0,
+        dμ=1.0,
+        atol=1e-12,
+    )
+
+    # quantities() = typed subjects ∪ `also_constrains` (the hidden variance/derivative
+    # associations), so the FDT physics-graph edges (χ↔M, C↔E, C↔S) are PRESERVED:
+    @test quantities(SpecificHeatFDT()) == (SpecificHeat, Energy)            # Var(E) → Energy
+    @test quantities(SusceptibilityFDT()) == (Susceptibility, Magnetization) # Var(M) → Magnetization
+    @test quantities(SpecificHeatFromEntropy()) == (SpecificHeat, ThermalEntropy)
+    @test Set(quantities(HeatCapacityDifference())) == Set((
+        IsobaricSpecificHeat,
+        SpecificHeat,
+        ThermalExpansionCoefficient,
+        IsothermalCompressibility,
+    ))                                                              # gains α, κT (now typed)
+    # generic / pure-derivative relations correctly stay symbol-keyed
+    @test all(
+        r -> isempty(variable_types(r)),
+        (
+            LinearResponseFDT(),
+            MaxwellHelmholtz(),
+            MaxwellGibbs(),
+            MaxwellInternal(),
+            MaxwellEnthalpy(),
+        ),
+    )
+end

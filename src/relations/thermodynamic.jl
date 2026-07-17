@@ -36,7 +36,9 @@ residual(SpecificHeatFDT(); C=c, var_E=v, β=β, N=N)   # c − β²v/N
 solve(SpecificHeatFDT(), Val(:C); var_E=v, T=T, N=N)  # the estimator
 ```
 """
-@relation :thermodynamic SpecificHeatFDT(C, var_E, β, N=1) = C - β^2 * var_E / N
+@relation :thermodynamic SpecificHeatFDT(
+    C::SpecificHeat, var_E, β::InverseTemperature, N=1
+) = C - β^2 * var_E / N
 
 """
     SusceptibilityFDT <: AbstractRelation
@@ -54,7 +56,9 @@ identity relates the `(A, B)` component to the `(A, B)` covariance, so
 familiar `Var(M_A)`).  It is the `h → 0` limit of `χ_AB = ∂⟨M_A⟩/∂h_B`;
 response route and fluctuation route must agree.
 """
-@relation :thermodynamic SusceptibilityFDT(χ, var_M, β, N=1) = χ - β * var_M / N
+@relation :thermodynamic SusceptibilityFDT(
+    χ::Susceptibility{(:z, :z)}, var_M, β::InverseTemperature, N=1
+) = χ - β * var_M / N
 
 """
     LinearResponseFDT <: AbstractRelation
@@ -84,7 +88,8 @@ agree.
 
 Variables: `C`, `dS_dT`, `T`.
 """
-@relation :thermodynamic SpecificHeatFromEntropy(C, dS_dT, T) = C - T * dS_dT
+@relation :thermodynamic SpecificHeatFromEntropy(C::SpecificHeat, dS_dT, T::Temperature) =
+    C - T * dS_dT
 
 """
     HeatCapacityDifference <: AbstractRelation
@@ -101,8 +106,14 @@ the (per-site) volume.  Purely thermodynamic — always non-negative since
 
 Variables: `Cp`, `Cv`, `T`, `v`, `α`, `κT`.
 """
-@relation :thermodynamic HeatCapacityDifference(Cp, Cv, T, v, α, κT) =
-    (Cp - Cv) - T * v * α^2 / κT
+@relation :thermodynamic HeatCapacityDifference(
+    Cp::IsobaricSpecificHeat,
+    Cv::SpecificHeat,
+    T::Temperature,
+    v,
+    α::ThermalExpansionCoefficient,
+    κT::IsothermalCompressibility,
+) = (Cp - Cv) - T * v * α^2 / κT
 
 """
     StructureFactorSusceptibility <: AbstractRelation
@@ -120,7 +131,9 @@ must agree.
 
 Variables: `χ`, `Sq0` = `S(q → 0)`, `β` (or `T`).
 """
-@relation :thermodynamic StructureFactorSusceptibility(χ, Sq0, β) = χ - β * Sq0
+@relation :thermodynamic StructureFactorSusceptibility(
+    χ::Susceptibility{(:z, :z)}, Sq0::StaticStructureFactor, β::InverseTemperature
+) = χ - β * Sq0
 
 # ─── Maxwell relations ───────────────────────────────────────────────────
 #
@@ -189,7 +202,8 @@ the transition.  Connects to the [`FirstOrder`](@ref) transition type
 
 Variables: `dp_dT`, `L`, `T`, `ΔV`.
 """
-@relation :thermodynamic ClausiusClapeyron(dp_dT, L, T, ΔV) = dp_dT - L / (T * ΔV)
+@relation :thermodynamic ClausiusClapeyron(dp_dT, L::LatentHeat, T::Temperature, ΔV) =
+    dp_dT - L / (T * ΔV)
 
 """
     GibbsDuhem <: AbstractRelation
@@ -203,7 +217,9 @@ Supplied-differential convention: `dT`, `dp`, `dμ` are the variations.
 
 Variables: `S`, `dT`, `V`, `dp`, `N`, `dμ`.
 """
-@relation :thermodynamic GibbsDuhem(S, dT, V, dp, N, dμ) = S * dT - V * dp + N * dμ
+@relation :thermodynamic GibbsDuhem(
+    S::ThermalEntropy, dT, V::Volume, dp, N::ParticleNumber, dμ
+) = S * dT - V * dp + N * dμ
 
 # ─── Thermodynamic stability (convexity ⇒ ≥ 0; @inequality) ─────────────
 
@@ -220,7 +236,7 @@ a broken simulation.
 
 Variables: `Cv`.
 """
-@inequality :thermodynamic SpecificHeatPositivity(Cv) = Cv
+@inequality :thermodynamic SpecificHeatPositivity(Cv::SpecificHeat) = Cv
 
 """
     CompressibilityPositivity <: AbstractInequality
@@ -233,7 +249,7 @@ Mechanical stability: the isothermal compressibility is non-negative,
 
 Variables: `κT`.
 """
-@inequality :thermodynamic CompressibilityPositivity(κT) = κT
+@inequality :thermodynamic CompressibilityPositivity(κT::IsothermalCompressibility) = κT
 
 """
     SusceptibilityPositivity <: AbstractInequality
@@ -248,4 +264,4 @@ field is non-negative,
 
 Variables: `χT`.
 """
-@inequality :thermodynamic SusceptibilityPositivity(χT) = χT
+@inequality :thermodynamic SusceptibilityPositivity(χT::Susceptibility{(:z, :z)}) = χT
