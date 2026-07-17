@@ -51,7 +51,11 @@ end
 # ── Transport: now type-keyed (transport.jl) with CONCRETE component types
 #    (Conductivity{(:x,:x)} etc.), `quantities` auto-derived. OnsagerReciprocity
 #    (generic L_μν) and IoffeRegel (dimensionless k_Fℓ) stay symbol-keyed — no
-#    named quantity subject, so `quantities` == () by default. ──
+#    named quantity subject, so `quantities` == () by default.
+#    Two INTENTIONAL graph-link shifts vs the old hand-links (regression-tested in
+#    test_transport.jl): MottFormula drops Conductivity (its dlnσ/dε is a supplied
+#    derivative, not a typed subject → (Thermopower,)); RighiLeduc gains it (σxy is
+#    now typed → (ThermalConductivity, Conductivity)). Both are more precise. ──
 
 # ── Quantum information & entanglement ──
 quantities(::RenyiTwoPurity) = (RenyiEntropy, Purity)
