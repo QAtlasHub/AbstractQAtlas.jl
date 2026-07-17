@@ -67,6 +67,32 @@ end
     @test !check(WeakMonotonicity(); S_AB=0.3, S_BC=0.3, S_A=S_A, S_C=S_C, atol=1e-9)
 end
 
+@testset "entropy of mixing: concavity + Holevo upper bound" begin
+    # mixing two ORTHOGONAL pure states equally: S(ρᵢ)=0 ⇒ S_avg=0; the (½,½) mixture has
+    # eigenvalues (½,½) ⇒ S_mix=ln2 and H(p)=ln2. Concavity slack = ln2 (mixing raised the
+    # entropy from 0); Holevo slack = 0 (orthogonal support saturates the upper bound).
+    @test check(EntropyMixingConcavity(); S_mix=log(2), S_avg=0.0, atol=1e-12)
+    @test slack(EntropyMixingConcavity(); S_mix=log(2), S_avg=0.0) ≈ log(2)
+    @test check(HolevoMixingBound(); S_avg=0.0, H_weights=log(2), S_mix=log(2), atol=1e-12)
+    @test slack(HolevoMixingBound(); S_avg=0.0, H_weights=log(2), S_mix=log(2)) ≈ 0 atol =
+        1e-12
+
+    # mixing IDENTICAL states: the mixture is that state ⇒ S_mix = S_avg. Concavity is
+    # saturated (slack 0); the Holevo bound is loose, slack = H(p) > 0.
+    @test slack(EntropyMixingConcavity(); S_mix=1.3, S_avg=1.3) ≈ 0 atol = 1e-12
+    @test slack(HolevoMixingBound(); S_avg=1.3, H_weights=log(2), S_mix=1.3) ≈ log(2)
+
+    # fabricated violations of each bound are caught
+    @test !check(EntropyMixingConcavity(); S_mix=0.2, S_avg=0.5, atol=1e-9)   # below the average
+    @test !check(
+        HolevoMixingBound();
+        S_avg=0.5,
+        H_weights=log(2),
+        S_mix=0.5 + log(2) + 0.3,
+        atol=1e-9,
+    )   # above average + H(p)
+end
+
 @testset "Rényi monotonicity S_α non-increasing in α" begin
     # exact Rényi entropies of Schmidt spectrum {p, 1−p}: S_α decreasing in α
     p = 0.25

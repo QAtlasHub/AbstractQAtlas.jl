@@ -221,6 +221,45 @@ Variables: `S_rel` = `S(ρ‖σ)`.
 """
 @inequality :entanglement RelativeEntropyNonNegativity(S_rel) = S_rel
 
+# ─── Entropy of mixing: concavity + the Holevo upper bound ───────────────
+#
+# For a mixture ρ = Σᵢ pᵢ ρᵢ the entropy is sandwiched by the weighted-average
+# component entropy Σᵢ pᵢ S(ρᵢ): concavity from below, and from above by that
+# average plus the classical mixing entropy H(p).  The gap S(ρ) − Σᵢ pᵢ S(ρᵢ)
+# is the Holevo χ, `0 ≤ χ ≤ H(p)`.  `S_avg` and `H_weights` are caller-supplied
+# aggregates over the ensemble (the sum over members is a functional step).
+
+"""
+    EntropyMixingConcavity <: AbstractInequality
+
+Concavity of the von Neumann entropy — mixing states cannot decrease the entropy,
+
+`S(Σᵢ pᵢ ρᵢ) ≥ Σᵢ pᵢ S(ρᵢ)`
+
+(slack `S_mix − S_avg`; Wehrl, Rev. Mod. Phys. 50, 221 (1978)).  Saturated when every
+`ρᵢ` with `pᵢ > 0` is the same state.
+
+Variables: `S_mix` = `S(Σᵢ pᵢ ρᵢ)`, `S_avg` = the caller-supplied `Σᵢ pᵢ S(ρᵢ)`.
+"""
+@inequality :entanglement EntropyMixingConcavity(S_mix, S_avg) = S_mix - S_avg
+
+"""
+    HolevoMixingBound <: AbstractInequality
+
+The upper companion of [`EntropyMixingConcavity`](@ref): the entropy of a mixture
+exceeds the average component entropy by at most the classical mixing entropy,
+
+`S(Σᵢ pᵢ ρᵢ) ≤ Σᵢ pᵢ S(ρᵢ) + H(p)`,   `H(p) = −Σᵢ pᵢ ln pᵢ`
+
+(slack `S_avg + H_weights − S_mix`; Wehrl, Rev. Mod. Phys. 50, 221 (1978)).  Saturated
+when the `ρᵢ` have mutually orthogonal support; the gap `S_mix − S_avg` is the Holevo
+`χ`, bounded in `[0, H(p)]`.
+
+Variables: `S_avg` = `Σᵢ pᵢ S(ρᵢ)`, `H_weights` = `H(p)`, `S_mix` = `S(Σᵢ pᵢ ρᵢ)`.
+"""
+@inequality :entanglement HolevoMixingBound(S_avg, H_weights, S_mix) =
+    S_avg + H_weights - S_mix
+
 # ─── Measurement and quantum-Markov entropies ───────────────────────────
 
 """
