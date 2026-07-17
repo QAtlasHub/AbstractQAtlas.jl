@@ -18,9 +18,7 @@ quantities(::EntropyResponse) = (ThermalEntropy, FreeEnergy)
 quantities(::GibbsHelmholtz) = (Energy, FreeEnergy)
 quantities(::FreeEnergyFromZ) = (FreeEnergy, PartitionFunction)
 quantities(::FreeEnergyLegendre) = (FreeEnergy, Energy, ThermalEntropy)
-quantities(::MicrocanonicalTemperature) = (ThermalEntropy, Energy)
-quantities(::CanonicalTPQ) = (PartitionFunction,)
-# The :thermodynamic relations are now TYPE-KEYED (thermodynamic.jl); `quantities`
+# Type-keyed relations (thermodynamic.jl, ensembles.jl, transport.jl): `quantities`
 # is auto-derived from the typed slots, UNIONED with the `also_constrains` hints
 # below. Those relations constrain a quantity through a SUPPLIED variance/derivative
 # (not a typed subject), so the association is declared here to keep the physics
@@ -29,6 +27,7 @@ also_constrains(::SusceptibilityFDT) = (Magnetization,)
 also_constrains(::SpecificHeatFDT) = (Energy,)
 also_constrains(::SpecificHeatFromEntropy) = (ThermalEntropy,)
 also_constrains(::MottFormula) = (Conductivity,)   # transport: dlnσ/dε → Conductivity
+also_constrains(::MicrocanonicalTemperature) = (ThermalEntropy, Energy)  # β = ∂S/∂E
 # HeatCapacityDifference GAINS ThermalExpansionCoefficient + IsothermalCompressibility
 # (α, κT are now typed subjects → auto). LinearResponseFDT + the 4 Maxwell relations
 # stay symbol-keyed (generic / pure-derivative — no named quantity subject).
@@ -83,7 +82,10 @@ quantities(::RelativeEntropyNonNegativity) = (RelativeEntropy,)
 quantities(::CFTEntanglementSlope) = (VonNeumannEntropy,)
 
 # ── Quantum-mechanical foundations ──
-quantities(::VirialTheorem) = (KineticEnergy, PotentialEnergy)
+# VirialTheorem is type-keyed (quantum.jl), `quantities` auto-derived. The Ehrenfest /
+# Hellmann–Feynman / uncertainty / Lieb–Robinson relations stay symbol-keyed (generic
+# operators / derivatives). EnergyVarianceEigenstate stays symbol-keyed — its subject
+# EnergyVariance enters only through the moment combination ⟨H²⟩ − E², not a slot.
 quantities(::EnergyVarianceEigenstate) = (EnergyVariance,)
 
 # ── Topology ──

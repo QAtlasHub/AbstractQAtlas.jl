@@ -74,3 +74,26 @@ end
     @test !check(LiebRobinsonBound(); v=4.0, v_LR=3.0, atol=1e-9)   # superluminal ⇒ forbidden
     @test solve(LiebRobinsonBound(), Val(:v_LR); v=2.5) ≈ 2.5       # the bound is tight at v=v_LR
 end
+
+@testset "type-keyed: VirialTheorem" begin
+    @test quantities(VirialTheorem()) == (KineticEnergy, PotentialEnergy)
+    # 2⟨T⟩ = n⟨V⟩ via bag; harmonic n = 2 ⇒ ⟨T⟩ = ⟨V⟩
+    @test check(
+        VirialTheorem(), bag(KineticEnergy => 1.0, PotentialEnergy => 1.0); n=2, atol=1e-12
+    )
+    @test !check(
+        VirialTheorem(), bag(KineticEnergy => 1.0, PotentialEnergy => 2.0); n=2, atol=1e-9
+    )
+    # the generic quantum relations correctly stay symbol-keyed
+    @test all(
+        r -> isempty(variable_types(r)),
+        (
+            EhrenfestMomentum(),
+            EhrenfestPosition(),
+            HellmannFeynman(),
+            RobertsonUncertainty(),
+            LiebRobinsonBound(),
+            EnergyVarianceEigenstate(),
+        ),
+    )
+end

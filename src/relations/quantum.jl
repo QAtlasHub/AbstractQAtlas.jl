@@ -23,7 +23,7 @@ The quantum virial theorem for a homogeneous potential of degree `n`
 
 Variables: `T` = `⟨T⟩`, `V` = `⟨V⟩`, `n`.
 """
-@relation :quantum VirialTheorem(T, V, n) = 2 * T - n * V
+@relation :quantum VirialTheorem(T::KineticEnergy, V::PotentialEnergy, n) = 2 * T - n * V
 
 """
     HellmannFeynman <: AbstractRelation

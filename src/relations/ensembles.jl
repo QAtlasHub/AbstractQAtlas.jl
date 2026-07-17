@@ -32,7 +32,7 @@ at `E = U(β)` — the connection a finite-`T` calculation can cross-check.
 
 Variables: `β`, `dS_dE`.
 """
-@relation :ensemble MicrocanonicalTemperature(β, dS_dE) = β - dS_dE
+@relation :ensemble MicrocanonicalTemperature(β::InverseTemperature, dS_dE) = β - dS_dE
 
 """
     CanonicalTPQ <: AbstractRelation
@@ -51,4 +51,4 @@ small in system size.  Thermal averages follow the same way,
 Supplied-weight convention: `tpq_weight = ⟨ψ₀| e^{−βĤ} |ψ₀⟩`.
 Variables: `Z`, `tpq_weight`, `D`.
 """
-@relation :ensemble CanonicalTPQ(Z, tpq_weight, D) = Z - D * tpq_weight
+@relation :ensemble CanonicalTPQ(Z::PartitionFunction, tpq_weight, D) = Z - D * tpq_weight

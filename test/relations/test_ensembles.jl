@@ -50,3 +50,17 @@ end
     Z_est = D * acc / M
     @test isapprox(Z_est, Z; rtol=0.03)     # 20k samples ⇒ a few % is comfortable
 end
+
+@testset "type-keyed: ensemble" begin
+    @test quantities(CanonicalTPQ()) == (PartitionFunction,)
+    # MicrocanonicalTemperature keeps its S↔E graph edges via also_constrains
+    @test Set(quantities(MicrocanonicalTemperature())) == Set((ThermalEntropy, Energy))
+    # CanonicalTPQ: Z = D·⟨tpq_weight⟩ via bag (Z by type, weight + dimension via extras)
+    @test check(
+        CanonicalTPQ(), bag(PartitionFunction => 6.0); tpq_weight=2.0, D=3.0, atol=1e-12
+    )
+    # MicrocanonicalTemperature β = ∂S/∂E via bag (β field; dS_dE supplied)
+    @test check(
+        MicrocanonicalTemperature(), bag(InverseTemperature => 0.5); dS_dE=0.5, atol=1e-12
+    )
+end
