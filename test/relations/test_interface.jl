@@ -14,7 +14,7 @@ AbstractQAtlas.domain(::_NonAffineDemo) = :test_only
 
 @testset "registry + traits" begin
     rels = all_relations()
-    @test length(rels) == 100          # universal-only: model-specific (spin glass, Drude mobility, single-band Hall) moved to QAtlas
+    @test length(rels) == 101         # universal-only: model-specific (spin glass, Drude mobility, single-band Hall) moved to QAtlas
     @test allunique(typeof.(rels))
     @test length(all_relations(; domain=:scaling)) == 5
     @test length(all_relations(; domain=:thermodynamic)) == 15
@@ -25,7 +25,7 @@ AbstractQAtlas.domain(::_NonAffineDemo) = :test_only
     @test length(all_relations(; domain=:transport)) == 18
     @test length(all_relations(; domain=:quantum)) == 7
     @test length(all_relations(; domain=:ensemble)) == 2
-    @test length(all_relations(; domain=:entanglement)) == 22
+    @test length(all_relations(; domain=:entanglement)) == 23
     @test length(all_relations(; domain=:wick)) == 2
     @test length(all_relations(; domain=:cft)) == 4
     @test isempty(all_relations(; domain=:spinglass))   # model-specific — lives in QAtlas now

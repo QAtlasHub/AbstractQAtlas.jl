@@ -69,7 +69,9 @@ end
         entanglement_entropy(1, 3) => 1.0,
         entanglement_entropy(2, 3) => 1.0,
     )
-    @test length(region_report(b3)) == 6                         # 3 disjoint pairs × 2 relations
+    # 3 disjoint pairs × 2 pair-relations + 3 weak-monotonicity triples (one per middle;
+    # no full-system entropy so no SSA)
+    @test length(region_report(b3)) == 9
     @test region_check_all(b3)
 
     # empty match ⇒ false, never a silent green
@@ -135,6 +137,45 @@ end
         bag(ee(1) => 0.7, ee(2) => 0.7, ee(1, 2) => 1.0), Region(1), Region(2)
     ) ≈ 0.4
     @test_throws ErrorException mutual_information(bag(ee(1) => 0.5), Region(1), Region(2))
+end
+
+@testset "region_report: weak monotonicity (partial-data triples)" begin
+    ee = entanglement_entropy
+    # weak monotonicity S(A∪B)+S(B∪C) ≥ S(A)+S(C) needs NO full-system S(A∪B∪C), so it is
+    # auto-discovered on a triple where SSA cannot even be posed — and catches a broken
+    # calc there (a negative WM slack is unphysical, like a negative mutual information)
+    wmbad = bag(
+        ee(1) => 1.0,
+        ee(2) => 0.5,
+        ee(3) => 1.0,
+        ee(1, 2) => 0.8,
+        ee(2, 3) => 0.8,       # middle B={2}: 0.8+0.8 − S(1) − S(3) = −0.4 < 0 (unphysical)
+    )
+    rep = region_report(wmbad)
+    # NO strong-subadditivity instance exists here (S(A∪B∪C) absent) — this is exactly the
+    # extra coverage weak monotonicity provides
+    @test isempty([r for r in rep if r.relation isa StrongSubadditivity])
+    viol = [r for r in rep if !r.pass]
+    @test length(viol) == 1
+    @test viol[1].relation isa WeakMonotonicity
+    @test Set(viol[1].regions) == Set((Region(1), Region(2), Region(3)))
+    @test viol[1].slack ≈ -0.4
+    @test !region_check_all(wmbad)
+
+    # on a valid full triple, WM and SSA are BOTH discovered and BOTH pass
+    good = bag(
+        ee(1) => 0.5,
+        ee(2) => 0.5,
+        ee(3) => 0.5,
+        ee(1, 2) => 1.0,
+        ee(2, 3) => 1.0,
+        ee(1, 2, 3) => 1.2,
+    )
+    kinds = Set(nameof(typeof(r.relation)) for r in region_report(good))
+    @test :WeakMonotonicity in kinds && :StrongSubadditivity in kinds
+    @test region_check_all(good)
+    wm = only(r for r in region_report(good) if r.relation isa WeakMonotonicity)
+    @test wm.slack ≈ 1.0                      # 1.0 + 1.0 − 0.5 − 0.5, middle B={2}
 end
 
 @testset "multipartite region helpers: CMI, tripartite info, KP topological EE" begin

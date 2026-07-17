@@ -122,6 +122,20 @@ Variables: `S_AB`, `S_BC`, `S_ABC`, `S_B`.
     S_AB + S_BC - S_ABC - S_B
 
 """
+    WeakMonotonicity <: AbstractInequality
+
+Weak monotonicity of the quantum entropy,
+`S(A) + S(C) ≤ S(AB) + S(BC)` (slack `S_AB + S_BC − S_A − S_C`) — the
+purification dual of [`StrongSubadditivity`](@ref) (purify `C`; SSA on the
+purified state *is* weak monotonicity here), equivalent and equally universal,
+but stated in the *outer* regions `A, C` rather than `ABC, B`.  Requires strictly
+less than SSA — no full-system `S(ABC)` — so it is checkable from partial data.
+
+Variables: `S_AB`, `S_BC`, `S_A`, `S_C`.
+"""
+@inequality :entanglement WeakMonotonicity(S_AB, S_BC, S_A, S_C) = S_AB + S_BC - S_A - S_C
+
+"""
     RenyiMonotonicity <: AbstractInequality
 
 The Rényi entropy `S_α` is non-increasing in the order `α`: for
