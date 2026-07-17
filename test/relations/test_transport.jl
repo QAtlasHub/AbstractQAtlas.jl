@@ -196,10 +196,9 @@ end
     # auto-derived quantities: two Conductivity components de-dup to one family
     @test quantities(HallAngle()) == (Conductivity,)
     @test Set(quantities(WiedemannFranz())) == Set((ThermalConductivity, Conductivity))
-    # the two INTENTIONAL graph-link shifts vs the old hand-links, pinned so they
-    # can't silently drift: MottFormula's conductivity enters only as a supplied
-    # derivative (dlnσ/dε), and RighiLeduc now also constrains Conductivity via σxy
-    @test quantities(MottFormula()) == (Thermopower,)
+    # MottFormula's conductivity enters via the supplied derivative dlnσ/dε, kept in
+    # the graph through `also_constrains`; RighiLeduc constrains Conductivity via σxy
+    @test Set(quantities(MottFormula())) == Set((Thermopower, Conductivity))
     @test Set(quantities(RighiLeduc())) == Set((ThermalConductivity, Conductivity))
     # β-or-T typed conversion carries into transport (Einstein μ = e D β)
     e, D, β = 1.0, 0.5, 2.0
