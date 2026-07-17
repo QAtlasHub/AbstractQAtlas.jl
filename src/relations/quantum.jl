@@ -3,12 +3,16 @@
 # The state-independent identities any quantum (many-body) calculation
 # checks its expectation values against: the virial theorem, the
 # Hellmann–Feynman and Ehrenfest theorems, the zero-variance eigenstate
-# condition (the variational / DMRG convergence metric), and the Robertson
-# uncertainty inequality.  Domain tag :quantum throughout.
+# condition (the variational / DMRG convergence metric), the Robertson
+# uncertainty inequality, and the dynamical speed limits (Lieb–Robinson
+# velocity, Mandelstam–Tamm / Margolus–Levitin orthogonalization time).
+# Domain tag :quantum throughout.
 #
 # References (doiget-verified, docs/references.bib): Feynman, Phys. Rev.
 # 56, 340 (1939); Ehrenfest, Z. Phys. 45, 455 (1927); Robertson, Phys.
-# Rev. 34, 163 (1929).
+# Rev. 34, 163 (1929); Margolus & Levitin, Physica D 120, 188 (1998).
+# (Mandelstam & Tamm, J. Phys. USSR 9, 249 (1945) predates DOIs — cited
+# inline only, no bib entry.)
 
 """
     VirialTheorem <: AbstractRelation
@@ -112,3 +116,39 @@ rates.
 Variables: `v`, `v_LR`.
 """
 @inequality :quantum LiebRobinsonBound(v, v_LR) = v_LR - v
+
+# ─── Quantum speed limits: the minimal time to an orthogonal state ───────
+
+"""
+    MandelstamTammBound <: AbstractInequality
+
+The Mandelstam–Tamm quantum speed limit: the time to evolve to an orthogonal
+state is bounded below by the energy uncertainty (Mandelstam & Tamm, J. Phys.
+(USSR) 9, 249 (1945); `ħ = 1`),
+
+`τ⊥ ≥ π / (2 ΔE)`,   `ΔE = √(⟨H²⟩ − ⟨H⟩²)`
+
+(slack `τ − π/(2 ΔE)`).  The energy–time bound: no state evolves to a distinguishable
+one faster than its energy spread allows.
+
+Variables: `τ` = orthogonalization time, `ΔE` = energy uncertainty.
+"""
+@inequality :quantum MandelstamTammBound(τ, ΔE) = τ - π / (2 * ΔE)
+
+"""
+    MargolusLevitinBound <: AbstractInequality
+
+The Margolus–Levitin quantum speed limit: the orthogonalization time is *also*
+bounded below by the mean energy above the ground state (Margolus & Levitin,
+Physica D 120, 188 (1998); `ħ = 1`),
+
+`τ⊥ ≥ π / (2 (E − E₀))`
+
+(slack `τ − π/(2 E_above)`, `E_above = E − E₀`).  Independent of and complementary to
+[`MandelstamTammBound`](@ref); the true limit is set by whichever is tighter,
+`τ⊥ ≥ (π/2) / min(ΔE, E − E₀)`.
+
+Variables: `τ` = orthogonalization time, `E_above` = `E − E₀` (mean energy above the
+ground state).
+"""
+@inequality :quantum MargolusLevitinBound(τ, E_above) = τ - π / (2 * E_above)

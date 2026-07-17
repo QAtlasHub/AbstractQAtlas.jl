@@ -75,6 +75,28 @@ end
     @test solve(LiebRobinsonBound(), Val(:v_LR); v=2.5) ≈ 2.5       # the bound is tight at v=v_LR
 end
 
+@testset "quantum speed limits: Mandelstam–Tamm + Margolus–Levitin" begin
+    using AbstractQAtlas: check, slack, solve, AbstractInequality
+    @test MandelstamTammBound() isa AbstractInequality
+    @test MargolusLevitinBound() isa AbstractInequality
+    # a two-level equal superposition (|0⟩+|1⟩)/√2 of a gap-ω Hamiltonian reaches an
+    # ORTHOGONAL state at τ⊥ = π/ω, where ΔE = ω/2 and E−E₀ = ω/2 — the extremal state
+    # that SATURATES both bounds simultaneously (an independent physical target: slack 0)
+    ω = 1.0
+    τ, ΔE, E_above = π / ω, ω / 2, ω / 2
+    @test check(MandelstamTammBound(); τ=τ, ΔE=ΔE, atol=1e-12)
+    @test slack(MandelstamTammBound(); τ=τ, ΔE=ΔE) ≈ 0 atol = 1e-12
+    @test check(MargolusLevitinBound(); τ=τ, E_above=E_above, atol=1e-12)
+    @test slack(MargolusLevitinBound(); τ=τ, E_above=E_above) ≈ 0 atol = 1e-12
+    # a slower evolution has room to spare: slack = τ − π/(2ΔE) = 2π − π = π
+    @test slack(MandelstamTammBound(); τ=2π, ΔE=0.5) ≈ π
+    # an impossibly fast orthogonalization (τ below the bound) is forbidden
+    @test !check(MandelstamTammBound(); τ=1.0, ΔE=0.5, atol=1e-9)      # 1 < π/(2·0.5) = π
+    @test !check(MargolusLevitinBound(); τ=1.0, E_above=0.5, atol=1e-9)
+    # solve returns the saturating (minimal) time τ_min = π/(2ΔE)
+    @test solve(MandelstamTammBound(), Val(:τ); ΔE=0.5) ≈ π
+end
+
 @testset "type-keyed: VirialTheorem" begin
     @test quantities(VirialTheorem()) == (KineticEnergy, PotentialEnergy)
     # 2⟨T⟩ = n⟨V⟩ via bag; harmonic n = 2 ⇒ ⟨T⟩ = ⟨V⟩
@@ -93,6 +115,8 @@ end
             HellmannFeynman(),
             RobertsonUncertainty(),
             LiebRobinsonBound(),
+            MandelstamTammBound(),
+            MargolusLevitinBound(),
             EnergyVarianceEigenstate(),
         ),
     )
