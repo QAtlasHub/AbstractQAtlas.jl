@@ -78,7 +78,7 @@ function main()
             ),
         )
     end
-    print("[", join(objs, ","), "]")
+    return print("[", join(objs, ","), "]")
 end
 
 main()
