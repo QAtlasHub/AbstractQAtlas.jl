@@ -4,7 +4,7 @@
 vocabulary + generic physics relations as first-class, tested objects.*
 
 In the spirit of `AbstractFFTs`: concrete atlases
-([QAtlas.jl](https://github.com/sotashimozono/QAtlas.jl)) **implement**
+([QAtlas.jl](https://github.com/QAtlasHub/QAtlas.jl)) **implement**
 this package, never the reverse.
 
 ## Division of responsibility
