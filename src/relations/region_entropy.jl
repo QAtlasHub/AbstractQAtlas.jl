@@ -15,8 +15,8 @@
 
 One row of a [`region_report`](@ref): the `relation` (an entropy inequality), the
 pairwise-disjoint `regions` it was auto-instantiated on (`(A, B)` for the bipartite
-inequalities, `(A, B, C)` for strong subadditivity), the `slack` (its
-[`residual`](@ref); `≥ 0` ⇔ satisfied), and `pass`.
+inequalities, `(A, B, C)` for the triple ones — strong subadditivity and weak
+monotonicity), the `slack` (its [`residual`](@ref); `≥ 0` ⇔ satisfied), and `pass`.
 """
 struct RegionReportRow
     relation::AbstractRelation
@@ -48,6 +48,9 @@ hand-labeling — the region twin of [`relation_report`](@ref):
   `S(B)`, `S(A∪B)`, `S(B∪C)`, `S(A∪B∪C)` are present:
   `S(A∪B) + S(B∪C) ≥ S(A∪B∪C) + S(B)` (the conditional mutual information
   `I(A:C|B) ≥ 0`).
+- **Weak monotonicity**, for every pairwise-disjoint triple `(A, B, C)` whose
+  `S(A)`, `S(C)`, `S(A∪B)`, `S(B∪C)` are present — no full-system `S(A∪B∪C)`, so it is
+  found strictly more often than strong subadditivity: `S(A∪B) + S(B∪C) ≥ S(A) + S(C)`.
 
 A negative (conditional) mutual information — a broken MPS/ED entanglement
 calculation — is caught for whichever regions expose it.
@@ -72,19 +75,27 @@ function region_report(b::Bag; atol=0)
             push!(out, RegionReportRow(rel, (A, B), s, _passes(rel, s, atol)))
         end
     end
-    # strong subadditivity over pairwise-disjoint triples (A, B, C): B is the shared
-    # middle, {A, C} unordered (SSA is symmetric in A↔C).
+    # strong subadditivity + weak monotonicity over pairwise-disjoint triples (A, B, C):
+    # B is the shared middle, {A, C} unordered (both are symmetric in A↔C). Weak
+    # monotonicity S(A∪B)+S(B∪C) ≥ S(A)+S(C) needs no full-system S(A∪B∪C), so it is
+    # discovered whenever the two pair-unions are present — strictly more often than SSA.
     for bi in eachindex(regions)
         B = regions[bi]
         for i in eachindex(regions), k in (i + 1):lastindex(regions)
             (i == bi || k == bi) && continue
             A, C = regions[i], regions[k]
             (disjoint(A, B) && disjoint(B, C) && disjoint(A, C)) || continue
-            AB, BC, ABC = A ∪ B, B ∪ C, A ∪ B ∪ C
-            (haskey(ents, AB) && haskey(ents, BC) && haskey(ents, ABC)) || continue
-            rel = StrongSubadditivity()
-            s = residual(rel; S_AB=ents[AB], S_BC=ents[BC], S_ABC=ents[ABC], S_B=ents[B])
-            push!(out, RegionReportRow(rel, (A, B, C), s, _passes(rel, s, atol)))
+            AB, BC = A ∪ B, B ∪ C
+            (haskey(ents, AB) && haskey(ents, BC)) || continue
+            wm = WeakMonotonicity()
+            sw = residual(wm; S_AB=ents[AB], S_BC=ents[BC], S_A=ents[A], S_C=ents[C])
+            push!(out, RegionReportRow(wm, (A, B, C), sw, _passes(wm, sw, atol)))
+            # strong subadditivity additionally needs the full-system entropy S(A∪B∪C)
+            ABC = A ∪ B ∪ C
+            haskey(ents, ABC) || continue
+            ssa = StrongSubadditivity()
+            s = residual(ssa; S_AB=ents[AB], S_BC=ents[BC], S_ABC=ents[ABC], S_B=ents[B])
+            push!(out, RegionReportRow(ssa, (A, B, C), s, _passes(ssa, s, atol)))
         end
     end
     return out

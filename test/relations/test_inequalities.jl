@@ -55,6 +55,18 @@ end
     )
 end
 
+@testset "weak monotonicity holds; a fabricated violation is caught" begin
+    # WM: S_AB + S_BC ≥ S_A + S_C — the purification dual of SSA. A product structure
+    # S_AB = S_A+S_B, S_BC = S_B+S_C gives slack = 2·S_B ≥ 0 (an independent target, not
+    # merely ≥0), saturated only when the shared middle S_B = 0.
+    S_A, S_B, S_C = 0.4, 0.7, 0.5
+    S_AB, S_BC = S_A + S_B, S_B + S_C
+    @test check(WeakMonotonicity(); S_AB=S_AB, S_BC=S_BC, S_A=S_A, S_C=S_C, atol=1e-12)
+    @test slack(WeakMonotonicity(); S_AB=S_AB, S_BC=S_BC, S_A=S_A, S_C=S_C) ≈ 2 * S_B
+    # break it: shrink both pair-unions below S_A + S_C ⇒ violated
+    @test !check(WeakMonotonicity(); S_AB=0.3, S_BC=0.3, S_A=S_A, S_C=S_C, atol=1e-9)
+end
+
 @testset "Rényi monotonicity S_α non-increasing in α" begin
     # exact Rényi entropies of Schmidt spectrum {p, 1−p}: S_α decreasing in α
     p = 0.25
