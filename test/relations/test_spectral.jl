@@ -150,3 +150,29 @@ end
     @test DynamicalStructureFactor in quantities(F())
     @test F() in relations_constraining(DynamicalStructureFactor)
 end
+
+@testset "ResponseReality: Re χ even, Im χ odd under ω→−ω (reality of the causal response)" begin
+    # a damped-oscillator response χ(ω)=1/(ω0²−ω²−iγω) is real in time ⇒ χ(−ω)=χ(ω)*
+    ω0, γ = 1.3, 0.15
+    χ(w) = 1 / (ω0^2 - w^2 - im * γ * w)
+    for ω in (0.5, 1.7, 2.4)
+        cp, cm = χ(ω), χ(-ω)
+        @test check(ResponseRealityReal(); Re_plus=real(cp), Re_minus=real(cm), atol=1e-12)
+        @test check(ResponseRealityImag(); Im_plus=imag(cp), Im_minus=imag(cm), atol=1e-12)
+    end
+    # MULTI-TIME χ⁽²⁾(ω1,ω2): same reality χ⁽²⁾(−ω⃗)=χ⁽²⁾(ω⃗)* ⇒ Re even, Im odd
+    χ2(w1, w2) = 1 / ((ω0^2 - w1^2 - im * γ * w1) * (ω0^2 - w2^2 - im * γ * w2))
+    cp2, cm2 = χ2(0.4, 0.9), χ2(-0.4, -0.9)
+    @test check(ResponseRealityReal(); Re_plus=real(cp2), Re_minus=real(cm2), atol=1e-12)
+    @test check(ResponseRealityImag(); Im_plus=imag(cp2), Im_minus=imag(cm2), atol=1e-12)
+    # exact (Rational in ⇒ Rational out) + affine solve (the split form has no conj hazard)
+    @test residual(ResponseRealityReal(); Re_plus=3 // 2, Re_minus=3 // 2) == 0 // 1
+    @test residual(ResponseRealityImag(); Im_plus=3 // 2, Im_minus=-3 // 2) == 0 // 1
+    @test solve(ResponseRealityImag(), Val(:Im_minus); Im_plus=5 // 4) == -5 // 4
+    # violations caught
+    @test !check(ResponseRealityReal(); Re_plus=1.0, Re_minus=2.0, atol=1e-9)   # Re not even
+    @test !check(ResponseRealityImag(); Im_plus=1.0, Im_minus=1.0, atol=1e-9)   # Im not odd
+    # hand-linked to the response
+    @test DynamicalSusceptibility in quantities(ResponseRealityReal())
+    @test ResponseRealityImag() in relations_constraining(DynamicalSusceptibility)
+end

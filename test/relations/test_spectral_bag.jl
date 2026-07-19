@@ -106,3 +106,15 @@ end
     @test :FSumRule in fired
     @test check_all(bag; atol=1e-12, domain=:spectral)
 end
+
+@testset "multi-time χ⁽²⁾ bag fires the reality web (#77 item 3)" begin
+    # a real-in-time 2nd-order response χ⁽²⁾(ω1,ω2)=∏ 1/(ω0²−ωᵢ²−iγωᵢ): reality holds, so
+    # measuring it at ω⃗ and −ω⃗ and dropping both in the bag fires the Re-even/Im-odd web
+    ω0, γ = 1.4, 0.1
+    χ2(w1, w2) = 1 / ((ω0^2 - w1^2 - im * γ * w1) * (ω0^2 - w2^2 - im * γ * w2))
+    cp, cm = χ2(0.4, 0.9), χ2(-0.4, -0.9)      # χ⁽²⁾(ω⃗), χ⁽²⁾(−ω⃗)
+    bag = (; Re_plus=real(cp), Re_minus=real(cm), Im_plus=imag(cp), Im_minus=imag(cm))
+    fired = _fired(bag; atol=1e-10, domain=:spectral)
+    @test :ResponseRealityReal in fired && :ResponseRealityImag in fired
+    @test check_all(bag; atol=1e-10, domain=:spectral)
+end

@@ -34,6 +34,8 @@ quantities(::SpectralSumRule) = (SpectralFunction,)
 quantities(::FSumRule) = (DynamicalStructureFactor,)   # first moment of S(q,ω) (supplied)
 quantities(::DetailedBalance) = (DynamicalStructureFactor,)
 quantities(::DynamicalFDT) = (DynamicalStructureFactor, DynamicalSusceptibility)
+quantities(::ResponseRealityReal) = (DynamicalSusceptibility,)   # reality: Re χ even under ω→−ω
+quantities(::ResponseRealityImag) = (DynamicalSusceptibility,)   # reality: Im χ odd under ω→−ω
 quantities(::CorrelationLengthGap) = (CorrelationLength, MassGap)
 quantities(::NMRExponent) = (NMRSpinRelaxationRate,)
 # FiniteSizeGap is type-keyed (cft.jl), `quantities` auto-derived (MassGap, ScalingDimension).

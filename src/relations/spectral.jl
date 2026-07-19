@@ -209,3 +209,40 @@ transform `P ∫ χ'(ω')/(ω' − ω) dω'`.
 Variables: `Imχ` = `χ''(ω)`, `pv_real`.
 """
 @relation :spectral KramersKronigImag(Imχ, pv_real) = Imχ + pv_real / π
+
+"""
+    ResponseRealityReal <: AbstractRelation
+
+The **reality** (parity) condition on the real part of a causal response.  The response
+of a real observable to a real field is real in time, so its Fourier transform is
+conjugate-symmetric under negating all frequencies, `χ⁽ⁿ⁾(−ω⃗) = χ⁽ⁿ⁾(ω⃗)*` — hence
+**`Re χ` is EVEN**:
+
+`Re χ⁽ⁿ⁾(−ω⃗) = Re χ⁽ⁿ⁾(ω⃗)`.
+
+It holds at every order with the same shape (linear: `Re χ(−ω) = Re χ(ω)`).  With
+[`ResponseRealityImag`](@ref) (`Im χ` odd) and [`intrinsic_permutation_symmetric`](@ref)
+(frequency exchange) this closes the model-independent symmetry web of the multi-time
+response functions (Kubo, J. Phys. Soc. Jpn. 12, 570 (1957)).  Pass
+`Re_plus = Re χ⁽ⁿ⁾(ω⃗)` and `Re_minus = Re χ⁽ⁿ⁾(−ω⃗)`.
+
+Variables: `Re_plus`, `Re_minus`.
+"""
+@relation :spectral ResponseRealityReal(Re_plus, Re_minus) = Re_minus - Re_plus
+
+"""
+    ResponseRealityImag <: AbstractRelation
+
+The **reality** (parity) condition on the imaginary part of a causal response — the
+companion of [`ResponseRealityReal`](@ref).  From `χ⁽ⁿ⁾(−ω⃗) = χ⁽ⁿ⁾(ω⃗)*`, **`Im χ` is
+ODD**:
+
+`Im χ⁽ⁿ⁾(−ω⃗) = −Im χ⁽ⁿ⁾(ω⃗)`
+
+(linear: `Im χ(−ω) = −Im χ(ω)` — the dissipative part, the oddness the
+[`DetailedBalance`](@ref)/FDT convention already relies on).  Pass
+`Im_plus = Im χ⁽ⁿ⁾(ω⃗)` and `Im_minus = Im χ⁽ⁿ⁾(−ω⃗)`.
+
+Variables: `Im_plus`, `Im_minus`.
+"""
+@relation :spectral ResponseRealityImag(Im_plus, Im_minus) = Im_minus + Im_plus
