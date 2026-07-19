@@ -1,0 +1,99 @@
+        - # test/relations/test_typed_derivation.jl — the type-keyed (collision-proof) derivation.
+        - #
+        - # The symbol-keyed `derive(:target; knowns...)` keys on private formula letters, which
+        - # collide (`:S` = thermal entropy / thermopower / structure factor). The type-keyed
+        - # `derive(Q::Type, bag)` / `derivable(bag)` key on quantity TYPES, so a relation fires
+        - # only when the ACTUAL types it needs are present. See docs/design/type-keyed-interface.md.
+        - 
+        - using AbstractQAtlas
+        - using Test
+        - const AQ = AbstractQAtlas
+        - 
+        - @testset "type-keyed derive: the :S collision is structurally fixed" begin
+        -     Pxx = PeltierCoefficient{(:x, :x)}
+        -     Sxx = Thermopower{(:x, :x)}
+        -     # KelvinRelation Π = T·S: from thermopower + temperature, derive the Peltier coeff
+        -     @test derive(Pxx, bag(Sxx => 3.0, Temperature => 2.0)) == 6.0
+        -     # THE FIX: from a THERMAL ENTROPY (a DIFFERENT type) + temperature, Peltier is NOT
+        -     # derivable — the symbol-keyed `derive(:Π; S=3.0, T=2.0)` returned 6.0 here, silently
+        -     # reusing the entropy as a Seebeck coefficient.
+        -     @test_throws ErrorException derive(Pxx, bag(ThermalEntropy => 3.0, Temperature => 2.0))
+        -     # …and Peltier is absent from the honest reachable set (symbol-keyed `derivable`
+        -     # wrongly listed :Π, :dlnσ_dε, :spectral_integral here)
+        -     d = derivable(bag(ThermalEntropy => 3.0, Temperature => 2.0))
+        2     @test !any(k -> k.type <: PeltierCoefficient, d)
+        -     @test VariableKey(ThermalEntropy) in d && VariableKey(Temperature) in d
+        - end
+        - 
+        - @testset "type-keyed derive: reachability, chains, exact arithmetic" begin
+        -     # a value already in the bag comes straight back
+        -     @test derive(Thermopower{(:x, :x)}, bag(Thermopower{(:x, :x)} => 1.5)) == 1.5
+        -     # solve for a summand, exactly: KeldyshComponent G^K = G^> + G^<
+        -     gk = derive(
+        -         KeldyshGreensFunction,
+        -         bag(GreaterGreensFunction => 2 // 1, LesserGreensFunction => 3 // 1),
+        -     )
+        -     @test gk == 5 // 1 && gk isa Rational            # Rational in ⇒ Rational out through derive
+        -     # supplied slots flow via extras: SusceptibilityFDT χ = β·Var(M)/N
+        -     χ = derive(Susceptibility{(:z, :z)}, bag(InverseTemperature => 2.0); var_M=1.5, N=3)
+        -     @test χ ≈ 2.0 * 1.5 / 3
+        -     # unreachable ⇒ a loud error, never a silent wrong value
+        -     @test_throws ErrorException derive(SelfEnergy, bag(SpectralFunction => 1.0))
+        - end
+        - 
+        - @testset "β/T aliasing in the chain (review #85 regression)" begin
+        -     Sxx = Thermopower{(:x, :x)}
+        -     Pxx = PeltierCoefficient{(:x, :x)}
+        -     # the chain can DERIVE Temperature = Π/S (KelvinRelation) while InverseTemperature
+        -     # was supplied directly — this must NOT crash on a self-made β/T "both present"
+        -     b = bag(InverseTemperature => 2.0, Sxx => 3.0, Pxx => 6.0)
+        -     d = derivable(b)                                   # must not throw
+        -     @test VariableKey(InverseTemperature) in d
+        -     @test !(VariableKey(Temperature) in d)             # aliased, not re-derived as a literal key
+        -     # a target reachable from unrelated data is not killed by a β/T mixture elsewhere
+        -     @test derive(
+        -         FreeEnergy,
+        -         bag(InverseTemperature => 2.0, PartitionFunction => 5.0, Sxx => 3.0, Pxx => 6.0),
+        -     ) isa Number
+        -     # aliasing: derive Temperature when only InverseTemperature is present
+        -     @test derive(Temperature, bag(InverseTemperature => 4.0)) == 0.25
+        -     # supplying BOTH β and T is a loud, up-front error (matches the bag verbs)
+        -     bt = AQ.Bag()
+        -     bt[VariableKey(InverseTemperature)] = 2.0
+        -     bt[VariableKey(Temperature)] = 0.5
+        -     @test_throws ErrorException derivable(bt)
+        - end
+        - 
+        - @testset "typed_derivation_graph structure" begin
+        -     steps = typed_derivation_steps()
+        -     @test !isempty(steps)
+        -     # only type-keyed relations contribute (symbol-only ones have no typed slots)
+      119     @test all(s -> !isempty(variable_types(s.relation)), steps)
+        -     # no inequality produces a derivation edge (its solve gives a saturation bound)
+      119     @test !any(s -> s.relation isa AbstractInequality, steps)
+        -     # the KelvinRelation edge Peltier ← {Thermopower, Temperature} is present
+        -     @test any(steps) do s
+       80         s.output == VariableKey(PeltierCoefficient{(:x, :x)}) &&
+        -             VariableKey(Thermopower{(:x, :x)}) in s.inputs
+        -     end
+        -     # the graph view builds over VariableKey nodes
+        -     g = typed_derivation_graph()
+        -     @test g isa AQ.KnowledgeGraph{VariableKey}
+        - end
+        - 
+        - @testset "reachable_quantities: quantity-first navigation of the typed graph" begin
+        -     rqZ = reachable_quantities(PartitionFunction())
+        -     @test FreeEnergy in rqZ                              # physics: F = −β⁻¹ ln Z (FreeEnergyFromZ)
+        -     @test PartitionFunction in rqZ                       # includes itself (trivially reachable)
+       31     @test all(T -> T <: AbstractQuantity, rqZ)           # quantities only — fields/coords filtered out
+        -     @test reachable_quantities(PartitionFunction) == rqZ                      # instance ≡ type
+        -     @test Susceptibility in reachable_quantities(Susceptibility(:z, :z))      # family-erased result
+        -     @test Purity in reachable_quantities(Purity())       # self is always present (even if graph-isolated)
+        -     # INDEPENDENT re-derivation straight from the raw graph API (checks the filter/erase/sort, not itself)
+        -     raw = graph_reachable(typed_derivation_graph(), VariableKey(PartitionFunction))
+        -     expected = sort!(
+        -         unique(Type[AQ._family(k.type) for k in raw if k.type <: AbstractQuantity]);
+      286         by=T -> string(nameof(T)),
+        -     )
+        -     @test rqZ == expected
+        - end

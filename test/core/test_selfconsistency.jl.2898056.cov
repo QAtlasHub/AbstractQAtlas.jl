@@ -1,0 +1,159 @@
+        - # Self-consistency of the relation ↔ quantity web: every declared link
+        - # resolves, the reverse index is consistent, the accessibility guarantee
+        - # holds, and the quantity-graph edges have no dangling nodes.
+        - 
+        - using AbstractQAtlas
+        - using AbstractQAtlas:
+        -     quantities,
+        -     relations_constraining,
+        -     all_relations,
+        -     AbstractQuantity,
+        -     AbstractRelation,
+        -     derivative_edge,
+        -     spectral_origin,
+        -     variables
+        - 
+        - @testset "every relation → quantity link resolves to a real quantity leaf" begin
+        -     for r in all_relations()
+        -         for T in quantities(r)
+        -             @test T isa Type
+        -             @test T <: AbstractQuantity            # no dangling link to a non-quantity
+        -         end
+        -     end
+        -     # at least a substantial fraction is annotated (the web is populated)
+      121     @test count(r -> !isempty(quantities(r)), all_relations()) >= 60
+        - end
+        - 
+        - @testset "reverse index `relations_constraining` matches `quantities`" begin
+        -     # the reverse index is exactly the relations whose `quantities` contain the type
+        -     for q in (
+        -         Susceptibility(:z, :z),
+        -         SpecificHeat(),
+        -         RetardedGreensFunction(),
+        -         VonNeumannEntropy(),
+        -         Conductivity(:x, :y),
+        -     )
+        -         got = Set(typeof.(relations_constraining(q)))
+        -         want = Set(
+      726             typeof(r) for r in all_relations() if any(T -> typeof(q) <: T, quantities(r))
+        -         )
+        -         @test got == want
+        -         # instance and type queries agree
+        -         @test Set(typeof.(relations_constraining(typeof(q)))) == got
+        -     end
+        - end
+        - 
+        1 @testset "accessibility guarantee: key quantities reach their laws" begin
+        -     # from a quantity you can find the universal laws it must obey
+        3     susc = Set(typeof.(relations_constraining(Susceptibility(:z, :z))))
+        1     @test SusceptibilityFDT in susc            # χ = β·Var(M)
+        1     @test SusceptibilityResponse in susc        # χ = ∂M/∂h
+        1     @test Dyson in Set(typeof.(relations_constraining(RetardedGreensFunction())))
+        1     @test WiedemannFranz in
+        -         Set(typeof.(relations_constraining(ThermalConductivity(:x, :x))))
+        1     @test KitaevPreskillTEE in
+        -         Set(typeof.(relations_constraining(TopologicalEntanglementEntropy())))
+        -     # round-trip: each annotated relation is found by each of its quantities
+        1     for r in all_relations(), T in quantities(r)
+      149         q = try
+      149             T()
+        -         catch
+       33             try
+       33                 T(:x)
+        -             catch
+       31                 try
+       31                     T(:x, :y)
+        -                 catch
+      213                     nothing
+        -                 end
+        -             end
+        -         end
+      149         q === nothing && continue
+      149         @test r in relations_constraining(q)
+      149     end
+        - end
+        - 
+        - @testset "cross-relation coherence: Susceptibility ↔ Magnetization two ways" begin
+        -     # χ appears in the FDT (χ=β·Var(M)) AND the response (χ=∂M/∂h); the
+        -     # genealogy independently says χ is a field-derivative of M — the
+        -     # relation web and the derivative graph must name the SAME neighbour.
+        -     @test Magnetization in quantities(SusceptibilityFDT())      # FDT links χ to M
+        -     @test derivative_edge(Susceptibility(:z, :z)).parent == Magnetization{:z}  # graph: χ ⟵ M
+        -     # SpecificHeat's fluctuation (β²Var(E)) and its ≥ 0 stability agree on the quantity
+        -     @test SpecificHeat in quantities(SpecificHeatFDT())
+        -     @test SpecificHeat in quantities(SpecificHeatPositivity())
+        - end
+        - 
+        - @testset "coverage: most quantity leaves reach a universal law (soft gate)" begin
+        -     # A SOFT coverage metric, not a per-quantity hard test: some leaves are
+        -     # only ever constrained through generic relations that name no subject
+        -     # (Maxwell relations constrain derivatives; scaling laws constrain
+        -     # exponents; the uncertainty relation constrains generic operators) — so
+        -     # 100% is neither expected nor desired.  What we DO guard is regression:
+        -     # the annotated web must keep a healthy fraction of the quantity zoo
+        -     # reachable from its defining laws, so a future rename/removal that
+        -     # silently orphans a whole physics area trips the gate.
+        -     using InteractiveUtils: subtypes
+       11     _leaves(T, acc=Type[]) = (
+       92         foreach(S -> isabstracttype(S) ? _leaves(S, acc) : push!(acc, S), subtypes(T));
+       10         acc
+        -     )
+       83     _rep(T) = begin
+       83         for args in ((), (:x,), (:x, :y))
+      112             try
+      112                 return T(args...)
+       30             catch
+        -             end
+       31         end
+        1         nothing
+        -     end
+        -     leaves = _leaves(AbstractQuantity)
+        -     reps = filter(!isnothing, map(_rep, leaves))
+       82     reachable = count(q -> !isempty(relations_constraining(q)), reps)
+        -     # ≥ 60% of the constructible quantity zoo is directly constrained by a law
+        -     @test reachable >= 0.6 * length(reps)
+        -     # and the anchor observables of each populated area are individually reachable
+        -     for q in (
+        -         Susceptibility(:z, :z),         # statistical mechanics
+        -         VonNeumannEntropy(),            # quantum information
+        -         Conductivity(:x, :y),           # transport
+        -         RetardedGreensFunction(),       # correlations
+        -         MassGap(),                      # criticality
+        -     )
+        -         @test !isempty(relations_constraining(q))
+        -     end
+        - end
+        - 
+        - @testset "quantity-graph edges have no dangling nodes" begin
+        -     using InteractiveUtils: subtypes
+       11     _leaves(T, acc=Type[]) = (
+       92         foreach(S -> isabstracttype(S) ? _leaves(S, acc) : push!(acc, S), subtypes(T));
+       10         acc
+        -     )
+        -     for T in _leaves(AbstractQuantity)
+        -         q = try
+        -             if T === ThermalAverage
+        -                 ThermalAverage(Susceptibility(:x, :y), Canonical(1.0))
+        -             else
+        -                 T()
+        -             end
+        -         catch
+        -             try
+        -                 T(:x)
+        -             catch
+        -                 try
+        -                     T(:x, :y)
+        -                 catch
+        -                     nothing
+        -                 end
+        -             end
+        -         end
+        -         q === nothing && continue
+        -         # every response-genealogy edge points at a real quantity type
+        -         e = derivative_edge(q)
+        -         e === nothing || @test e.parent isa Type
+        -         # every spectral-graph edge's source is a real quantity type
+        -         o = spectral_origin(q)
+        -         o === nothing || @test o.from isa Type
+        -     end
+        - end

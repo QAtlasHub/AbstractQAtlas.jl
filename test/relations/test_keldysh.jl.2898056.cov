@@ -1,0 +1,278 @@
+        - # The Keldysh RAK structure and its equilibrium fluctuation–dissipation
+        - # constraint.  The RAK relations are algebraic identities (exact); the headline
+        - # check is that the fluctuation–dissipation theorem is a CONSEQUENCE of the KMS
+        - # detailed-balance relation plus those identities — verified against the
+        - # INDEPENDENT distribution function and the existing spectral definition, not
+        - # against the Keldysh relations' own output.
+        - 
+        - using AbstractQAtlas
+        - using AbstractQAtlas:
+        -     residual,
+        -     check,
+        -     solve,
+        -     KeldyshComponent,
+        -     KeldyshCausality,
+        -     AdvancedRetardedConjugate,
+        -     KeldyshFDT,
+        -     KMSGreaterLesser,
+        -     SpectralFromKeldysh,
+        -     SpectralFromGreens,
+        -     keldysh_distribution,
+        -     occupation,
+        -     Fermionic,
+        -     Bosonic,
+        -     spectral_origin,
+        -     origin_relation,
+        -     operation_scope,
+        -     all_relations
+        - 
+        - @testset "RAK identities are exact (equilibrium or not)" begin
+        -     # arbitrary greater/lesser correlators — the component/causality relations
+        -     # are pure definitions, exact in rationals
+        -     Ggtr, Gles = 5 // 2, -3 // 4
+        -     GK = Ggtr + Gles
+        -     GRmGA = Ggtr - Gles
+        -     @test residual(KeldyshComponent(); GK=GK, Ggtr=Ggtr, Gles=Gles) == 0 // 1
+        -     # KeldyshCausality with any GR, GA whose difference matches
+        -     GR, GA = 1 // 1, 1 - GRmGA          # GR − GA = GRmGA
+        -     @test residual(KeldyshCausality(); GR=GR, GA=GA, Ggtr=Ggtr, Gles=Gles) == 0 // 1
+        -     # advanced = conjugate of retarded (complex)
+        -     z = 0.3 - 0.8im
+        -     @test residual(AdvancedRetardedConjugate(); GA=conj(z), GR=z) == 0
+        -     @test !check(AdvancedRetardedConjugate(); GA=z, GR=z)   # z ≠ conj(z) for complex z
+        - end
+        - 
+        1 @testset "FDT is a CONSEQUENCE of KMS + the RAK identities" begin
+        -     # Give ONLY the greater correlator and the KMS/detailed-balance law
+        -     # G^< = ζ e^{−βω} G^>.  Then G^K/(G^R−G^A) must equal the independent
+        -     # distribution function, and KeldyshFDT must hold — for both statistics.
+        3     for (stat, ζ) in ((Bosonic(), 1), (Fermionic(), -1)), β in (0.5, 1.3), ω in (0.4, 2.1)
+        8         Ggtr = 1.7 - 0.9im
+        8         Gles = ζ * exp(-β * ω) * Ggtr
+        -         # KMS relation is satisfied by construction
+        8         @test residual(KMSGreaterLesser(); Gles=Gles, Ggtr=Ggtr, ζ=ζ, ω=ω, β=β) ≈ 0 atol =
+        -             1e-12
+        8         GRmGA = Ggtr - Gles                 # = G^R − G^A  (KeldyshCausality)
+        8         GK = Ggtr + Gles                    # = G^K        (KeldyshComponent)
+       12         h = keldysh_distribution(stat, ω; β=β)
+        -         # the ratio G^K/(G^R−G^A) IS the distribution function (the theorem)
+        8         @test GK / GRmGA ≈ h
+        -         # …hence KeldyshFDT holds with that h (GA absorbed into GRmGA via GA=0)
+        8         @test residual(KeldyshFDT(); GK=GK, h=h, GR=GRmGA, GA=0) ≈ 0 atol = 1e-12
+        -         # accept T in place of β at the verb layer
+       12         @test keldysh_distribution(stat, ω; T=1 / β) ≈ h
+        9     end
+        - end
+        - 
+        1 @testset "keldysh_distribution = 1 ∓ 2n and its analytic structure" begin
+        2     for β in (0.7, 1.9), ω in (0.3, 1.4)
+        4         hF = keldysh_distribution(Fermionic(), ω; β=β)
+        4         hB = keldysh_distribution(Bosonic(), ω; β=β)
+        -         # tie to the Fermi–Dirac / Bose–Einstein occupation (μ = 0)
+        4         @test hF ≈ 1 - 2 * occupation(Fermionic(), ω; β=β)
+        4         @test hB ≈ 1 + 2 * occupation(Bosonic(), ω; β=β)
+        -         # h is odd in ω
+        4         @test keldysh_distribution(Fermionic(), -ω; β=β) ≈ -hF
+        4         @test keldysh_distribution(Bosonic(), -ω; β=β) ≈ -hB
+        -         # fermionic h is bounded in [-1, 1]; bosonic |h| ≥ 1
+        4         @test abs(hF) ≤ 1
+        4         @test abs(hB) ≥ 1
+        5     end
+        - end
+        - 
+        1 @testset "SpectralFromKeldysh bridges to A = −Im Gᴿ/π" begin
+        -     # a single-pole retarded propagator; A = −Im Gᴿ/π by SpectralFromGreens
+        2     for (ε, η) in ((0.4, 0.05), (-1.2, 0.1)), ω in (-0.3, 0.9)
+        4         GR = 1 / (ω - ε + im * η)
+        4         GA = conj(GR)                       # AdvancedRetardedConjugate
+        4         A = -imag(GR) / π
+        -         # Keldysh spectral bridge reproduces the same A …
+        4         @test residual(SpectralFromKeldysh(); A=A, GR=GR, GA=GA) ≈ 0 atol = 1e-12
+        -         # … and agrees with the existing Matsubara-side definition
+        4         @test residual(SpectralFromGreens(); A=A, G=GR) ≈ 0 atol = 1e-12
+        5     end
+        - end
+        - 
+        - @testset "generic solve inverts every Keldysh variable it is affine in" begin
+        -     Ggtr, Gles = 2.0 + 0.1im, -0.5 + 0.2im
+        -     GK, GRmGA = Ggtr + Gles, Ggtr - Gles
+        -     # KeldyshComponent solved for each correlator
+        -     @test solve(KeldyshComponent(), Val(:GK); Ggtr=Ggtr, Gles=Gles) ≈ GK
+        -     @test solve(KeldyshComponent(), Val(:Gles); GK=GK, Ggtr=Ggtr) ≈ Gles
+        -     # KeldyshFDT solved for the Keldysh component and the distribution function
+        -     h = 1.3
+        -     @test solve(KeldyshFDT(), Val(:GK); h=h, GR=GRmGA, GA=0) ≈ h * GRmGA
+        -     @test solve(KeldyshFDT(), Val(:h); GK=h * GRmGA, GR=GRmGA, GA=0) ≈ h
+        - end
+        - 
+        - @testset "G^A joins the spectral graph via the adjoint edge" begin
+        -     o = spectral_origin(AdvancedGreensFunction)
+        -     @test o !== nothing
+        -     @test o.from === RetardedGreensFunction
+        -     @test o.via === :adjoint
+        -     # the adjoint edge is pointwise (definitional), tied to its relation
+        -     @test origin_relation(:adjoint) isa AdvancedRetardedConjugate
+        -     @test operation_scope(:adjoint) === :definitional
+        - end
+        - 
+        - @testset "Langreth rules: contour product component algebra" begin
+        -     # each rule's residual is zero on its defining values (exact)
+        -     @test residual(LangrethProductRetarded(); Cret=6, Aret=2, Bret=3) == 0            # C^R = A^R B^R
+        -     @test residual(LangrethProductAdvanced(); Cadv=6, Aadv=2, Badv=3) == 0
+        -     @test residual(LangrethProductLesser(); Cless=11, Aret=2, Bless=3, Aless=1, Badv=5) == 0  # A^R B^< + A^< B^A
+        -     @test residual(LangrethProductGreater(); Cgtr=11, Aret=2, Bgtr=3, Agtr=1, Badv=5) == 0
+        -     @test !check(LangrethProductRetarded(); Cret=5, Aret=2, Bret=3)                    # 5 ≠ 6
+        -     # solve for the produced component; Rational-exact
+        -     @test solve(LangrethProductLesser(), Val(:Cless); Aret=2, Bless=3, Aless=1, Badv=5) ==
+        -         11
+        -     @test residual(LangrethProductRetarded(); Cret=6 // 1, Aret=2 // 1, Bret=3 // 1) isa
+        -         Rational
+        - end
+        - 
+        1 @testset "Langreth product PRESERVES the contour causality (independent check)" begin
+        -     # RAK-consistent A,B (^> = ^< + ^R − ^A); build C by the Langreth rules; verify C
+        -     # ALSO obeys KeldyshCausality C^R−C^A = C^>−C^< — the four rules are mutually
+        -     # consistent and keep the contour structure (checked against a DIFFERENT relation).
+        3     for (AR, AA, Ale, BR, BA, Ble) in
+        -         ((0.3, 0.1, 0.05, 0.7, 0.2, 0.4), (2 // 1, 1 // 2, 1 // 3, 3 // 1, 1 // 1, 2 // 5))
+        3         Agt = Ale + (AR - AA)                        # A^> − A^< = A^R − A^A
+        3         Bgt = Ble + (BR - BA)
+        3         CR, CA = AR * BR, AA * BA
+        3         Cle = AR * Ble + Ale * BA
+        3         Cgt = AR * Bgt + Agt * BA
+        4         @test check(KeldyshCausality(); GR=CR, GA=CA, Ggtr=Cgt, Gles=Cle, atol=1e-12)
+        3     end
+        -     # matrix-valued: the lesser rule holds for 2×2 orbital propagators
+        1     AR = [1.0 0.2; 0.0 0.9]
+        1     Ale = [0.1 0.0; 0.3 0.2]
+        1     Ble = [0.0 0.1; 0.2 0.0]
+        1     Bad = [0.5 0.0; 0.2 0.6]
+        1     Cle = AR * Ble + Ale * Bad
+        1     r = residual(
+        -         LangrethProductLesser(); Cless=Cle, Aret=AR, Bless=Ble, Aless=Ale, Badv=Bad
+        -     )
+        1     @test maximum(abs, r) < 1e-14
+        - end
+        - 
+        - @testset "KeldyshKineticLesser: G^< = G^R Σ^< G^A (steady-state Dyson)" begin
+        -     @test residual(KeldyshKineticLesser(); Gless=2 * 3 * 5, GR=2, Sless=3, GA=5) == 0
+        -     @test check(KeldyshKineticLesser(); Gless=30.0, GR=2.0, Sless=3.0, GA=5.0)
+        -     # type-keyed: links to the propagator quantities + collision-proof bag door
+        -     @test LesserGreensFunction in quantities(KeldyshKineticLesser())
+        -     @test KeldyshKineticLesser() in relations_constraining(LesserGreensFunction)
+        -     @test residual(
+        -         KeldyshKineticLesser(),
+        -         bag(
+        -             LesserGreensFunction => 30.0,
+        -             RetardedGreensFunction => 2.0,
+        -             AdvancedGreensFunction => 5.0,
+        -         );
+        -         Sless=3.0,
+        -     ) == 0.0
+        -     # matrix triple product
+        -     GR = [1.0 0.2; 0.0 0.9]
+        -     GA = collect(GR')
+        -     S = [0.4 0.1; 0.1 0.3]
+        -     r = residual(KeldyshKineticLesser(); Gless=GR * S * GA, GR=GR, Sless=S, GA=GA)
+        -     @test maximum(abs, r) < 1e-14
+        - end
+        - 
+        - # ─── non-equilibrium: self-energy RAK + distribution (#64) ───
+        - 
+        - @testset "self-energy RAK + FDT tie Σ^K = h(Σ^R − Σ^A)" begin
+        -     Γ, ω, β = 0.3, 0.7, 2.0
+        -     h = keldysh_distribution(Fermionic(), ω; β=β)          # tanh(βω/2)
+        -     f = 1 / (exp(β * ω) + 1)                                # Fermi–Dirac, μ = 0
+        -     @test h ≈ 1 - 2f                                        # h = 1 − 2 n_F
+        -     # retarded/advanced from a broadening Γ; Keldysh built the OTHER way, from the
+        -     # greater/lesser self-energies Σ^< = iΓf, Σ^> = −iΓ(1−f) (in/out scattering)
+        -     SigmaR = 0.1 - im * Γ / 2
+        -     SigmaA = conj(SigmaR)
+        -     Sig_les = im * Γ * f
+        -     Sig_gtr = -im * Γ * (1 - f)
+        -     SigmaK = Sig_gtr + Sig_les                             # Σ^K = Σ^> + Σ^<
+        -     @test SigmaK ≈ -im * Γ * h                             # ⇒ −iΓ(1−2f) = −iΓ h
+        -     @test (SigmaR - SigmaA) ≈ (Sig_gtr - Sig_les)          # RAK causality on the self-energy
+        -     @test check(
+        -         SelfEnergyKeldyshFDT(); SigmaK=SigmaK, h=h, SigmaR=SigmaR, SigmaA=SigmaA, atol=1e-12
+        -     )
+        -     # type-keyed: fires from a bag of self-energy components + the supplied h
+        -     @test RetardedSelfEnergy in quantities(SelfEnergyKeldyshFDT())
+        -     @test SelfEnergyKeldyshFDT() in relations_constraining(KeldyshSelfEnergy)
+        -     @test check(
+        -         SelfEnergyKeldyshFDT(),
+        -         bag(
+        -             KeldyshSelfEnergy => SigmaK,
+        -             RetardedSelfEnergy => SigmaR,
+        -             AdvancedSelfEnergy => SigmaA,
+        -         );
+        -         h=h,
+        -         atol=1e-12,
+        -     )
+        - end
+        - 
+        - @testset "KeldyshKineticGreater: G^> = G^R Σ^> G^A" begin
+        -     ε, Γ, ω, β = 0.2, 0.4, 0.5, 2.0
+        -     f = 1 / (exp(β * ω) + 1)
+        -     GR = 1 / (ω - ε + im * Γ / 2)
+        -     GA = conj(GR)
+        -     Sig_gtr = -im * Γ * (1 - f)                            # Σ^> = −iΓ(1−f)
+        -     Ggtr = GR * Sig_gtr * GA
+        -     @test check(KeldyshKineticGreater(); Ggtr=Ggtr, GR=GR, Sgtr=Sig_gtr, GA=GA, atol=1e-12)
+        -     # independent cross-check: G^> = −i A (1−f) with A = −2 Im G^R (spectral × emptiness)
+        -     A = -2 * imag(GR)
+        -     @test Ggtr ≈ -im * A * (1 - f)
+        -     # matrix triple product
+        -     GRm = [1.0 0.2; 0.0 0.9]
+        -     GAm = collect(GRm')
+        -     Sm = [0.4 0.1; 0.1 0.3]
+        -     r = residual(KeldyshKineticGreater(); Ggtr=GRm * Sm * GAm, GR=GRm, Sgtr=Sm, GA=GAm)
+        -     @test maximum(abs, r) < 1e-14
+        - end
+        - 
+        - @testset "NonequilibriumDistribution: G^K = G^R F − F G^A (reduces to KeldyshFDT)" begin
+        -     GR = 1 / (0.5 - 0.3 + im * 0.2)
+        -     GA = conj(GR)
+        -     h = 0.6
+        -     # equilibrium F = h scalar ⇒ G^K = h(G^R − G^A) — SAME number as KeldyshFDT
+        -     GK_eq = GR * h - h * GA
+        -     @test GK_eq ≈ h * (GR - GA)
+        -     @test check(NonequilibriumDistribution(); GK=GK_eq, GR=GR, Fdist=h, GA=GA, atol=1e-12)
+        -     @test check(KeldyshFDT(); GK=GK_eq, h=h, GR=GR, GA=GA, atol=1e-12)
+        -     # a non-thermal F still fires, with a DIFFERENT G^K (a driven occupation)
+        -     F = 0.9
+        -     GK_neq = GR * F - F * GA
+        -     @test check(NonequilibriumDistribution(); GK=GK_neq, GR=GR, Fdist=F, GA=GA, atol=1e-12)
+        -     @test !isapprox(GK_neq, GK_eq)
+        -     # matrix F that does NOT commute with G^{R,A}: the ORDERING must be honored
+        -     GRm = [0.5+0.1im 0.2; 0.0 0.3+0.2im]
+        -     GAm = collect(GRm')
+        -     Fm = [0.6 0.4; 0.1 0.7]
+        -     r = residual(
+        -         NonequilibriumDistribution(); GK=GRm * Fm - Fm * GAm, GR=GRm, Fdist=Fm, GA=GAm
+        -     )
+        -     @test maximum(abs, r) < 1e-14
+        -     @test !isapprox(GRm * Fm, Fm * GAm)
+        - end
+        - 
+        - @testset "TwoTerminalDistribution: broadening-weighted bath average" begin
+        -     ΓL, ΓR, fL, fR = 0.7, 0.3, 0.9, 0.1
+        -     fss = (ΓL * fL + ΓR * fR) / (ΓL + ΓR)
+        -     @test check(
+        -         TwoTerminalDistribution(); fdist=fss, ΓL=ΓL, fL=fL, ΓR=ΓR, fR=fR, atol=1e-12
+        -     )
+        -     @test solve(TwoTerminalDistribution(), Val(:fdist); ΓL=ΓL, fL=fL, ΓR=ΓR, fR=fR) ≈ fss
+        -     @test min(fL, fR) ≤ fss ≤ max(fL, fR)                  # a weighted average is bracketed
+        -     # equal baths (no bias) ⇒ common occupation; symmetric coupling ⇒ arithmetic mean
+        -     @test check(
+        -         TwoTerminalDistribution(); fdist=0.5, ΓL=ΓL, fL=0.5, ΓR=ΓR, fR=0.5, atol=1e-12
+        -     )
+        -     @test solve(TwoTerminalDistribution(), Val(:fdist); ΓL=1.0, fL=fL, ΓR=1.0, fR=fR) ≈
+        -         (fL + fR) / 2
+        - end
+        - 
+        - @testset "Keldysh relations register under :keldysh" begin
+        -     # 6 equilibrium RAK + 4 Langreth + KineticLesser (#101) + 4 non-equilibrium (#64):
+        -     # SelfEnergyKeldyshFDT, KeldyshKineticGreater, NonequilibriumDistribution, TwoTerminalDistribution
+        -     @test length(all_relations(; domain=:keldysh)) == 15
+        - end

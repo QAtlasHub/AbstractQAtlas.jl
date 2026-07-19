@@ -1,0 +1,338 @@
+        - # test/relations/test_type_keyed.jl — the type-keyed relation interface.
+        - #
+        - # The prototype migrates the undecorated Green's-function relations (Dyson,
+        - # SpectralFromGreens, the six Keldysh relations) to TYPE keys.  These tests keep
+        - # the PHYSICS assertions of the symbol-keyed suites and add: (a) that the
+        - # auto-derived `quantities` reproduces the deleted hand-links exactly, (b) that
+        - # the type-keyed bag / residual / check / solve / report agree with the kernels,
+        - # (c) the typed β-or-T conversion, and (d) the collision-freedom that motivated
+        - # the redesign — distinct quantity types can never share a key.
+        - # See docs/design/type-keyed-interface.md.
+        - 
+        - using AbstractQAtlas
+        - using Test
+        - using LinearAlgebra: opnorm
+        - const AQ = AbstractQAtlas
+        - 
+        - @testset "VariableKey + bag basics" begin
+        -     @test VariableKey(RetardedGreensFunction) ==
+        -         VariableKey(RetardedGreensFunction, Global())
+        -     @test VariableKey(RetardedGreensFunction) != VariableKey(AdvancedGreensFunction)
+        -     @test hash(VariableKey(SpectralFunction)) == hash(VariableKey(SpectralFunction))
+        -     b = bag(SpectralFunction => 1.0, RetardedGreensFunction => 2.0 + im)
+        -     @test b isa AQ.Bag
+        -     @test b[VariableKey(SpectralFunction)] == 1.0
+        -     @test length(b) == 2
+        -     # a bare Type key and an explicit VariableKey key are the same slot
+        -     @test bag(SelfEnergy => 3)[VariableKey(SelfEnergy)] == 3
+        - end
+        - 
+        - @testset "auto-derived quantities reproduce the deleted hand-links" begin
+        -     # the exact tuples that were in quantity_links.jl before migration — the
+        -     # proof that deleting them is behavior-preserving (order-insensitive).
+        -     expected = Dict(
+        -         Dyson() => (RetardedGreensFunction, SelfEnergy),
+        -         SpectralFromGreens() => (SpectralFunction, RetardedGreensFunction),
+        -         KeldyshComponent() =>
+        -             (KeldyshGreensFunction, GreaterGreensFunction, LesserGreensFunction),
+        -         KeldyshCausality() => (
+        -             RetardedGreensFunction,
+        -             AdvancedGreensFunction,
+        -             GreaterGreensFunction,
+        -             LesserGreensFunction,
+        -         ),
+        -         AdvancedRetardedConjugate() => (AdvancedGreensFunction, RetardedGreensFunction),
+        -         KeldyshFDT() =>
+        -             (KeldyshGreensFunction, RetardedGreensFunction, AdvancedGreensFunction),
+        -         KMSGreaterLesser() => (LesserGreensFunction, GreaterGreensFunction),
+        -         SpectralFromKeldysh() =>
+        -             (SpectralFunction, RetardedGreensFunction, AdvancedGreensFunction),
+        -     )
+        -     for (rel, qs) in expected
+        -         @test Set(quantities(rel)) == Set(qs)
+        -         # every listed subject is a real AbstractQuantity leaf/family
+       21         @test all(T -> T <: AbstractQuantity, quantities(rel))
+        -         # the reverse index resolves (registry queryable without hand-links)
+        -         for T in quantities(rel)
+        -             @test rel in relations_constraining(T())
+        -         end
+        -     end
+        -     # fields are NOT quantities: KMS's β::InverseTemperature is excluded
+        -     @test !(InverseTemperature in quantities(KMSGreaterLesser()))
+        -     # supplied (untyped) slots are excluded: Dyson's bare G₀ is not a quantity
+        -     @test length(quantities(Dyson())) == 2                # G and Σ, not G₀
+        - end
+        - 
+        1 @testset "type-keyed residual / check on the Green's identities" begin
+        -     # KeldyshComponent  G^K = G^> + G^<   (independent numbers)
+        2     @test residual(
+        -         KeldyshComponent(),
+        -         bag(
+        -             KeldyshGreensFunction => 5.0,
+        -             GreaterGreensFunction => 2.0,
+        -             LesserGreensFunction => 3.0,
+        -         ),
+        -     ) == 0.0
+        2     @test !check(
+        -         KeldyshComponent(),
+        -         bag(
+        -             KeldyshGreensFunction => 5.0,
+        -             GreaterGreensFunction => 2.0,
+        -             LesserGreensFunction => 3.5,
+        -         ),
+        -     )
+        - 
+        -     # a single-pole retarded propagator; the whole RAK web is consistent
+        1     ε, η = 0.4, 0.05
+        1     for ω in (-0.3, 0.0, 0.9)
+        3         GR = 1 / (ω - ε + im * η)
+        3         GA = conj(GR)                      # AdvancedRetardedConjugate
+        3         Aw = -imag(GR) / π                 # A = −Im G^R/π
+        3         Gles = 0.1 - 0.2im                 # arbitrary; only G^> − G^< is fixed…
+        3         Ggtr = Gles + (GR - GA)            # …so that G^> − G^< = G^R − G^A (KeldyshCausality)
+        6         @test check(
+        -             AdvancedRetardedConjugate(),
+        -             bag(AdvancedGreensFunction => GA, RetardedGreensFunction => GR);
+        -             atol=1e-12,
+        -         )
+        6         @test check(
+        -             SpectralFromGreens(),
+        -             bag(SpectralFunction => Aw, RetardedGreensFunction => GR);
+        -             atol=1e-12,
+        -         )
+        -         # SpectralFromKeldysh reduces to the same A once G^A = conj(G^R)
+        6         @test check(
+        -             SpectralFromKeldysh(),
+        -             bag(
+        -                 SpectralFunction => Aw,
+        -                 RetardedGreensFunction => GR,
+        -                 AdvancedGreensFunction => GA,
+        -             );
+        -             atol=1e-12,
+        -         )
+        -         # KeldyshCausality  G^R − G^A = G^> − G^<
+        6         @test check(
+        -             KeldyshCausality(),
+        -             bag(
+        -                 RetardedGreensFunction => GR,
+        -                 AdvancedGreensFunction => GA,
+        -                 GreaterGreensFunction => Ggtr,
+        -                 LesserGreensFunction => Gles,
+        -             );
+        -             atol=1e-12,
+        -         )
+        3     end
+        - end
+        - 
+        - @testset "supplied (untyped) slots via extras" begin
+        -     # Dyson: G₀ is a supplied slot (no free-propagator quantity type)
+        -     G0, Σ = 1 / (0.5 + im * 0.1), 0.2 + 0.05im
+        -     G = inv(inv(G0) - Σ)               # construct the full G so the identity holds
+        -     @test abs(residual(Dyson(), bag(RetardedGreensFunction => G, SelfEnergy => Σ); G0=G0)) <
+        -         1e-12
+        -     # KeldyshFDT: the distribution h is a supplied slot
+        -     GR = 1 / (0.3 + im * 0.1)
+        -     GA = conj(GR)
+        -     h = 2.3
+        -     GK = h * (GR - GA)
+        -     @test abs(
+        -         residual(
+        -             KeldyshFDT(),
+        -             bag(
+        -                 KeldyshGreensFunction => GK,
+        -                 RetardedGreensFunction => GR,
+        -                 AdvancedGreensFunction => GA,
+        -             );
+        -             h=h,
+        -         ),
+        -     ) < 1e-12
+        -     # a missing supplied slot is a loud, type/name-named error, not a silent skip
+        -     @test_throws ErrorException residual(
+        -         Dyson(), bag(RetardedGreensFunction => G, SelfEnergy => Σ)
+        -     )
+        - end
+        - 
+        - @testset "type-keyed solve preserves exact arithmetic" begin
+        -     gk = solve(
+        -         KeldyshComponent(),
+        -         KeldyshGreensFunction,
+        -         bag(GreaterGreensFunction => 2 // 1, LesserGreensFunction => 3 // 1),
+        -     )
+        -     @test gk == 5 // 1
+        -     @test gk isa Rational                 # NOT merely `== 5//1` (a Float64 5.0 would pass that)
+        -     # solve for a summand
+        -     @test solve(
+        -         KeldyshComponent(),
+        -         GreaterGreensFunction,
+        -         bag(KeldyshGreensFunction => 5 // 1, LesserGreensFunction => 3 // 1),
+        -     ) == 2 // 1
+        -     # the RESIDUAL path is exact too (Rational in ⇒ Rational out)
+        -     r = residual(
+        -         KeldyshComponent(),
+        -         bag(
+        -             KeldyshGreensFunction => 5 // 1,
+        -             GreaterGreensFunction => 2 // 1,
+        -             LesserGreensFunction => 3 // 1,
+        -         ),
+        -     )
+        -     @test r == 0 // 1 && r isa Rational
+        -     # asking for a type the relation does not carry is a loud error
+        -     @test_throws ErrorException solve(
+        -         KeldyshComponent(), SelfEnergy, bag(GreaterGreensFunction => 1)
+        -     )
+        - end
+        - 
+        - @testset "typed β-or-T (InverseTemperature ⇄ Temperature)" begin
+        -     # KMSGreaterLesser  G^< = ζ e^{−βω} G^>   (fermion ζ = −1)
+        -     Ggtr, ζ, ω, β = 2.0, -1, 1.0, 0.5
+        -     Gles = ζ * exp(-β * ω) * Ggtr
+        -     rβ = residual(
+        -         KMSGreaterLesser(),
+        -         bag(
+        -             LesserGreensFunction => Gles,
+        -             GreaterGreensFunction => Ggtr,
+        -             InverseTemperature => β,
+        -         );
+        -         ζ=ζ,
+        -         ω=ω,
+        -     )
+        -     rT = residual(
+        -         KMSGreaterLesser(),
+        -         bag(
+        -             LesserGreensFunction => Gles,
+        -             GreaterGreensFunction => Ggtr,
+        -             Temperature => 1 / β,
+        -         );
+        -         ζ=ζ,
+        -         ω=ω,
+        -     )
+        -     @test rβ == rT
+        -     @test abs(rβ) < 1e-12
+        - end
+        - 
+        - @testset "type-keyed bag report / applicability" begin
+        -     GR = 1 / (0.2 + im * 0.1)
+        -     GA = conj(GR)
+        -     b = bag(
+        -         RetardedGreensFunction => GR,
+        -         AdvancedGreensFunction => GA,
+        -         SpectralFunction => -imag(GR) / π,
+        -     )
+        -     matched = Set(nameof(typeof(r)) for r in applicable_relations(b))
+        -     # exactly the type-keyed relations whose identity types are all present
+        -     @test :AdvancedRetardedConjugate in matched
+        -     @test :SpectralFromKeldysh in matched
+        -     @test :SpectralFromGreens in matched
+        -     # a relation needing a type absent from the bag is NOT matched
+        -     @test !(:KeldyshComponent in matched)     # needs G^K/G^>/G^<
+        -     # every matched relation passes on this consistent bag
+        -     @test check_all(b; atol=1e-12)
+        -     rep = relation_report(b; atol=1e-12)
+        3     @test !isempty(rep) && all(row -> row.pass, rep)
+        - end
+        - 
+        - @testset "collision-freedom: the redesign's whole point" begin
+        -     # The old symbol keying let `:G`/`:GR` drift and `:S` mean four things.
+        -     # With type keys, G^R and G^A are distinct slots that cannot be confused:
+        -     GR = 1 / (0.2 + im * 0.1)
+        -     GA = conj(GR)
+        -     Aw = -imag(GR) / π
+        -     good = bag(
+        -         SpectralFunction => Aw, RetardedGreensFunction => GR, AdvancedGreensFunction => GA
+        -     )
+        -     @test check(SpectralFromKeldysh(), good; atol=1e-12)
+        -     # swap the two propagators' values → the identity now fails, proving the two
+        -     # TYPE keys are honored as distinct roles (a symbol fusion could not tell them apart)
+        -     swapped = bag(
+        -         SpectralFunction => Aw, RetardedGreensFunction => GA, AdvancedGreensFunction => GR
+        -     )
+        -     @test !check(SpectralFromKeldysh(), swapped; atol=1e-12)
+        - 
+        -     # a symbol-only relation (no named quantity subject — here Onsager's generic
+        -     # L_μν, which stays symbol-keyed even though its transport domain migrated) is
+        -     # NEVER pulled into a type-keyed bag report
+        -     @test isempty(variable_types(OnsagerReciprocity()))
+        -     @test !(OnsagerReciprocity() in applicable_relations(good))
+        - end
+        - 
+        - # ── Review-hardening (PR #79 review): empty/violated reports, matrix inputs,
+        - #    supplied-slot applicability, the β/T guards, and the declaration guards. ──
+        - 
+        - @testset "bag report: empty match ⇒ false, violated ⇒ caught" begin
+        -     # empty match (no type-keyed relation applies) is `false`, never a silent green
+        -     lonely = bag(SelfEnergy => 0.3 + 0.1im)
+        -     @test isempty(relation_report(lonely))
+        -     @test !check_all(lonely)
+        -     # a violated (present-but-wrong) bag is caught, not passed
+        -     GR = 1 / (0.2 + im * 0.1)
+        -     GA = conj(GR)
+        -     bad = bag(
+        -         RetardedGreensFunction => GR,
+        -         AdvancedGreensFunction => GA,
+        -         SpectralFunction => 999.0,
+        -     )
+        -     @test !check_all(bad; atol=1e-12)
+        1     @test any(row -> !row.pass, relation_report(bad; atol=1e-12))
+        - end
+        - 
+        - @testset "matrix-valued Dyson through the bag (::Type is metadata, not a constraint)" begin
+        -     # 2×2 orbital propagators: the identity holds verbatim, residual is a matrix
+        -     G0 = [1.0+0.1im 0.2+0.0im; 0.0+0.0im 0.8-0.1im]
+        -     Σ = [0.1+0.0im 0.0+0.0im; 0.05im 0.2+0.0im]
+        -     G = inv(inv(G0) - Σ)
+        -     res = residual(Dyson(), bag(RetardedGreensFunction => G, SelfEnergy => Σ); G0=G0)
+        -     @test res isa Matrix
+        -     @test opnorm(res) < 1e-10
+        - end
+        - 
+        - @testset "applicable_relations excludes a missing SUPPLIED slot" begin
+        -     G0, Σ = 1 / (0.5 + im * 0.1), 0.2 + 0.05im
+        -     G = inv(inv(G0) - Σ)
+        -     # Dyson's typed slots (G, Σ) are present but its supplied G₀ is not → excluded
+        -     @test !(
+        -         Dyson() in applicable_relations(bag(RetardedGreensFunction => G, SelfEnergy => Σ))
+        -     )
+        -     @test Dyson() in
+        -         applicable_relations(bag(RetardedGreensFunction => G, SelfEnergy => Σ); G0=G0)
+        - end
+        - 
+        - @testset "β/T guards (C1) and nothing-rejection (C2)" begin
+        -     Ggtr, ζ, ω, β = 2.0, -1, 1.0, 0.5
+        -     Gles = ζ * exp(-β * ω) * Ggtr
+        -     base = (LesserGreensFunction => Gles, GreaterGreensFunction => Ggtr)
+        -     # a bag with BOTH InverseTemperature and Temperature is a loud error, matching
+        -     # the symbol path's "pass either β or T, not both" (not a silent first-match win)
+        -     @test_throws ErrorException residual(
+        -         KMSGreaterLesser(),
+        -         bag(base..., InverseTemperature => β, Temperature => 1 / β);
+        -         ζ=ζ,
+        -         ω=ω,
+        -     )
+        -     # `nothing` is rejected at construction — never confused with "absent"
+        -     @test_throws ErrorException bag(SelfEnergy => nothing)
+        -     # solving for a temperature the relation doesn't carry is a clear error, not a
+        -     # silent β/T coercion (the input-side β⇄T aliasing is deliberately one-way here)
+        -     @test_throws ErrorException solve(
+        -         KMSGreaterLesser(), Temperature, bag(base..., InverseTemperature => β); ζ=ζ, ω=ω
+        -     )
+        - end
+        - 
+        - @testset "declaration guards: non-concrete (C4) and duplicate (C3) identity types" begin
+        -     # a bare parametric family can't match a concrete bag key → rejected at declaration
+        -     @test_throws Exception @eval @relation :test _AbstractSlot(x::AbstractPropagator) = x
+        -     # two slots of one type would bind the same value (always-passing) → rejected
+        -     @test_throws Exception @eval @relation :test _DupSlot(
+        -         a::RetardedGreensFunction, b::RetardedGreensFunction
+        -     ) = a - b
+        - end
+        - 
+        - @testset "RelationVariable scaffolding smoke test" begin
+        -     @test Frequency() isa AbstractCoordinate
+        -     @test Momentum() isa AbstractCoordinate
+        -     @test Frequency() != Momentum()
+        -     @test Global() isa Support
+        -     # VariableKey's type field is constrained to identity kinds (I3): a non-
+        -     # RelationVariable type is rejected at construction (no `convert` method)
+        -     @test_throws Union{MethodError,TypeError} VariableKey(Int)
+        -     @test VariableKey(RetardedGreensFunction).type === RetardedGreensFunction
+        - end
