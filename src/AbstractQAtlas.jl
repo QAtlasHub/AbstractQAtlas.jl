@@ -181,6 +181,12 @@ include("relations/derivation.jl")
 # push DATA — cycle-free.  Needs the core type vocabulary + graph/kernel's `_json_str`.
 include("report/card.jl")
 
+# the functional-evaluation interface (the scope-line #14 seam): generic verbs
+# `principal_value_hilbert` / `spectral_moment` over an `AbstractResponse`, owned here
+# (like `fetch`), evaluated by the functional sibling — so the supplied-integral relations
+# become turnkey from a measured response once that package is present.
+include("evaluation.jl")
+
 # automatic-differentiation entry point (methods live in ext/, ForwardDiff)
 include("autodiff.jl")
 
