@@ -121,3 +121,14 @@ end
         @test (operation_scope(via) == :functional) == (origin_relation(via) === nothing)
     end
 end
+
+@testset "static q→0 edge: StaticStructureFactor ⟵ SpinCorrelation (∫G dr)" begin
+    o = spectral_origin(StaticStructureFactor())
+    @test o == SpectralOrigin(SpinCorrelation, :spatial_integral_q0)
+    # a spatial integral is a transform ⇒ no pointwise relation ⇒ functional scope (#14)
+    @test origin_relation(:spatial_integral_q0) === nothing
+    @test operation_scope(:spatial_integral_q0) === :functional
+    # the chain now reaches the correlation source
+    @test spectral_chain(StaticStructureFactor()) ==
+        [StaticStructureFactor, SpinCorrelation]
+end

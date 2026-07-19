@@ -102,6 +102,27 @@ Variables: `Sq`, `sqw_integral`.
 @relation :spectral StaticFromDynamicalStructureFactor(Sq, sqw_integral) = Sq - sqw_integral
 
 """
+    StaticStructureFactorFromCorrelation <: AbstractRelation
+
+The static structure factor at zero wavevector as the spatial integral of the
+two-point correlation — the static fluctuation / compressibility sum rule,
+
+`S(q → 0) = ∫ G(r) dr`
+
+(Chaikin–Lubensky, *Principles of Condensed Matter Physics*).  Supplied-integral
+convention: `integral_G = ∫ G(r) dr` is the caller-computed spatial integral of the
+correlation function (evaluating it is the functional sibling's job, issue #14).
+Together with [`StructureFactorSusceptibility`](@ref) (`χ = β S(q→0)`) this closes the
+static loop `χ = ∫G(r)dr = S(q→0)`; the structural edge is
+`spectral_origin(StaticStructureFactor)`.
+
+Variables: `Sq0`, `integral_G`.
+"""
+@relation :spectral StaticStructureFactorFromCorrelation(
+    Sq0::StaticStructureFactor, integral_G
+) = Sq0 - integral_G
+
+"""
     DynamicalFDT <: AbstractRelation
 
 The finite-temperature fluctuation–dissipation theorem relating the

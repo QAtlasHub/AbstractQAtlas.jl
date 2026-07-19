@@ -33,7 +33,7 @@
 One edge of the dynamical-quantity graph: the quantity carrying it is
 obtained from quantity type `from` by the operation named `via` — one of
 `:dyson`, `:neg_im_over_pi`, `:bz_average`, `:spacetime_fourier`,
-`:low_frequency_limit`, `:kubo`.
+`:low_frequency_limit`, `:kubo`, `:spatial_integral_q0`.
 """
 struct SpectralOrigin
     from::Type
@@ -101,6 +101,14 @@ end
 # identity, not a transform) — Keldysh RAK; see relations/keldysh.jl
 function spectral_origin(::Type{AdvancedGreensFunction})
     return SpectralOrigin(RetardedGreensFunction, :adjoint)
+end
+# the static (equal-time) fluctuation sum rule: the q→0 structure factor is the spatial
+# integral of the two-point correlation, S(q→0) = ∫G(r)dr (Chaikin–Lubensky) — the
+# static slice of the S(q) ↔ ⟨SS⟩(r) Fourier pair. A spatial integral is a transform, so
+# `origin_relation(:spatial_integral_q0)` is `nothing` (evaluation is the functional
+# sibling's job, #14); the supplied-integral CHECK is `StaticStructureFactorFromCorrelation`.
+function spectral_origin(::Type{StaticStructureFactor})
+    return SpectralOrigin(SpinCorrelation, :spatial_integral_q0)
 end
 export spectral_origin, SpectralOrigin
 

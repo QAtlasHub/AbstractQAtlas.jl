@@ -119,3 +119,19 @@ end
     @test rep[1].relation isa Dyson
     @test rep[1].pass
 end
+
+@testset "StaticStructureFactorFromCorrelation: S(q→0) = ∫G(r)dr" begin
+    R = StaticStructureFactorFromCorrelation
+    # exact residual: zero iff S(q=0) equals the supplied spatial integral
+    @test residual(R(); Sq0=3 // 2, integral_G=3 // 2) == 0 // 1
+    @test check(R(); Sq0=2.0, integral_G=2.0)
+    @test !check(R(); Sq0=2.0, integral_G=1.0)
+    # affine ⇒ solve either variable
+    @test solve(R(), Val(:Sq0); integral_G=5 // 1) == 5 // 1
+    @test solve(R(), Val(:integral_G); Sq0=7 // 2) == 7 // 2
+    # type-keyed: Sq0 is a StaticStructureFactor slot ⇒ auto-links to that quantity
+    @test StaticStructureFactor in quantities(R())
+    @test R() in relations_constraining(StaticStructureFactor)
+    # the collision-proof bag front door
+    @test residual(R(), bag(StaticStructureFactor => 2.0); integral_G=2.0) == 0.0
+end
