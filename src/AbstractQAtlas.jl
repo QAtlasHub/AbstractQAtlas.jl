@@ -56,6 +56,7 @@ include("core/region.jl")                # the Region set layer (entanglement su
 # response-function derivative genealogy rooted at the free energy.
 include("structure/transitions.jl")
 include("structure/criticality.jl")
+include("structure/potentials.jl")        # thermodynamic potentials → the Maxwell relations
 include("structure/scaling_dimensions.jl")
 include("structure/response.jl")
 include("structure/tensor_symmetry.jl")
