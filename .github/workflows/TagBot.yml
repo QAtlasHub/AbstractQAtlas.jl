@@ -1,3 +1,11 @@
 name: TagBot
-on: { issue_comment: { types: [created] }, workflow_dispatch: { inputs: { lookback: { default: "3" } } } }
-jobs: { tagbot: { uses: QAtlasHub/.github/.github/workflows/tagbot.yml@v1, secrets: inherit } }
+on:
+  schedule:
+    - cron: "17 4 * * *"   # daily self-backfill of any registered-but-untagged version
+  issue_comment:
+    types: [created]        # JuliaTagBot app trigger, if ever installed
+  workflow_dispatch:        # manual catch-up
+jobs:
+  tagbot:
+    uses: QAtlasHub/.github/.github/workflows/tagbot.yml@v1
+    secrets: inherit
