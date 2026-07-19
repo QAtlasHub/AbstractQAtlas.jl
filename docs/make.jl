@@ -37,7 +37,7 @@ makedocs(;
 
 deploydocs(;
     versions=["stable", "dev"],
-    repo="github.com/sotashimozono/AbstractQAtlas.jl.git",
+    repo="github.com/QAtlasHub/AbstractQAtlas.jl.git",
     devbranch="main",
     push_preview=true,
 )
