@@ -31,6 +31,7 @@ also_constrains(::GibbsHelmholtz) = (FreeEnergy,)      # fundamental: U = ∂(β
 # `quantities` is auto-derived from the declaration — no hand-link here.  The
 # remaining entries are legacy symbol-keyed relations awaiting migration.
 quantities(::SpectralSumRule) = (SpectralFunction,)
+quantities(::FSumRule) = (DynamicalStructureFactor,)   # first moment of S(q,ω) (supplied)
 quantities(::DetailedBalance) = (DynamicalStructureFactor,)
 quantities(::DynamicalFDT) = (DynamicalStructureFactor, DynamicalSusceptibility)
 quantities(::CorrelationLengthGap) = (CorrelationLength, MassGap)

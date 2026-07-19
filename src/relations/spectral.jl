@@ -58,6 +58,24 @@ frequency integral of the spectral function at fixed `q`.
 @relation :spectral SpectralSumRule(spectral_integral) = spectral_integral - 1
 
 """
+    FSumRule <: AbstractRelation
+
+The **f-sum rule** — the first frequency moment of the dynamical structure factor,
+
+`∫ ω S(q, ω) dω = N q² / (2m)`
+
+(`ℏ = 1`; `N` particles of mass `m`, with `N = 1` the per-particle form).  A
+model-independent identity: the first moment equals `½⟨[[H, ρ_q], ρ_{−q}]⟩`, and for a
+`q²/2m` kinetic energy that double commutator is `N q²/m` regardless of the
+interactions (Pines & Nozières, *The Theory of Quantum Liquids* 1966; Thomas–Reiche–Kuhn
+1925).  Supplied-integral convention: `first_moment = ∫ ω S(q, ω) dω` is the
+caller-computed first moment at fixed `q`.
+
+Variables: `first_moment`, `q`, `m`, `N = 1`.
+"""
+@relation :spectral FSumRule(first_moment, q, m, N=1) = first_moment - N * q^2 / (2 * m)
+
+"""
     DetailedBalance <: AbstractRelation
 
 The finite-temperature detailed-balance condition on the dynamical

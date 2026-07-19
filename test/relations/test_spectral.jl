@@ -135,3 +135,18 @@ end
     # the collision-proof bag front door
     @test residual(R(), bag(StaticStructureFactor => 2.0); integral_G=2.0) == 0.0
 end
+
+@testset "FSumRule: ∫ω S(q,ω)dω = N q²/(2m) (f-sum rule)" begin
+    F = FSumRule
+    # per-particle (N=1): first moment = q²/(2m); exact (Rational in ⇒ Rational out)
+    @test residual(F(); first_moment=2 // 1, q=2 // 1, m=1 // 1) == 0 // 1   # 2²/(2·1) = 2
+    @test check(F(); first_moment=2.0, q=2.0, m=1.0)
+    @test !check(F(); first_moment=1.0, q=2.0, m=1.0)
+    # N particles scale the moment
+    @test residual(F(); first_moment=6 // 1, q=2 // 1, m=1 // 1, N=3) == 0 // 1   # 3·4/2 = 6
+    # affine ⇒ solve the supplied moment
+    @test solve(F(), Val(:first_moment); q=2 // 1, m=1 // 1) == 2 // 1
+    # hand-linked to the dynamical structure factor (constrained via the supplied moment)
+    @test DynamicalStructureFactor in quantities(F())
+    @test F() in relations_constraining(DynamicalStructureFactor)
+end
