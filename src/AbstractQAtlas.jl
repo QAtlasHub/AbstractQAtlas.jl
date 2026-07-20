@@ -41,6 +41,7 @@ using InteractiveUtils: subtypes    # quantity-graph node discovery (structure/g
 
 # core — type vocabulary
 include("core/types.jl")
+include("core/fetch_cache.jl")           # memoization for the fetch retrieval seam (pillar 5)
 include("core/indices.jl")
 include("core/representations.jl")
 include("core/quantities.jl")
