@@ -104,24 +104,32 @@ path.
   (`using AbstractQAtlas: fetch`). This is the **canonical convention**, not a
   wart — QAtlas does exactly the same. New consumers follow it; we do **not**
   add a second non-clashing alias (one true name).
-- **The seam pattern is the ecosystem's single extension mechanism.** *Generic
-  verb + erroring fallback in AbstractQAtlas; methods at the leaves.* Every seam
-  instantiates it, so the package is the `AbstractFFTs` of the atlas family:
+- **The seam pattern is the ecosystem's main extension mechanism.** *Generic
+  verb + erroring fallback in AbstractQAtlas; methods at the leaves.* The
+  **implement-downstream** seams instantiate it, so the package is the
+  `AbstractFFTs` of the atlas family:
 
   | seam | verb(s) | who implements | carries |
   |---|---|---|---|
   | reference values | `fetch(model, quantity, bc)` | QAtlas | stored/oracle values |
-  | reported values | `report(model, quantity, bc; …) → Card` | any reporter | a computed value + provenance |
   | functional numerics | `principal_value_hilbert` / `spectral_moment(::AbstractResponse, …)` | functional sibling | transforms / quadratures |
-  | autodiff | `thermal_derivative(quantity, potential, x)` | ForwardDiff ext | genealogy derivatives (Pillar 4) |
+  | autodiff (forward) | `thermal_derivative(quantity, potential, x)` | ForwardDiff ext | genealogy derivatives (Pillar 4) |
+  | autodiff (reverse) | `thermal_gradient(F, x⃗)` | Zygote ext | first-order response vector (Pillar 4) |
 
+  Each of these is a generic function whose top-level method errors informatively
+  and whose real methods live at a leaf. **`report` is the deliberate exception**:
+  it is a *central builder* (`report(model, quantity, bc; …) → Card`, fully
+  implemented here, no fallback and no leaf methods) — the reporter-facing sibling
+  of `fetch`, which reporters *call* to mint a `Card` and push DATA, never
+  implement. `fetch_cached` (Pillar 5) is likewise a wrapper, not a fallback seam.
 - **Cycle-free.** Consumers depend on AbstractQAtlas *only* (never the reverse);
-  the values/numerics live at the leaves. `report` is the reporter-facing
-  sibling of `fetch` — reporters push DATA (a `Card`), they are not depended on.
-- **"Route through `fetch`."** Higher verbs that need a value — a `derive`
-  cross-check, a round-trip against a reported `Card` — obtain it via `fetch`,
-  never through a parallel lookup. One place a value enters ⇒ one place to
-  cache (Pillar 5) and one place to trust.
+  the values/numerics live at the leaves.
+- **"Route through `fetch`" (the intended discipline, not yet enforced).** The
+  aim is that a value enters the engine in exactly one place — so caching
+  (Pillar 5) and trust have one locus. Today only `fetch_cached` wraps `fetch`;
+  `derive` computes from *supplied* inputs (it needs no reference value) rather
+  than fetching, so the single-entry discipline is a convention for future
+  value-consuming verbs, not a shipped invariant.
 
 **Gap / hardening.** The contract holds today; the remaining work is to *state*
 it (this document) and to keep new seams (e.g. any future graph/data-export
@@ -148,17 +156,22 @@ the `never-fabricate-citations` rule).
   `verify` action) checks every bib DOI/arXiv resolves on Crossref/arXiv, so a
   fabricated or mistyped id fails CI. A real-but-unresolvable id is excepted by
   hand in `docs/references.allow`.
-- **Enforcement (new).** A test asserts that **every registered relation's
-  docstring contains a reference token** — a `[…](@cite)` *or* an inline
-  `(… YYYY)` year pattern — so a newly-added uncited relation fails CI, exactly
-  as the reflection invariants guard tensor traits.
+- **Enforcement (shipped, `test/relations/test_citations.jl`).** The guard is
+  **per-file**: every `src/relations/*.jl` that *declares* a relation must carry
+  at least one reference token — a `[…](@cite)` *or* an inline `(YYYY)` — in its
+  header "References:" block or a docstring, matching the established
+  header-References convention. So a file that ships a law with **no** provenance
+  fails CI. (`interface.jl`, the macro home, is exempt — its `@relation` lines
+  are docstring examples.) The stricter **per-relation** form remains aspirational:
+  a newly-added uncited relation in an already-cited file is not yet caught.
 
-**Gap / roadmap.** `thermodynamic.jl` (16 relations) and `fundamental.jl` (7)
-carry **no `@cite`** — the textbook thermodynamics (Maxwell, Clausius–Clapeyron,
-Gibbs–Duhem) and the `Z`–`F`–`U`–`S` web. Audit each: attach an honest inline
-textbook citation where no single canonical paper exists, and a doiget-verified
-bib entry where one does; then land the enforcement test. This is the most
-self-contained pillar and the recommended first execution PR.
+**Status: done.** The two previously zero-`@cite` files were cited —
+`fundamental.jl` (Callen 1985 / Landau–Lifshitz) and `thermodynamic.jl` (Maxwell /
+Clausius–Clapeyron / Gibbs–Duhem / stability under Callen 1985, FDT under
+`[CallenWelton1951](@cite)`) — and the guard landed. Remaining refinement (not
+blocking): tighten the guard to per-relation, and convert the handful of bib'd
+references still cited as bare inline text (Rushbrooke1963/Fisher1964/Onsager1931b/
+Peschel2003) to `[key](@cite)`.
 
 ---
 
@@ -179,8 +192,10 @@ core, backend in an extension.
   scaling/response *forms* are pure arithmetic and already differentiate through
   *any* AD backend with no extension — the ext adds only the genealogy
   AD-*evaluation* (potential **function** → derived-quantity **value**). A
-  reverse-mode backend is therefore a *second* extension on the same generic
-  function, not a redesign.
+  reverse-mode backend is therefore a *second* extension, not a redesign — though
+  it ships as a **distinct verb** `thermal_gradient` (below), because reverse
+  mode's natural output is the *whole* first-order response vector `−∇F` in one
+  pass, a different operation from the per-component forward `thermal_derivative`.
 - **Genealogy-structured, order-exact.** The derivative order and field are read
   from `response_order`/`derivative_edge`, so
   `thermal_derivative(Susceptibility(α, β₁…βₙ), F, h⃗, components)` is the exact
@@ -188,14 +203,19 @@ core, backend in an extension.
   **diagonal** and *errors* on an off-diagonal request rather than silently
   returning the diagonal.
 
-**Current coverage.** `Magnetization`, `Susceptibility` (diagonal + multi-field
-mixed partial), `ThermalEntropy`, `SpecificHeat`, `Energy` (Gibbs–Helmholtz).
+**Current coverage (shipped).** A single **genealogy-driven** generic method
+(`thermal_derivative(q, F, x)`) covers every `FreeEnergy`- *or* `GrandPotential`-
+rooted single-field response — `Magnetization`, `ThermalEntropy`, `ParticleNumber`
+(`N = −∂Ω/∂μ`), and any future one — by reading order+field from `derivative_edge`
+(no hand-maintained map). `Susceptibility` (diagonal + multi-field mixed partial)
+and the irregular `Energy` (potential `βF`) / `SpecificHeat` (via `U`) keep
+explicit methods. **Reverse mode shipped** as `thermal_gradient(F, x⃗) = −∇F` via
+the **Zygote** extension — the whole first-order response vector in one pass.
 
-**Gap / roadmap.** Extend along the remaining genealogy edges — the dynamical
-response (frequency derivatives of `DynamicalSusceptibility`), transport
-coefficients as field-derivatives — driving each from `derivative_edge` so the
-map is not hand-maintained. Optionally add a reverse-mode ext (Zygote/Enzyme)
-for many-parameter potentials: same verb, second `[extensions]` entry.
+**Gap / roadmap.** Extend further along the genealogy edges where useful (dynamical
+response frequency-derivatives, transport coefficients as field-derivatives).
+Reverse-mode is a second `[extensions]` entry on a distinct verb; a third backend
+(Enzyme) would follow the same shape.
 
 ---
 
@@ -216,31 +236,31 @@ therefore safe and often necessary.
   deterministic pure function of its triple; a method with side effects (or a
   live-recomputed value) opts out. The cache is invalidated only by an explicit
   reset — no time-based expiry, no hidden staleness.
-- **stdlib-only.** An `IdDict`/`Dict` in the dispatch layer (or a `fetch_cached`
-  wrapper), matching the existing `_DERIV_STEPS`/`_TYPED_DERIV_STEPS`
-  built-once-and-cached discipline in `derivation.jl` — no `Memoize.jl`
-  dependency.
-- **`derive` inherits it.** A *derived* quantity's route and value memoize the
-  same way, so a repeated `derive(target, bag)` does not re-walk the graph.
+- **stdlib-only.** A `Dict` + `ReentrantLock` behind the `fetch_cached` wrapper —
+  no `Memoize.jl` — mirroring the existing `_DERIV_STEPS`/`_TYPED_DERIV_STEPS`
+  built-once-and-cached discipline in `derivation.jl`.
 
-**Gap / roadmap.** No cache exists today (each `fetch` re-dispatches; each
-`derive` re-solves). The concrete PR adds the memoization layer *after* the
-`fetch` seam contract (Pillar 2) is codified, so the cache sits at the one
-canonical entry point.
+**Status: shipped (`src/core/fetch_cache.jl`).** `fetch_cached(model, quantity,
+bc; kwargs...)` memoizes the pure `fetch` lookup; `clear_fetch_cache!()` resets.
+Thread-safe (value computed outside the lock; a same-key race keeps the first
+writer); errors are **not** cached. **Note:** `derive` does *not* yet inherit
+this — only `fetch` is wrapped; `derive` re-runs `_forward_chain` each call (its
+structural candidate steps are cached, but not the `(target, knowns) → value`
+result). Memoizing `derive` is a possible follow-up.
 
 ---
 
-## Roadmap — execution order
+## Roadmap — status
 
-1. **This document** — establish the five contracts. (Pillars 1–2 are largely
-   codification; their deliverable is mostly here.)
-2. **Citation audit + enforcement test (Pillar 3)** — self-contained, immediate;
-   fill `thermodynamic.jl`/`fundamental.jl`, then land the "every relation
-   cites" guard.
-3. **AD extension (Pillar 4)** — extend `thermal_derivative` along the genealogy;
-   optional reverse-mode ext.
-4. **`fetch` cache (Pillar 5)** — the memoization layer at the `fetch` seam,
-   after Pillar 2 is fixed.
+All five pillars are **shipped** (this document plus PRs #109–#114):
 
-Each is a focused PR; pillars 1–2 additionally get small hardening PRs only
-where the code and this contract disagree.
+1. **This document** (#109) — the five contracts (pillars 1–2 mostly codification).
+2. **Citation audit + per-file guard** (#110, Pillar 3) — `thermodynamic.jl` /
+   `fundamental.jl` cited, `test_citations.jl` landed.
+3. **AD** (Pillar 4) — genealogy-driven `thermal_derivative` (#111) + reverse-mode
+   `thermal_gradient` via the Zygote ext (#112).
+4. **`fetch` cache** (#113, Pillar 5) — `fetch_cached` memoization at the `fetch` seam.
+
+Grand-canonical second root (`GrandPotential`, #114) extended the genealogy that
+pillars 4 feed. Remaining refinements are the non-blocking follow-ups noted per
+pillar above (per-relation citation guard, `derive` memoization, further AD edges).

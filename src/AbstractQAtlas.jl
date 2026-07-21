@@ -5,21 +5,33 @@ The model-independent layer of the QAtlas ecosystem, in the spirit of
 `AbstractFFTs`: concrete atlases (QAtlas) *implement* this package,
 never the reverse.
 
-Two responsibilities:
+Layers:
 
 1. **core/** — the abstract type vocabulary for physical quantities:
    `AbstractQAtlasModel`, `BoundaryCondition` (`Infinite`/`OBC`/`PBC`),
-   `AbstractQuantity` and its hierarchy, the generic
-   [`fetch`](@ref AbstractQAtlas.fetch) verb, and the
-   [`Universality`](@ref) machinery — so atlases and third packages
-   share dispatch types without depending on a full atlas.
+   `AbstractQuantity` and its hierarchy, the abstract fields, the generic
+   [`fetch`](@ref AbstractQAtlas.fetch) verb (+ its `fetch_cached`
+   memoization), and the [`Universality`](@ref) machinery — so atlases and
+   third packages share dispatch types without depending on a full atlas.
 
-2. **relations/** — generic, model-independent physics relations as
+2. **structure/** — the model-independent *definitional* correspondences
+   between the core quantities: the transition classification, the
+   quantity⇄exponent map behind the scaling forms, the response-function
+   derivative genealogy (`derivative_edge`, rooted at `FreeEnergy` /
+   `GrandPotential`), the spectral and Fourier graphs, and the Maxwell
+   relations derived from the potentials.
+
+3. **relations/** — generic, model-independent physics relations as
    first-class tested objects with a uniform three-verb interface
-   ([`residual`](@ref) / [`check`](@ref) / [`solve`](@ref)):
-   critical-exponent scaling laws, fluctuation–dissipation identities,
-   Wick's theorem, standard topological invariants, and finite-size
-   scaling forms.
+   ([`residual`](@ref) / [`check`](@ref) / [`solve`](@ref)): scaling laws,
+   fluctuation–dissipation identities, Wick's theorem, topological
+   invariants, the spectral/Keldysh web, and finite-size scaling forms.
+
+4. **seams** — generic verbs whose numerics/values live at the leaves:
+   [`fetch`](@ref AbstractQAtlas.fetch) (reference values, in QAtlas),
+   `report`→`Card` (reported values), `principal_value_hilbert`/`spectral_moment`
+   (functional numerics), and `thermal_derivative`/`thermal_gradient` (AD, in
+   the ForwardDiff/Zygote extensions) — plus the `KnowledgeGraph` graph layer.
 
 **Values do not live here, and neither do model-specific laws.**  This
 package owns only what holds **universally within a domain** — independent

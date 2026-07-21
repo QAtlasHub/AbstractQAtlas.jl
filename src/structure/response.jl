@@ -86,8 +86,9 @@ differentiation_chain(Susceptibility(:z, :z))
 # [Susceptibility{:z,:z}, Magnetization{:z}, FreeEnergy]  — χ ⟵ M ⟵ F
 ```
 
-The chain terminates because the genealogy is a finite tree rooted at
-the free energy; a cycle in the declared edges would loop forever and is
+The chain terminates because the genealogy is a finite tree rooted at a
+thermodynamic potential (the free energy, or the grand potential for the
+grand-canonical branch); a cycle in the declared edges would loop forever and is
 guarded against with an explicit depth cap.
 """
 function differentiation_chain(q::AbstractQuantity)
@@ -107,10 +108,10 @@ export differentiation_chain
     potential_root(quantity) -> Type
 
 The root potential of `quantity`'s genealogy — the last entry of its
-[`differentiation_chain`](@ref).  For every response function in the
-thermodynamic tree this is [`FreeEnergy`](@ref); everything ultimately
-derives from the free energy (hence, via `F = −β⁻¹ ln Z`, from the
-partition function).
+[`differentiation_chain`](@ref).  For the canonical response tree this is
+[`FreeEnergy`](@ref) (`M = −∂F/∂h`, `S = −∂F/∂T`, …); for the grand-canonical
+branch it is [`GrandPotential`](@ref) (`N = −∂Ω/∂μ`).  Each root is itself the
+Legendre-generating potential of its ensemble — `F = −β⁻¹ ln Z`, `Ω = −β⁻¹ ln Ξ`.
 """
 potential_root(q::AbstractQuantity) = last(differentiation_chain(q))
 export potential_root

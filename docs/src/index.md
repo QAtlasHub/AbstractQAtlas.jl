@@ -206,11 +206,13 @@ restated:
   carrying [`ehrenfest_order`](@ref), [`has_order_parameter`](@ref),
   [`has_latent_heat`](@ref), [`has_critical_exponents`](@ref).
 - **Response genealogy** — [`derivative_edge`](@ref) encodes the
-  derivative tree rooted at the free energy (`M = −∂F/∂h`, `χ = ∂M/∂h`,
-  `C = ∂U/∂T`). [`differentiation_chain`](@ref) traces any response back
-  to [`FreeEnergy`](@ref); [`derivative_order`](@ref) counts field
-  derivatives (`χ = ∂²F/∂h²` ⇒ order 2); [`potential_root`](@ref),
-  [`is_response`](@ref), [`conjugate_field`](@ref). The exact formulas
+  derivative tree rooted at a thermodynamic potential (`M = −∂F/∂h`,
+  `χ = ∂M/∂h`, `C = ∂U/∂T` at the free-energy root; `N = −∂Ω/∂μ` at the
+  grand-potential root). [`differentiation_chain`](@ref) traces any response
+  back to its [`potential_root`](@ref) ([`FreeEnergy`](@ref) or
+  [`GrandPotential`](@ref)); [`derivative_order`](@ref) counts field
+  derivatives (`χ = ∂²F/∂h²` ⇒ order 2); [`is_response`](@ref),
+  [`conjugate_field`](@ref). The exact formulas
   are the paired relations [`MagnetizationResponse`](@ref),
   [`SusceptibilityResponse`](@ref), [`GibbsHelmholtz`](@ref) — the
   definitional `χ = ∂M/∂h` and the statistical `χ = β·Var(M)`
