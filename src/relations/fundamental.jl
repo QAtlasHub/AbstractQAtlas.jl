@@ -132,7 +132,7 @@ which `N = −∂Ω/∂μ` follows ([`ParticleNumberResponse`](@ref)).
 Variables: `Ω`, `F`, `μ`, `N`.
 """
 @relation :fundamental GrandPotentialLegendre(
-    Ω::GrandPotential, F::FreeEnergy, μ, N::ParticleNumber
+    Ω::GrandPotential, F::FreeEnergy, μ::ChemicalPotential, N::ParticleNumber
 ) = Ω - (F - μ * N)
 
 """

@@ -6,9 +6,9 @@
 # upper critical dimension) satisfy them with residual ≡ 0 in exact
 # arithmetic; numerical sets (3D Ising bootstrap) within quoted errors.
 #
-# References (textbook standard): Rushbrooke, J. Chem. Phys. 39, 842
-# (1963); Widom, [Widom1965](@cite); Fisher, J. Math. Phys.
-# 5, 944 (1964); Josephson, [Josephson1967](@cite).
+# References (textbook standard): Rushbrooke, [Rushbrooke1963](@cite); Widom,
+# [Widom1965](@cite); Fisher, [Fisher1964](@cite); Josephson,
+# [Josephson1967](@cite).
 
 """
     Rushbrooke <: AbstractRelation

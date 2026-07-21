@@ -118,7 +118,9 @@ integral at fixed `q`.
 
 Variables: `Sq`, `sqw_integral`.
 """
-@relation :spectral StaticFromDynamicalStructureFactor(Sq, sqw_integral) = Sq - sqw_integral
+@relation :spectral StaticFromDynamicalStructureFactor(
+    Sq::StaticStructureFactor, sqw_integral
+) = Sq - sqw_integral
 
 """
     StaticStructureFactorFromCorrelation <: AbstractRelation
@@ -172,7 +174,8 @@ and the measured gap must satisfy `ξΔ = v`.
 
 Variables: `ξ`, `v`, `Δ`.
 """
-@relation :spectral CorrelationLengthGap(ξ, v, Δ) = ξ - v / Δ
+@relation :spectral CorrelationLengthGap(ξ::CorrelationLength, v::Velocity, Δ::MassGap) =
+    ξ - v / Δ
 
 """
     KramersKronigReal <: AbstractRelation

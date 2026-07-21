@@ -21,7 +21,8 @@ ground-state energy per site.
 
 Variables: `dE`, `c`, `v`, `L`.
 """
-@relation :cft CasimirCentralCharge(dE, c::CentralCharge, v, L) = dE + π * c * v / (6 * L^2)
+@relation :cft CasimirCentralCharge(dE, c::CentralCharge, v::Velocity, L) =
+    dE + π * c * v / (6 * L^2)
 
 """
     FiniteSizeGap <: AbstractRelation
@@ -37,7 +38,8 @@ universal amplitude `2πvx`.  Reads `x` off the measured finite-size gap.
 
 Variables: `gap` = `E_x(L) − E₀(L)`, `x`, `v`, `L`.
 """
-@relation :cft FiniteSizeGap(gap::MassGap, x::ScalingDimension, v, L) = gap - 2π * v * x / L
+@relation :cft FiniteSizeGap(gap::MassGap, x::ScalingDimension, v::Velocity, L) =
+    gap - 2π * v * x / L
 
 """
     CardyDensityOfStates <: AbstractRelation

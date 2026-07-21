@@ -161,8 +161,12 @@ end
     # type-keyed bag: the grand-canonical measurement fires the Legendre relation
     @test check(
         GrandPotentialLegendre(),
-        bag(GrandPotential => Ω(μ), FreeEnergy => Fhelm, ParticleNumber => Nf);
-        μ=μ,
+        bag(
+            GrandPotential => Ω(μ),
+            FreeEnergy => Fhelm,
+            ParticleNumber => Nf,
+            ChemicalPotential => μ,
+        );
         atol=1e-12,
     )
 end

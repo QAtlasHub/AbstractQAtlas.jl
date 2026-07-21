@@ -1144,6 +1144,16 @@ struct CorrelationLength <: AbstractQuantity end
 export CorrelationLength
 
 """
+    Velocity() <: AbstractVelocity
+
+A characteristic propagation velocity (Fermi / sound / spin-wave) — the `v` of
+the correlation length `ξ = v/Δ` ([`CorrelationLengthGap`](@ref)) and the CFT
+finite-size forms ([`FiniteSizeGap`](@ref), [`CasimirCentralCharge`](@ref)).
+"""
+struct Velocity <: AbstractVelocity end
+export Velocity
+
+"""
     MassGap() <: AbstractGap
 
 The spectral (mass) gap `Δ = E₁ − E₀` between the ground state and the

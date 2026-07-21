@@ -12,9 +12,9 @@
 # carrier / Hall / Drude relations, where it clarifies the identity (pass
 # `e = 1` for natural units).
 #
-# References (doiget-verified, docs/references.bib): Onsager, Phys. Rev.
-# 37, 405 (1931) and 38, 2265 (1931); Cutler & Mott, Phys. Rev. 181, 1336
-# (1969); Scalapino, White & Zhang, [ScalapinoWhiteZhang1993](@cite); Einstein,
+# References (doiget-verified, docs/references.bib): Onsager,
+# [Onsager1931a](@cite) and [Onsager1931b](@cite); Cutler & Mott,
+# [CutlerMott1969](@cite); Scalapino, White & Zhang, [ScalapinoWhiteZhang1993](@cite); Einstein,
 # [Einstein1905diffusion](@cite).
 #
 # NOTE: model-SPECIFIC transport relations (the Drude mobility μ=eτ/m, the
@@ -52,7 +52,9 @@ The Mott formula for the diffusive thermopower (Cutler & Mott, [CutlerMott1969](
 coefficient from the energy derivative of the conductivity at the Fermi
 level.
 
-Variables: `S`, `dlnσ_dε` = `d ln σ/dε |_{ε_F}`, `T`.
+Supplied-derivative convention: `dlnσ_dε` is the caller-computed
+`d ln σ/dε |_{ε_F}` (the conductivity's log-derivative at the Fermi level).
+Variables: `S`, `dlnσ_dε`, `T`.
 """
 @relation :transport MottFormula(S::Thermopower{(:x, :x)}, dlnσ_dε, T::Temperature) =
     S + (π^2 / 3) * T * dlnσ_dε
@@ -100,9 +102,9 @@ conductivity into its Drude and regular parts,
 with `D` the [`DrudeWeight`](@ref) (the `δ(ω)` coefficient,
 `Re σ = π D δ(ω) + σ^reg`) and `W_reg = ∫ σ^reg(ω) dω` the regular
 spectral weight (Scalapino, White & Zhang, [ScalapinoWhiteZhang1993](@cite)).
-The total `sigma_integral` is the caller-supplied f-sum weight (e.g.
-`π n e²/m`, or `−π e²⟨T_kin⟩` on a lattice).
 
+Supplied-integral convention: `sigma_integral = ∫ Re σ(ω) dω` is the caller-computed
+f-sum weight (e.g. `π n e²/m`, or `−π e²⟨T_kin⟩` on a lattice).
 Variables: `sigma_integral`, `D`, `W_reg`.
 """
 @relation :transport OpticalSumRule(sigma_integral, D::DrudeWeight{(:x, :x)}, W_reg) =

@@ -64,6 +64,12 @@ end
     @test check(StaticFromDynamicalStructureFactor(); Sq=2.0, sqw_integral=2.0)
     @test !check(StaticFromDynamicalStructureFactor(); Sq=2.0, sqw_integral=1.0)
     @test solve(StaticFromDynamicalStructureFactor(), Val(:Sq); sqw_integral=0.7) ≈ 0.7
+    # type-keyed on Sq::StaticStructureFactor; the supplied ∫S(q,ω) reaches
+    # DynamicalStructureFactor via also_constrains — both edges in the graph
+    @test StaticFromDynamicalStructureFactor() in
+        relations_constraining(StaticStructureFactor)
+    @test StaticFromDynamicalStructureFactor() in
+        relations_constraining(DynamicalStructureFactor)
 end
 
 @testset "dynamical FDT reproduces (convention-free) detailed balance" begin

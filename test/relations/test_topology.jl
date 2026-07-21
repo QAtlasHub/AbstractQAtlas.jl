@@ -76,7 +76,9 @@ end
 
 @testset "type-keyed: topology" begin
     @test Set(quantities(TKNN())) == Set((Conductivity, ChernNumber))
-    @test quantities(ChernFromBerryCurvature()) == (ChernNumber,)
+    @test Set(quantities(ChernFromBerryCurvature())) == Set((ChernNumber, BerryCurvature))
+    # berry_flux = ∫Ω d²k reaches BerryCurvature through a supplied integral (also_constrains)
+    @test ChernFromBerryCurvature() in relations_constraining(BerryCurvature)
     # σ_xy = C in units of e²/h: a Chern number 2 ⇒ σ_xy = 2
     @test check(TKNN(), bag(Conductivity{(:x, :y)} => 2.0, ChernNumber => 2.0); atol=1e-12)
     @test !check(TKNN(), bag(Conductivity{(:x, :y)} => 2.0, ChernNumber => 3.0); atol=1e-9)

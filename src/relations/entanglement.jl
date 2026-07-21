@@ -24,7 +24,7 @@ Variables: `S2`, `purity`.
 
 The logarithmic growth of the entanglement entropy of an interval in a
 1D conformal field theory reads off the central charge (Calabrese &
-Cardy, J. Stat. Mech. (2004) P06002): for a subsystem of size `ℓ`,
+Cardy, [CalabreseCardy2004](@cite)): for a subsystem of size `ℓ`,
 
 `S(ℓ) = (c/3) ln ℓ + const`   ⟹   `dS/d(ln ℓ) = c/3`   (periodic BC;
 the open-boundary coefficient is `c/6`).
@@ -312,8 +312,8 @@ Variables: `I_cmi`, `S_AB`, `S_BC`, `S_ABC`, `S_B`.
 # C_ij = ⟨c†_i c_j⟩|_A — because Wick's theorem (relations/wick.jl) makes
 # every higher moment a determinant of C.  ρ_A = e^{−H_ent}/Z with a
 # QUADRATIC entanglement Hamiltonian, so the eigenvalues ζ_k ∈ [0,1] of
-# C_A give the whole entanglement spectrum (Peschel, J. Phys. A 36, L205
-# (2003); Chung & Peschel, [ChungPeschel2001](@cite)).  This mapping
+# C_A give the whole entanglement spectrum (Peschel, [Peschel2003](@cite);
+# Chung & Peschel, [ChungPeschel2001](@cite)).  This mapping
 # holds for Gaussian states ONLY — an interacting ρ_A is not fixed by its
 # two-point function.
 
@@ -321,8 +321,7 @@ Variables: `I_cmi`, `S_AB`, `S_BC`, `S_ABC`, `S_B`.
     EntanglementSpectrumCorrelation <: AbstractRelation
 
 The free-fermion entanglement (single-particle) spectrum from the
-correlation-matrix eigenvalue `ζ ∈ (0, 1)` (Peschel, J. Phys. A 36, L205
-(2003)),
+correlation-matrix eigenvalue `ζ ∈ (0, 1)` (Peschel, [Peschel2003](@cite)),
 
 `ε = ln((1 − ζ)/ζ)`,
 
@@ -340,7 +339,7 @@ Variables: `ε`, `ζ`.
 
 The von Neumann entanglement entropy of a free-fermion (Gaussian) region
 from the eigenvalues `ζ_k ∈ [0, 1]` of its restricted correlation matrix
-`C_ij = ⟨c†_i c_j⟩` (Peschel, J. Phys. A 36, L205 (2003)),
+`C_ij = ⟨c†_i c_j⟩` (Peschel, [Peschel2003](@cite)),
 
 `S_A = −Σ_k [ζ_k ln ζ_k + (1 − ζ_k) ln(1 − ζ_k)]`
 

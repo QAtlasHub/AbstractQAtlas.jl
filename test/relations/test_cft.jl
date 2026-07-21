@@ -66,15 +66,14 @@ end
 end
 
 @testset "type-keyed: cft" begin
-    @test quantities(CasimirCentralCharge()) == (CentralCharge,)
-    @test Set(quantities(FiniteSizeGap())) == Set((MassGap, ScalingDimension))
+    @test Set(quantities(CasimirCentralCharge())) == Set((CentralCharge, Velocity))
+    @test Set(quantities(FiniteSizeGap())) == Set((MassGap, ScalingDimension, Velocity))
     @test Set(quantities(CardyDensityOfStates())) == Set((CentralCharge, ScalingDimension))
-    # finite-size gap Δ = 2π v x / L via bag (MassGap, ScalingDimension typed; v, L supplied)
+    # finite-size gap Δ = 2π v x / L via bag (MassGap, ScalingDimension, Velocity typed; L supplied)
     v, L, x = 1.0, 10.0, 0.125
     @test check(
         FiniteSizeGap(),
-        bag(MassGap => 2π * v * x / L, ScalingDimension => x);
-        v=v,
+        bag(MassGap => 2π * v * x / L, ScalingDimension => x, Velocity => v);
         L=L,
         atol=1e-12,
     )
