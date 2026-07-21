@@ -386,6 +386,26 @@ indices(::Type{SpinCorrelation{A,B}}) where {A,B} = (A, B)
 export SpinCorrelation
 
 """
+    ConnectedSpinCorrelation{A,B}() <: AbstractTwoPointCorrelation
+    ConnectedSpinCorrelation(a::Symbol, b::Symbol)
+
+The **connected** (cumulant) two-point spin correlation
+`⟨S^A_i S^B_j⟩_c = ⟨S^A_i S^B_j⟩ − ⟨S^A_i⟩⟨S^B_j⟩` — the disconnected product
+subtracted off, so it decays to zero at large separation even in a
+symmetry-broken phase.  The connected companion of the (full)
+[`SpinCorrelation`](@ref) `{A,B}`; `ConnectedSpinCorrelation(:z, :z)` is
+`⟨σᶻ_i σᶻ_j⟩_c`.
+"""
+struct ConnectedSpinCorrelation{A,B} <: AbstractTwoPointCorrelation
+    ConnectedSpinCorrelation{A,B}() where {A,B} = (_axis(A); _axis(B); new{A,B}())
+end
+ConnectedSpinCorrelation(a::Symbol, b::Symbol) = ConnectedSpinCorrelation{a,b}()
+tensor_rank(::Type{<:ConnectedSpinCorrelation}) = 2
+index_spaces(::Type{<:ConnectedSpinCorrelation}) = (SpinAxis(), SpinAxis())
+indices(::Type{ConnectedSpinCorrelation{A,B}}) where {A,B} = (A, B)
+export ConnectedSpinCorrelation
+
+"""
     Conductivity{I}() <: AbstractQuantity
     Conductivity(μ, ν₁, …, νₙ)            # each a Symbol
 
