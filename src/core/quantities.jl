@@ -1009,6 +1009,26 @@ tensor_rank(::Type{StaticStructureFactor}) = 2
 index_spaces(::Type{StaticStructureFactor}) = (SpinAxis(), SpinAxis())
 
 """
+    SpinStructureFactor{A,B}() <: AbstractStructureFactor
+    SpinStructureFactor(a::Symbol, b::Symbol)
+
+The **axis-resolved** static spin structure factor `S^{AB}(q)` — the spatial
+Fourier transform of the [`SpinCorrelation`](@ref) `⟨S^A_i S^B_j⟩`, a rank-2
+tensor in [`SpinAxis`](@ref) space (`SpinStructureFactor(:z, :z)` = `S^{zz}(q)`).
+The component-resolved companion of the axis-agnostic
+[`StaticStructureFactor`](@ref); its `q → 0` limit fixes the component
+susceptibility `χ_{AB} = β S^{AB}(q → 0)` (classical).
+"""
+struct SpinStructureFactor{A,B} <: AbstractStructureFactor
+    SpinStructureFactor{A,B}() where {A,B} = (_axis(A); _axis(B); new{A,B}())
+end
+SpinStructureFactor(a::Symbol, b::Symbol) = SpinStructureFactor{a,b}()
+tensor_rank(::Type{<:SpinStructureFactor}) = 2
+index_spaces(::Type{<:SpinStructureFactor}) = (SpinAxis(), SpinAxis())
+indices(::Type{SpinStructureFactor{A,B}}) where {A,B} = (A, B)
+export SpinStructureFactor
+
+"""
     DynamicalSusceptibility{I}() <: AbstractSusceptibility
     DynamicalSusceptibility(α, β₁, …, βₙ)          # each a Symbol
 

@@ -1,6 +1,6 @@
 name = "AbstractQAtlas"
 uuid = "dcea2817-62f8-4a75-b498-1b50a9ed1e4d"
-version = "0.3.26"
+version = "0.3.27"
 authors = ["sota shimozono <shimozono-sota631@g.ecc.u-tokyo.ac.jp>"]
 
 [deps]
