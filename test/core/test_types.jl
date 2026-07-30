@@ -213,7 +213,7 @@ end
 end
 
 @testset "sector gaps, band velocities and the T=0 entropy are their own slots" begin
-    # Vocabulary ported up from QAtlas (QAtlasHub/QAtlas.jl#807): the families
+    # Vocabulary ported up from QAtlas (AbstractQAtlas.jl#126): the families
     # already lived here while the members lived downstream, which put the vague
     # name (MassGap) in the base package and the sector-resolved ones in the atlas.
     @test ChargeGap() isa AbstractGap
