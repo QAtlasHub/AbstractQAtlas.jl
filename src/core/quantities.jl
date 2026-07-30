@@ -1241,13 +1241,27 @@ struct VonNeumannEntropy <: AbstractEntanglementMeasure end
 export VonNeumannEntropy
 
 """
-    RenyiEntropy() <: AbstractEntanglementMeasure
+    RenyiEntropy(α::Real) <: AbstractEntanglementMeasure
 
-The Rényi entanglement entropy `S_n = (1−n)⁻¹ ln Tr(ρ_A^n)`.  The order
-`n` is supplied at use; `n = 2` is fixed by the [`Purity`](@ref)
-(`S_2 = −ln Tr ρ_A²`), and `n → 1` recovers the [`VonNeumannEntropy`](@ref).
+The Rényi entanglement entropy `S_α = (1−α)⁻¹ ln Tr(ρ_A^α)`.  `α = 2` is fixed by
+the [`Purity`](@ref) (`S_2 = −ln Tr ρ_A²`), and `α → 1` recovers the
+[`VonNeumannEntropy`](@ref).
+
+The order is carried **in the type's field** rather than supplied separately at use:
+two Rényi entropies of different order are different quantities, and a bag keyed by
+type alone could not hold both. `α = 1` is refused rather than silently aliased —
+`S_1` is the limit, i.e. [`VonNeumannEntropy`](@ref).
 """
-struct RenyiEntropy <: AbstractEntanglementMeasure end
+struct RenyiEntropy <: AbstractEntanglementMeasure
+    α::Float64
+    function RenyiEntropy(α::Real)
+        α > 0 || throw(ArgumentError("RenyiEntropy: α must be positive; got $α"))
+        α == 1 && throw(
+            ArgumentError("RenyiEntropy(1) is ambiguous; use VonNeumannEntropy() instead."),
+        )
+        return new(Float64(α))
+    end
+end
 export RenyiEntropy
 
 """

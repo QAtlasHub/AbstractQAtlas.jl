@@ -141,3 +141,16 @@ end
     @test occursin("SpecificHeat", err.msg)
     @test occursin("Infinite", err.msg)
 end
+
+@testset "RenyiEntropy carries its order, and validates it" begin
+    # QAtlas defines its own `RenyiEntropy` with this field, so the two same-named
+    # types were not the same type and `relations_constraining` returned 3 for ours
+    # and 0 for theirs -- the three Renyi relations could never see an atlas value.
+    # Adopting the field here is what lets QAtlas drop to this one.
+    @test RenyiEntropy(2).α == 2.0
+    @test RenyiEntropy(2) != RenyiEntropy(3)
+    @test_throws ArgumentError RenyiEntropy(0)
+    @test_throws ArgumentError RenyiEntropy(-1)
+    # α = 1 is the von Neumann limit, refused rather than aliased
+    @test_throws ArgumentError RenyiEntropy(1)
+end

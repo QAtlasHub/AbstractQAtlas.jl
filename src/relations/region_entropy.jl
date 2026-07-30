@@ -27,10 +27,21 @@ end
 export RegionReportRow
 
 # the von Neumann region-entropies present in a bag: Region → S(Region)
+#
+# `<:` and not `===`, because `VonNeumannEntropy` is a parametric family
+# (`{:equilibrium}`, `{:quench}`). [`entanglement_entropy`](@ref) keys with the
+# UnionAll, which `===` matched, but a caller keying a concrete mode —
+# `VariableKey(VonNeumannEntropy{:quench}, …)` — was silently invisible to
+# `region_report` rather than an error. `<:` is reflexive, so it accepts both.
+#
+# NOTE the deliberate absence of `isconcretetype`, which `_family_keys` in
+# interface.jl does include: there the intent is to pull data-carrying members out of
+# a bag and skip a family placeholder, whereas here the family placeholder IS the
+# documented key, so demanding concreteness would match nothing at all.
 function _region_entropies(b::Bag)
     return Dict(
         k.support.region => v for
-        (k, v) in b if k.type === VonNeumannEntropy && k.support isa RegionSupport
+        (k, v) in b if k.type <: VonNeumannEntropy && k.support isa RegionSupport
     )
 end
 

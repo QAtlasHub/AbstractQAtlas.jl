@@ -28,7 +28,12 @@ end
 # wrapped quantity).
 function _representative(T)
     T === ThermalAverage && return ThermalAverage(Susceptibility(:x, :y), Canonical(1.0))
-    for a in ((), (:x, :y), (:x, :y, :z), (:x,), (:natural,))
+    # `(2,)` last: a numeric shape would otherwise shadow a symbol-taking constructor
+    # that happens to accept an Int, and the first success wins. It is here for the
+    # quantities whose ORDER is data rather than a type parameter — `RenyiEntropy(α)`
+    # is the one, and α = 1 is refused by construction (it is the von Neumann limit),
+    # so the representative must not be 1.
+    for a in ((), (:x, :y), (:x, :y, :z), (:x,), (:natural,), (2,))
         try
             return T(a...)
         catch
