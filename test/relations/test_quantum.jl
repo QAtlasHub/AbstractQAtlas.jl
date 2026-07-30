@@ -106,7 +106,19 @@ end
     @test !check(
         VirialTheorem(), bag(KineticEnergy => 1.0, PotentialEnergy => 2.0); n=2, atol=1e-9
     )
-    # the generic quantum relations correctly stay symbol-keyed
+    # The genuinely GENERIC quantum relations stay symbol-keyed, and should: their
+    # variables do not name quantities. `RobertsonUncertainty(ΔA, ΔB, comm)` is about
+    # two arbitrary observables; `MandelstamTammBound(τ, ΔE)` about a time and an
+    # energy spread; `EhrenfestMomentum`/`Position` about expectation values of
+    # whichever operator. Typing those would need quantities that do not exist and
+    # arguably should not.
+    #
+    # `LiebRobinsonBound` used to be in this list and is not any more. Its `v_LR` is
+    # not a generic symbol — it IS a named quantity, `LiebRobinsonVelocity` — so
+    # typing it makes the inequality discoverable from the quantity
+    # (`relations_constraining`), which is the whole point of the type-keyed front
+    # door. Its other slot, `v`, stays untyped: that is a measured information
+    # velocity, and nothing names it yet.
     @test all(
         r -> isempty(variable_types(r)),
         (
@@ -114,10 +126,36 @@ end
             EhrenfestPosition(),
             HellmannFeynman(),
             RobertsonUncertainty(),
-            LiebRobinsonBound(),
             MandelstamTammBound(),
             MargolusLevitinBound(),
             EnergyVarianceEigenstate(),
         ),
     )
+end
+
+@testset "LiebRobinsonBound is keyed on LiebRobinsonVelocity" begin
+    # `v_LR` is a typed subject, so the inequality is discoverable FROM the quantity —
+    # `quantities` is typed-subjects ∪ also_constrains, so no manual link is needed.
+    # Before it was typed, the relation constrained no named quantity at all, and an
+    # atlas holding a v_LR could not find the statement that bounds it.
+    # ...and it is no longer in the symbol-keyed group above, which is asserted there.
+    @test !isempty(variable_types(LiebRobinsonBound()))
+    @test LiebRobinsonVelocity in quantities(LiebRobinsonBound())
+    @test any(r -> r isa LiebRobinsonBound, relations_constraining(LiebRobinsonVelocity))
+
+    # the inequality itself is unchanged: slack v_LR - v, non-negative when it holds
+    @test residual(LiebRobinsonBound(); v=1.0, v_LR=2.0) == 1.0
+    @test check(LiebRobinsonBound(); v=1.0, v_LR=2.0)
+    @test !check(LiebRobinsonBound(); v=3.0, v_LR=2.0)
+    # saturation is the equality case, and an inequality holds at equality
+    @test check(LiebRobinsonBound(); v=2.0, v_LR=2.0)
+    @test residual(LiebRobinsonBound(); v=2.0, v_LR=2.0) == 0.0
+
+    # exact arithmetic survives: Rational in, Rational out
+    @test residual(LiebRobinsonBound(); v=1 // 2, v_LR=3 // 2) === 1 // 1
+
+    # and it reads from a type-keyed bag through the typed slot
+    b = bag(LiebRobinsonVelocity() => 2.0)
+    @test haskey(b, AbstractQAtlas._as_key(LiebRobinsonVelocity()))
+    @test LiebRobinsonVelocity <: AbstractVelocity
 end

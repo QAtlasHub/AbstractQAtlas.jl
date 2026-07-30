@@ -1174,6 +1174,33 @@ struct Velocity <: AbstractVelocity end
 export Velocity
 
 """
+    LiebRobinsonVelocity() <: AbstractVelocity
+
+The Lieb–Robinson velocity `v_LR` setting the linear light cone for information
+propagation in a local lattice quantum system: for local operators `A_x`, `B_y`
+separated by `|x − y|`,
+
+    ‖[A_x(t), B_y(0)]‖ ≤ C exp(−μ (|x − y| − v_LR t)).
+
+For free-fermion-mappable spin chains (TFIM, XY, the XX limit of XXZ) the bound is
+*saturated* and `v_LR` equals the maximum single-particle group velocity
+`max_k |dΛ/dk|`.
+
+This is the `v_LR` slot of [`LiebRobinsonBound`](@ref). The bound CHARACTER lives in
+that inequality — `v ≤ v_LR` — and not in a second quantity: an atlas that also wants
+to record "this number is a saturating upper bound" says so on the registry row
+(`status = :bound`), which is what the row's `scheme` key is for. QAtlas carried a
+separate `LiebRobinsonBound` quantity returning the identical closed form
+`2 min(|J|, |h|)` for that reason, which made it a second type for one physical
+quantity.
+
+Lieb & Robinson, [LiebRobinson1972](@cite); Hastings & Koma,
+[HastingsKoma2006](@cite).
+"""
+struct LiebRobinsonVelocity <: AbstractVelocity end
+export LiebRobinsonVelocity
+
+"""
     MassGap() <: AbstractGap
 
 The spectral (mass) gap `Δ = E₁ − E₀` between the ground state and the
