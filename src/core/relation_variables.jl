@@ -144,6 +144,7 @@ it wrong is silent (see [`OrderSupport`](@ref)).
 """
 variable_support(::RelationVariable) = Global()
 variable_support(q::RenyiEntropy) = OrderSupport(q.α)
+variable_support(q::TsallisEntropy) = OrderSupport(q.q)
 export variable_support
 
 # ─── VariableKey: (type, support) — the collision-proof identity ────────
