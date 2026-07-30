@@ -602,8 +602,11 @@ export Bag
 _as_key(k::VariableKey) = k
 _as_key(@nospecialize(k::Type)) = VariableKey(k)
 # a quantity / field / coordinate INSTANCE (e.g. `Susceptibility(:z, :z)`, the
-# documented natural spelling) keys under its own type.
-_as_key(v::RelationVariable) = VariableKey(typeof(v))
+# documented natural spelling) keys under its own type, plus whatever support the
+# instance declares — `Global()` unless it carries data the type does not, which is
+# what keeps `RenyiEntropy(2)` and `RenyiEntropy(3)` in separate bag slots. See
+# [`variable_support`](@ref) and [`OrderSupport`](@ref).
+_as_key(v::RelationVariable) = VariableKey(typeof(v), variable_support(v))
 
 """
     bag(pairs...) -> Bag
@@ -625,11 +628,22 @@ residual(KeldyshComponent(), b)      # G^K − (G^> + G^<)
 function bag(pairs::Pair...)
     b = Bag()
     for (k, v) in pairs
+        key = _as_key(k)
         v === nothing && error(
-            "bag: the value for $(_as_key(k)) is `nothing` — a bag holds concrete " *
+            "bag: the value for $key is `nothing` — a bag holds concrete " *
             "values; omit an absent variable rather than storing `nothing`.",
         )
-        b[_as_key(k)] = v
+        # A repeated key is refused rather than overwritten. Silent overwrite is how
+        # `bag(RenyiEntropy(2) => a, RenyiEntropy(3) => b)` used to lose `a`: two
+        # distinct quantities collapsed to one key and the second write won. That
+        # particular collision is fixed by `variable_support`, but the general
+        # failure -- a bag quietly holding fewer values than it was given -- should
+        # be an error wherever it comes from.
+        haskey(b, key) && error(
+            "bag: duplicate key $key. Two entries claim the same identity slot; if " *
+            "they are different quantities, one of them needs a support that says so.",
+        )
+        b[key] = v
     end
     return b
 end

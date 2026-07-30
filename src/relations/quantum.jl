@@ -111,9 +111,15 @@ correlations is bounded,
 relativistic causality, setting entanglement-growth and thermalization
 rates.
 
+`v_LR` is typed as [`LiebRobinsonVelocity`](@ref), so the inequality is discoverable
+from the quantity (`relations_constraining(LiebRobinsonVelocity)`) the way the
+thermodynamic positivity inequalities are from theirs. `v` stays untyped: it is any
+independently measured information velocity, and no quantity names that yet — the
+atlases have the bound, not the measurement.
+
 Variables: `v`, `v_LR`.
 """
-@inequality :quantum LiebRobinsonBound(v, v_LR) = v_LR - v
+@inequality :quantum LiebRobinsonBound(v, v_LR::LiebRobinsonVelocity) = v_LR - v
 
 # ─── Quantum speed limits: the minimal time to an orthogonal state ───────
 

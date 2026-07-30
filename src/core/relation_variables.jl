@@ -103,6 +103,49 @@ struct Global <: Support end
 export Global
 Base.show(io::IO, ::Global) = print(io, "global")
 
+"""
+    OrderSupport(order) <: Support
+
+The support of a quantity that is a one-parameter FAMILY — the Rényi entropy `S_α`,
+the Tsallis entropy `S_q` — where the order is what distinguishes one member from
+another.
+
+It exists because a [`VariableKey`](@ref) is `(type, support)` and the type alone
+cannot tell two orders apart. Carrying the order in a plain field does NOT help:
+`_as_key` builds the key from `typeof(v)`, and `typeof` erases a non-parametric
+struct's field, so before this existed
+
+    bag(RenyiEntropy(2) => 0.5, RenyiEntropy(3) => 0.7)
+
+silently kept only `0.7` — same key, second write wins, no error. MEASURED.
+
+This is the order twin of [`RegionSupport`](@ref): the support slot already existed
+for exactly this purpose, "same quantity, different instance", so a one-parameter
+family belongs in it rather than in a new type parameter per order.
+"""
+struct OrderSupport{T} <: Support
+    order::T
+end
+Base.:(==)(a::OrderSupport, b::OrderSupport) = a.order == b.order
+Base.hash(a::OrderSupport, h::UInt) = hash(a.order, hash(:OrderSupport, h))
+Base.show(io::IO, s::OrderSupport) = print(io, "order ", s.order)
+export OrderSupport
+
+"""
+    variable_support(v) -> Support
+
+The support a variable INSTANCE keys under. `Global()` for everything whose type is
+its whole identity; overridden where an instance carries data that distinguishes it
+from another instance of the same type.
+
+Add an override here whenever a quantity gains such a field — that is the one place
+that decides whether two instances share a bag slot, and the failure mode of getting
+it wrong is silent (see [`OrderSupport`](@ref)).
+"""
+variable_support(::RelationVariable) = Global()
+variable_support(q::RenyiEntropy) = OrderSupport(q.α)
+export variable_support
+
 # ─── VariableKey: (type, support) — the collision-proof identity ────────
 
 """
