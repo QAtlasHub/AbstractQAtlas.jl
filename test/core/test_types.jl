@@ -142,6 +142,28 @@ end
     @test occursin("Infinite", err.msg)
 end
 
+@testset "TsallisEntropy carries its order too, and keys the same way" begin
+    # Same shape as RenyiEntropy: `S_q` for two different `q` are two quantities, and a
+    # bag keyed by type alone would keep only the last written. The relation
+    # `TsallisEntropyMoment(Sq, moment, q)` still takes the order as a variable — the
+    # field is what makes the BAG able to hold two, not what feeds the formula.
+    @test TsallisEntropy(2).q == 2.0
+    @test TsallisEntropy(2) != TsallisEntropy(3)
+    @test_throws ArgumentError TsallisEntropy(0)
+    @test_throws ArgumentError TsallisEntropy(-1)
+    @test_throws ArgumentError TsallisEntropy(1)     # the von Neumann limit
+    @test variable_support(TsallisEntropy(2)) == OrderSupport(2.0)
+    let b = bag(TsallisEntropy(2) => 0.4, TsallisEntropy(3) => 0.6)
+        @test length(b) == 2
+        @test b[AbstractQAtlas._as_key(TsallisEntropy(2))] == 0.4
+    end
+    # ...and it does not collide with a Renyi entropy of the same order: the TYPE is
+    # still half the key.
+    @test AbstractQAtlas._as_key(TsallisEntropy(2)) !=
+        AbstractQAtlas._as_key(RenyiEntropy(2))
+    @test length(bag(TsallisEntropy(2) => 0.4, RenyiEntropy(2) => 0.6)) == 2
+end
+
 @testset "RenyiEntropy carries its order, and validates it" begin
     # QAtlas defines its own `RenyiEntropy` with this field, so the two same-named
     # types were not the same type and `relations_constraining` returned 3 for ours

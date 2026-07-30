@@ -1292,13 +1292,29 @@ end
 export RenyiEntropy
 
 """
-    TsallisEntropy() <: AbstractEntanglementMeasure
+    TsallisEntropy(q::Real) <: AbstractEntanglementMeasure
 
-The Tsallis entropy `S_q = (1 − Tr ρ_A^q)/(q − 1)` (Tsallis, [Tsallis1988](@cite)) — the other one-parameter deformation of the
-[`VonNeumannEntropy`](@ref) (`q → 1` limit), non-additive across
-independent subsystems.
+The Tsallis entropy `S_q = (1 − Tr ρ_A^q)/(q − 1)` (Tsallis, [Tsallis1988](@cite)) — the
+other one-parameter deformation of the [`VonNeumannEntropy`](@ref) (`q → 1` limit),
+non-additive across independent subsystems.
+
+The order lives in the type's field, and keys through [`OrderSupport`](@ref), for the
+same reason [`RenyiEntropy`](@ref) does: two Tsallis entropies of different order are
+different quantities, and a bag keyed by type alone would hold only the last one written.
+`q = 1` is refused rather than silently aliased — it is the von Neumann limit.
 """
-struct TsallisEntropy <: AbstractEntanglementMeasure end
+struct TsallisEntropy <: AbstractEntanglementMeasure
+    q::Float64
+    function TsallisEntropy(q::Real)
+        q > 0 || throw(ArgumentError("TsallisEntropy: q must be positive; got $q"))
+        q == 1 && throw(
+            ArgumentError(
+                "TsallisEntropy(1) is the von Neumann limit; use VonNeumannEntropy()."
+            ),
+        )
+        return new(Float64(q))
+    end
+end
 export TsallisEntropy
 
 """
