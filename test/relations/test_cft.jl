@@ -73,7 +73,9 @@ end
     v, L, x = 1.0, 10.0, 0.125
     @test check(
         FiniteSizeGap(),
-        bag(MassGap => 2π * v * x / L, ScalingDimension => x, Velocity => v);
+        # `Velocity` is a family now, so the bag must name a KIND. Only one velocity
+        # is present, so the family slot resolves without an explicit `subject`.
+        bag(MassGap => 2π * v * x / L, ScalingDimension => x, Velocity() => v);
         L=L,
         atol=1e-12,
     )

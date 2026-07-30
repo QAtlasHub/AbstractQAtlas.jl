@@ -733,13 +733,27 @@ function _bag_kwargs(
     for (sym, key) in variable_slots(rel)
         sym === skip && continue
         if key !== nothing && _is_family(key)
-            subject === nothing &&
-                error("$(nameof(typeof(rel))) is family-generic in :$sym — pass `subject`")
-            (subject.type <: key && haskey(b, subject)) || error(
+            # No `subject`? Then the bag itself may still be unambiguous: with
+            # EXACTLY ONE component of the family present there is nothing to
+            # choose between, so demanding `subject` would be ceremony. Two or
+            # more (χ_xx and χ_zz) is a genuine ambiguity and still refuses —
+            # picking one silently is the failure this layer exists to prevent.
+            # This is what lets `solve`/`derive` traverse a family-generic
+            # relation at all: neither passes a `subject` down.
+            sub = subject
+            if sub === nothing
+                comps = _bag_components(key, b)
+                length(comps) == 1 || error(
+                    "$(nameof(typeof(rel))) is family-generic in :$sym and the bag " *
+                    "has $(length(comps)) $(nameof(key)) components — pass `subject`",
+                )
+                sub = only(comps)
+            end
+            (sub.type <: key && haskey(b, sub)) || error(
                 "$(nameof(typeof(rel))) needs the $(nameof(key)) component " *
-                "$(subject.type) in the bag",
+                "$(sub.type) in the bag",
             )
-            push!(out, sym => b[subject])
+            push!(out, sym => b[sub])
             continue
         end
         v = _resolve_slot(sym, key, b, extras)

@@ -43,3 +43,52 @@ end
     # z = 1 is the Lorentz-invariant (relativistic) value
     @test check(DynamicalScaling(); dlogΔ_dlogξ=-1.0, z=1.0)
 end
+
+@testset "a NAMED velocity reaches ξ = v/Δ (the family slot is the point)" begin
+    # Before `Velocity{K}`, `FermiVelocity` was its own struct, so `typeof` made it a
+    # different bag key from `Velocity` and this relation could not see it — every
+    # atlas hub that knows its Fermi or Luttinger velocity rather than an anonymous
+    # "velocity" was cut out of ξ = v/Δ and of the two CFT finite-size relations.
+    v, Δ = 2.5, 0.5                                   # exact in binary: ξ = 5.0
+    b = bag(FermiVelocity() => v, MassGap => Δ, CorrelationLength => v / Δ)
+
+    # The #802 metric, stated directly: a named velocity is now CONSTRAINED by the
+    # three relations whose `v` slot is the family. It was constrained by none.
+    constrained = Set(typeof(r) for r in relations_constraining(FermiVelocity))
+    @test CorrelationLengthGap in constrained
+    @test FiniteSizeGap in constrained
+    @test CasimirCentralCharge in constrained
+
+    @test any(r -> r isa CorrelationLengthGap, applicable_relations(b))
+    rows = [r for r in relation_report(b) if r.relation isa CorrelationLengthGap]
+    @test length(rows) == 1
+    @test rows[1].subject.type === Velocity{:fermi}   # the SUBJECT is the Fermi velocity
+    @test rows[1].pass
+
+    # One velocity in the bag ⇒ nothing to choose between ⇒ no `subject` ceremony,
+    # which is also what lets `solve` (which passes none) traverse the relation.
+    @test check(CorrelationLengthGap(), b; atol=1e-12)
+    @test solve(CorrelationLengthGap(), CorrelationLength, b) ≈ v / Δ
+end
+
+@testset "two velocity kinds in one bag is a real ambiguity, and refuses" begin
+    b = bag(
+        FermiVelocity() => 2.0,
+        LuttingerVelocity() => 3.0,
+        MassGap => 0.5,
+        CorrelationLength => 4.0,
+    )
+    err = try
+        check(CorrelationLengthGap(), b)
+        nothing
+    catch e
+        e
+    end
+    @test err isa ErrorException
+    @test occursin("pass `subject`", err.msg)          # never silently pick one
+    @test check(CorrelationLengthGap(), b; subject=Velocity{:fermi}, atol=1e-12)
+    # ...and the report enumerates BOTH kinds rather than collapsing them
+    rows = [r for r in relation_report(b) if r.relation isa CorrelationLengthGap]
+    @test Set(r.subject.type for r in rows) ==
+        Set((Velocity{:fermi}, Velocity{:luttinger}))
+end
