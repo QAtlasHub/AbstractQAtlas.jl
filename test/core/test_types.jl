@@ -211,3 +211,28 @@ end
     # ...and a genuine pair of distinct keys is unaffected
     @test length(bag(FreeEnergy => 1.0, Energy => 2.0)) == 2
 end
+
+@testset "sector gaps, band velocities and the T=0 entropy are their own slots" begin
+    # Vocabulary ported up from QAtlas (QAtlasHub/QAtlas.jl#807): the families
+    # already lived here while the members lived downstream, which put the vague
+    # name (MassGap) in the base package and the sector-resolved ones in the atlas.
+    @test ChargeGap() isa AbstractGap
+    @test SpinGap() isa AbstractGap
+    @test FermiVelocity() isa AbstractVelocity
+    @test LuttingerVelocity() isa AbstractVelocity
+    @test ResidualEntropy() isa AbstractThermalPotential
+    @test LogarithmicNegativity() isa AbstractEntanglementMeasure
+    @test PageEntropy() isa AbstractEntanglementMeasure
+
+    # The alias is one quantity under two names, not a second slot.
+    @test SpinWaveVelocity === LuttingerVelocity
+
+    # ...and the sector gaps are NOT MassGap. Asserted on the identity a bag keys
+    # on, because that is what a relation sees: three gaps must occupy three slots.
+    # A future "just alias ChargeGap to MassGap" would collapse this to 1 and now
+    # fails loudly (bag refuses duplicate keys) instead of silently dropping values.
+    @test length(bag(MassGap => 0.0, ChargeGap => 2.0, SpinGap => 0.0)) == 3
+    @test length(bag(FermiVelocity => 1.0, LuttingerVelocity => 1.5)) == 2
+    @test length(bag(ThermalEntropy => 0.4, ResidualEntropy => 0.3230659669)) == 2
+    @test variable_support(ChargeGap()) isa Global
+end
