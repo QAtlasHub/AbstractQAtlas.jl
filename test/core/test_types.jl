@@ -154,3 +154,38 @@ end
     # α = 1 is the von Neumann limit, refused rather than aliased
     @test_throws ArgumentError RenyiEntropy(1)
 end
+
+@testset "a one-parameter family keys under its order, not just its type" begin
+    # MEASURED before `OrderSupport` existed:
+    #   _as_key(RenyiEntropy(2)) == _as_key(RenyiEntropy(3))   ->  true
+    #   bag(RenyiEntropy(2) => 0.5, RenyiEntropy(3) => 0.7)    ->  length 1, 0.7 only
+    # A plain field does not distinguish bag keys, because `_as_key` builds the key
+    # from `typeof(v)` and `typeof` erases a non-parametric struct's field. The order
+    # therefore lives in the support slot, which already existed for "same quantity,
+    # different instance" (`RegionSupport`).
+    k2 = AbstractQAtlas._as_key(RenyiEntropy(2))
+    k3 = AbstractQAtlas._as_key(RenyiEntropy(3))
+    @test k2 != k3
+    @test k2.type === RenyiEntropy && k3.type === RenyiEntropy    # same type...
+    @test k2.support == OrderSupport(2.0)                          # ...different support
+    @test k2 == AbstractQAtlas._as_key(RenyiEntropy(2))            # and it is value-based
+    @test hash(k2) == hash(AbstractQAtlas._as_key(RenyiEntropy(2)))
+
+    b = bag(RenyiEntropy(2) => 0.5, RenyiEntropy(3) => 0.7)
+    @test length(b) == 2
+    @test b[k2] == 0.5 && b[k3] == 0.7
+
+    # quantities whose type IS their whole identity still key globally
+    @test AbstractQAtlas._as_key(VonNeumannEntropy()).support isa Global
+    @test variable_support(VonNeumannEntropy()) isa Global
+    @test variable_support(RenyiEntropy(2)) isa OrderSupport
+end
+
+@testset "bag refuses a duplicate key instead of overwriting" begin
+    # The general form of the bug above: a bag that quietly holds fewer values than
+    # it was handed. Now an error wherever the collision comes from.
+    @test_throws ErrorException bag(RenyiEntropy(2) => 0.5, RenyiEntropy(2) => 0.7)
+    @test_throws ErrorException bag(FreeEnergy => 1.0, FreeEnergy => 2.0)
+    # ...and a genuine pair of distinct keys is unaffected
+    @test length(bag(FreeEnergy => 1.0, Energy => 2.0)) == 2
+end
