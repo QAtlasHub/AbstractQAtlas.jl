@@ -156,3 +156,25 @@ Variables: `τ` = orthogonalization time, `E_above` = `E − E₀` (mean energy 
 ground state).
 """
 @inequality :quantum MargolusLevitinBound(τ, E_above) = τ - π / (2 * E_above)
+
+"""
+    LoschmidtRate <: AbstractRelation
+
+The definition of the Loschmidt rate function in terms of the echo it is the
+intensive form of,
+
+`λ(t) = −log L(t) / N`,
+
+with `L(t) = |⟨ψ₀|e^{-i H_f t}|ψ₀⟩|²` the [`LoschmidtAmplitude`](@ref) and `N`
+the system size.  The rate function exists in the thermodynamic limit precisely
+because the echo does not: `L` vanishes exponentially in `N`, and dividing its
+log by `N` is what makes the statement intensive.  Non-analyticities of `λ` are
+dynamical quantum phase transitions (Heyl, [Heyl2018](@cite)).
+
+Affine in `λ` only — `L` enters through its logarithm, so solving for the echo
+is refused by the generic solver rather than silently linearised.
+
+Variables: `λ`, `L`, `N`.
+"""
+@relation :quantum LoschmidtRate(λ::LoschmidtRateFunction, L::LoschmidtAmplitude, N) =
+    λ + log(L) / N

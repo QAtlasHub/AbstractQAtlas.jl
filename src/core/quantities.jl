@@ -1617,3 +1617,38 @@ bulk–boundary correspondence, `n = |ν|` (Hasan & Kane, [HasanKane2010](@cite)
 """
 struct BoundaryModeCount <: AbstractQuantity end
 export BoundaryModeCount
+
+# ─── Loschmidt / DQPT ─────────────────────────────────────────────────
+#
+# Adopted with the law that ties them together (`LoschmidtRate`), per this
+# file's header: the tag set migrates as need arises, not ahead of it. The
+# need here is that `λ = −log L / N` is a definition, and a definition with
+# only one of its two sides in the vocabulary cannot be stated.
+
+"""
+    LoschmidtAmplitude() <: AbstractQuantity
+
+The Loschmidt echo `L(t) = |⟨ψ₀|e^{-i H_f t}|ψ₀⟩|² ∈ [0, 1]` after a sudden
+quench, at finite `N`.  Not meaningful in the thermodynamic limit, where it
+vanishes identically because its cumulants are extensive — the intensive
+statement there is [`LoschmidtRateFunction`](@ref).
+
+Note the square: this is the echo itself, not the overlap.
+"""
+struct LoschmidtAmplitude <: AbstractQuantity end
+export LoschmidtAmplitude
+
+"""
+    LoschmidtRateFunction() <: AbstractQuantity
+
+The Loschmidt rate function
+
+    λ(t) = -log L(t) / N          (finite N)
+    λ(t) = -lim_{N→∞} log L(t)/N  (thermodynamic limit)
+
+the intensive counterpart of [`LoschmidtAmplitude`](@ref).  Non-analytic cusps
+in `λ(t)` are dynamical quantum phase transitions (Heyl, Polkovnikov & Kehrein,
+[Heyl2013](@cite); review: Heyl, [Heyl2018](@cite)).
+"""
+struct LoschmidtRateFunction <: AbstractQuantity end
+export LoschmidtRateFunction
