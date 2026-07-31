@@ -1652,3 +1652,95 @@ in `λ(t)` are dynamical quantum phase transitions (Heyl, Polkovnikov & Kehrein,
 """
 struct LoschmidtRateFunction <: AbstractQuantity end
 export LoschmidtRateFunction
+
+# ─── Model-independent observables adopted from the atlas (QAtlas.jl#813) ──
+#
+# Names QAtlas declared locally while implementing them, each meaningful for any
+# model of the right kind rather than for one model. They arrive WITHOUT a law,
+# which this file's header allows only because the need is the adoption itself —
+# see the PR for the ratio this moves and the ones held back for lacking one.
+
+"""
+    FidelitySusceptibility() <: AbstractQuantity
+
+Fidelity susceptibility `χ_F(λ) = −∂²⟨ψ(λ)|ψ(λ + δλ)⟩/∂δλ²`.
+"""
+struct FidelitySusceptibility <: AbstractQuantity end
+export FidelitySusceptibility
+
+"""
+    GroundStateDegeneracy() <: AbstractQuantity
+
+Dimension of the ground-state subspace as an `Int`.  In topologically
+ordered phases this is a robust, lattice-independent invariant
+determined by the ambient surface (e.g. `4^g` on a closed orientable
+genus-`g` surface for the toric code) and is set by the kwarg `genus`
+on the `fetch` call.  Trivially `1` for any gapped, symmetry-unbroken
+phase.
+"""
+struct GroundStateDegeneracy <: AbstractQuantity end
+export GroundStateDegeneracy
+
+"""
+    StringOrderParameter() <: AbstractQuantity
+
+Kennedy-Tasaki non-local (string) order parameter
+
+    O_str = lim_{|i-j| -> infty} -<S^z_i exp[i pi sum_{i<k<j} S^z_k] S^z_j>
+
+for S=1 chains.  Detects the hidden Z_2 x Z_2 symmetry breaking that
+defines the Haldane phase (T. Kennedy and H. Tasaki, Phys. Rev. B **45**,
+304 (1992)).  At the AKLT point the closed-form value is O_str = 4/9
+(AKLT 1988), making it the canonical analytic test bed for any
+implementation that aims to detect topologically non-trivial gapped
+phases of integer-spin chains.
+"""
+struct StringOrderParameter <: AbstractQuantity end
+export StringOrderParameter
+
+"""
+    ChiralCondensate() <: AbstractQuantity
+
+Vacuum expectation value `⟨ψ̄ψ⟩` of a fermion bilinear, signalling
+spontaneous (anomalous) chiral-symmetry breaking.  The massless
+Schwinger model is the canonical 1+1-D example: even though the
+classical Lagrangian is chirally symmetric, the anomaly forces a
+non-zero condensate
+
+    ⟨ψ̄ψ⟩ = − exp(γ_E) · e / (2π^{3/2}),    m_γ = e/√π.
+
+(Schwinger 1962; Coleman-Jackiw-Susskind 1975.)
+"""
+struct ChiralCondensate <: AbstractQuantity end
+export ChiralCondensate
+
+"""
+    FractalDimension() <: AbstractQuantity
+
+Hausdorff dimension `d_H` of the random geometric set associated with
+a model — e.g. the SLE_κ curve's `d_H(κ) = min(2, 1 + κ/8)`
+(Beffara 2008).  Real-valued, dimensionless, capped at the ambient
+space dimension.
+"""
+struct FractalDimension <: AbstractQuantity end
+export FractalDimension
+
+"""
+    Polarization() <: AbstractQuantity
+
+The bulk polarization density (or order parameter) per site.  In an ordered
+phase it is the spontaneous polarization; where the order is staggered it is
+the spontaneous staggered polarization, which is why the sign convention
+belongs to the model rather than to the name.
+"""
+struct Polarization <: AbstractQuantity end
+export Polarization
+
+"""
+    LuttingerParameter() <: AbstractQuantity
+
+Luttinger liquid parameter `K`.  Meaningful for critical 1D models
+with U(1) symmetry (e.g. XXZ in the critical regime `|Δ| < 1`).
+"""
+struct LuttingerParameter <: AbstractQuantity end
+export LuttingerParameter
