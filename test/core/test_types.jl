@@ -236,3 +236,25 @@ end
     @test length(bag(ThermalEntropy => 0.4, ResidualEntropy => 0.3230659669)) == 2
     @test variable_support(ChargeGap()) isa Global
 end
+
+@testset "Velocity carries its KIND as a type parameter, and validates it" begin
+    # Same shape as `Energy{G}`: the parameter is a label, not a tensor index.
+    @test Velocity() === Velocity{:characteristic}()
+    @test Velocity(:fermi) === FermiVelocity()
+    @test FermiVelocity === Velocity{:fermi}
+    @test LuttingerVelocity === Velocity{:luttinger}
+    @test SpinWaveVelocity === LuttingerVelocity        # one quantity, two names
+    @test FermiVelocity() isa AbstractVelocity
+
+    # A typo must not quietly mint a new quantity (the failure mode a validated
+    # inner constructor exists to stop).
+    @test_throws ErrorException Velocity(:femri)
+    @test_throws ErrorException Velocity{2}()
+
+    # The kinds are distinct bag slots...
+    @test length(bag(FermiVelocity() => 1.0, LuttingerVelocity() => 1.5)) == 2
+    # ...and LiebRobinsonVelocity is deliberately OUTSIDE the family, so it can
+    # never be picked up as the `v` of ξ = v/Δ.
+    @test !(LiebRobinsonVelocity <: Velocity)
+    @test LiebRobinsonVelocity() isa AbstractVelocity
+end

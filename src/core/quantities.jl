@@ -1184,13 +1184,42 @@ struct CorrelationLength <: AbstractQuantity end
 export CorrelationLength
 
 """
-    Velocity() <: AbstractVelocity
+    Velocity{K}() <: AbstractVelocity
+    Velocity()                # K = :characteristic — the unspecified one
+    Velocity(:fermi)          # [`FermiVelocity`](@ref)
+    Velocity(:luttinger)      # [`LuttingerVelocity`](@ref) / [`SpinWaveVelocity`](@ref)
+    Velocity(:sound)
 
-A characteristic propagation velocity (Fermi / sound / spin-wave) — the `v` of
-the correlation length `ξ = v/Δ` ([`CorrelationLengthGap`](@ref)) and the CFT
-finite-size forms ([`FiniteSizeGap`](@ref), [`CasimirCentralCharge`](@ref)).
+A characteristic propagation velocity — the `v` of the correlation length
+`ξ = v/Δ` ([`CorrelationLengthGap`](@ref)) and of the CFT finite-size forms
+([`FiniteSizeGap`](@ref), [`CasimirCentralCharge`](@ref)).
+
+The type parameter `K` makes *which* velocity a dispatch axis, exactly as
+`G` does for [`Energy`](@ref)'s granularity.  It is not decoration: a slot
+typed on the bare `Velocity` is a **parametric family**, so a bag holding
+`Velocity(:fermi)` matches it by auto-discovery.  Before `K` existed the
+specific velocities were separate structs, `typeof` made them different bag
+keys from `Velocity`, and a relation typed on `Velocity` could not see them —
+the three relations above were unreachable for every atlas hub that knows its
+Fermi or Luttinger velocity rather than an anonymous "velocity".
+
+[`LiebRobinsonVelocity`](@ref) is deliberately NOT a `Velocity{K}`: it bounds
+information propagation rather than naming the mode that propagates, and it is
+only equal to a characteristic velocity when the bound happens to be saturated.
+Keeping it outside the family keeps it out of `ξ = v/Δ`.
 """
-struct Velocity <: AbstractVelocity end
+struct Velocity{K} <: AbstractVelocity
+    function Velocity{K}() where {K}
+        K isa Symbol || error("Velocity kind must be a Symbol, got $(typeof(K))")
+        K in (:characteristic, :fermi, :luttinger, :sound) || error(
+            "unknown Velocity kind :$K; expected :characteristic, :fermi, " *
+            ":luttinger or :sound",
+        )
+        return new{K}()
+    end
+end
+Velocity() = Velocity{:characteristic}()
+Velocity(k::Symbol) = Velocity{k}()
 export Velocity
 
 """
@@ -1221,25 +1250,28 @@ struct LiebRobinsonVelocity <: AbstractVelocity end
 export LiebRobinsonVelocity
 
 """
-    FermiVelocity() <: AbstractVelocity
+    FermiVelocity = Velocity{:fermi}
 
 Fermi velocity `v_F = ∂ε/∂k |_{k = k_F}` — the slope of the dispersion at the
 Fermi level.  Well defined for a non-interacting or mean-field band structure
 (tight-binding lattices, Bogoliubov–de Gennes spectra, Dirac cones).
+
+A kind of [`Velocity`](@ref) rather than a type of its own, so it reaches every
+relation whose `v` slot is typed on the family.
 """
-struct FermiVelocity <: AbstractVelocity end
+const FermiVelocity = Velocity{:fermi}
 export FermiVelocity
 
 """
-    LuttingerVelocity() <: AbstractVelocity
+    LuttingerVelocity = Velocity{:luttinger}
 
 Luttinger-liquid (bosonisation) velocity `u` of the linear-dispersion mode of a
 1D critical interacting system (Giamarchi, [Giamarchi2003](@cite)).  Coincides
 with [`FermiVelocity`](@ref) for free fermions; for an interacting system it
-carries the Luttinger renormalisation, so the two are distinct quantities rather
-than two names for one number.
+carries the Luttinger renormalisation, so the two are distinct kinds rather than
+two names for one number.
 """
-struct LuttingerVelocity <: AbstractVelocity end
+const LuttingerVelocity = Velocity{:luttinger}
 export LuttingerVelocity
 
 """

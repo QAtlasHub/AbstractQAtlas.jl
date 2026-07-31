@@ -73,7 +73,11 @@ end
     v, L, x = 1.0, 10.0, 0.125
     @test check(
         FiniteSizeGap(),
-        bag(MassGap => 2π * v * x / L, ScalingDimension => x, Velocity => v);
+        # `Velocity` is a family now, so the bag names a KIND and the bag-form call
+        # names which component it means (§8a: the bare form stays ambiguous by design,
+        # even when only one kind is present).
+        bag(MassGap => 2π * v * x / L, ScalingDimension => x, Velocity() => v);
+        subject=Velocity{:characteristic},
         L=L,
         atol=1e-12,
     )
