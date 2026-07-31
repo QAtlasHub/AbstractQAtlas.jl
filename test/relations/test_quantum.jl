@@ -178,7 +178,8 @@ end
     # before neither name existed here at all
     b = bag(LoschmidtRateFunction => -log(0.5) / N, LoschmidtAmplitude => 0.5)
     @test check(LoschmidtRate(), b; N=N, atol=1e-14)
-    @test LoschmidtRate in Set(typeof(r) for r in relations_constraining(LoschmidtAmplitude))
+    @test LoschmidtRate in
+        Set(typeof(r) for r in relations_constraining(LoschmidtAmplitude))
     @test LoschmidtRate in
         Set(typeof(r) for r in relations_constraining(LoschmidtRateFunction))
 

@@ -176,6 +176,5 @@ is refused by the generic solver rather than silently linearised.
 
 Variables: `λ`, `L`, `N`.
 """
-@relation :quantum LoschmidtRate(
-    λ::LoschmidtRateFunction, L::LoschmidtAmplitude, N
-) = λ + log(L) / N
+@relation :quantum LoschmidtRate(λ::LoschmidtRateFunction, L::LoschmidtAmplitude, N) =
+    λ + log(L) / N
