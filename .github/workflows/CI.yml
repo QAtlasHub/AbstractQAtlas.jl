@@ -1,7 +1,7 @@
 name: CI
 on: { push: { branches: [main] }, pull_request: {} }
 jobs:
-  ci: { uses: QAtlasHub/.github/.github/workflows/julia-ci.yml@v1, with: { shards: 4 }, secrets: inherit }
+  ci: { uses: QAtlasHub/.github/.github/workflows/julia-ci.yml@main, with: { shards: 4 }, secrets: inherit }
   # Also exercise the julia 1.10 LTS floor (the package is stdlib-only + uses no
   # 1.11-only features) so the lowered `julia` compat bound is actually tested.
-  ci-lts: { uses: QAtlasHub/.github/.github/workflows/julia-ci.yml@v1, with: { shards: 4, julia-version: "1.10" }, secrets: inherit }
+  ci-lts: { uses: QAtlasHub/.github/.github/workflows/julia-ci.yml@main, with: { shards: 4, julia-version: "1.10" }, secrets: inherit }
