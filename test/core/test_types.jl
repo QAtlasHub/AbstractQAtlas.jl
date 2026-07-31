@@ -258,3 +258,24 @@ end
     @test !(LiebRobinsonVelocity <: Velocity)
     @test LiebRobinsonVelocity() isa AbstractVelocity
 end
+
+@testset "model-independent observables adopted from the atlas" begin
+    # Seven names QAtlas declared locally while implementing them (#813). Each is a
+    # field-free singleton with no ABQ counterpart, so the assertion that carries
+    # weight is that they occupy SEVEN distinct identity slots — a bag refuses
+    # duplicate keys, so a future alias collapsing two of them fails loudly here.
+    qs = (
+        FidelitySusceptibility,
+        GroundStateDegeneracy,
+        StringOrderParameter,
+        ChiralCondensate,
+        FractalDimension,
+        Polarization,
+        LuttingerParameter,
+    )
+    @test all(q -> q() isa AbstractQuantity, qs)
+    @test length(bag((q => 1.0 for q in qs)...)) == 7
+    @test all(q -> variable_support(q()) isa Global, qs)
+    # ...and none of them silently became a tensor quantity on the way up
+    @test all(q -> tensor_rank(q()) == 0, qs)
+end
