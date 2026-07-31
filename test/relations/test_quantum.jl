@@ -159,3 +159,37 @@ end
     @test haskey(b, AbstractQAtlas._as_key(LiebRobinsonVelocity()))
     @test LiebRobinsonVelocity <: AbstractVelocity
 end
+
+@testset "LoschmidtRate: λ = −log L / N ties the rate function to the echo" begin
+    # The pair is adopted WITH this law (AbstractQAtlas.jl#128): a definition with
+    # only one of its two sides in the vocabulary cannot be stated, which is the
+    # "as need arises" that core/quantities.jl's header asks for.
+    N = 8
+    for L in (1.0, 0.5, 0.1, 1e-6)          # echo ∈ (0, 1]
+        λ = -log(L) / N
+        @test check(LoschmidtRate(); λ=λ, L=L, N=N, atol=1e-14)
+        @test solve(LoschmidtRate(), Val(:λ); L=L, N=N) ≈ λ
+    end
+    # L = 1 (no decay) is the only zero of the rate function
+    @test solve(LoschmidtRate(), Val(:λ); L=1.0, N=N) == 0.0
+    @test !check(LoschmidtRate(); λ=0.0, L=0.5, N=N, atol=1e-12)
+
+    # type-keyed: both sides are now real slots, so the pair is CONSTRAINED where
+    # before neither name existed here at all
+    b = bag(LoschmidtRateFunction => -log(0.5) / N, LoschmidtAmplitude => 0.5)
+    @test check(LoschmidtRate(), b; N=N, atol=1e-14)
+    @test LoschmidtRate in Set(typeof(r) for r in relations_constraining(LoschmidtAmplitude))
+    @test LoschmidtRate in
+        Set(typeof(r) for r in relations_constraining(LoschmidtRateFunction))
+
+    # `L` enters through log, so the generic solver must REFUSE it rather than
+    # linearise — same guard as ξ = v/Δ in Δ.
+    err = try
+        solve(LoschmidtRate(), Val(:L); λ=0.1, N=N)
+        nothing
+    catch e
+        e
+    end
+    @test err isa ErrorException
+    @test occursin("not affine", err.msg)
+end
