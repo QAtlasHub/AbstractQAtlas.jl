@@ -142,6 +142,28 @@ end
     @test occursin("Infinite", err.msg)
 end
 
+@testset "TsallisEntropy carries its order too, and keys the same way" begin
+    # Same shape as RenyiEntropy: `S_q` for two different `q` are two quantities, and a
+    # bag keyed by type alone would keep only the last written. The relation
+    # `TsallisEntropyMoment(Sq, moment, q)` still takes the order as a variable — the
+    # field is what makes the BAG able to hold two, not what feeds the formula.
+    @test TsallisEntropy(2).q == 2.0
+    @test TsallisEntropy(2) != TsallisEntropy(3)
+    @test_throws ArgumentError TsallisEntropy(0)
+    @test_throws ArgumentError TsallisEntropy(-1)
+    @test_throws ArgumentError TsallisEntropy(1)     # the von Neumann limit
+    @test variable_support(TsallisEntropy(2)) == OrderSupport(2.0)
+    let b = bag(TsallisEntropy(2) => 0.4, TsallisEntropy(3) => 0.6)
+        @test length(b) == 2
+        @test b[AbstractQAtlas._as_key(TsallisEntropy(2))] == 0.4
+    end
+    # ...and it does not collide with a Renyi entropy of the same order: the TYPE is
+    # still half the key.
+    @test AbstractQAtlas._as_key(TsallisEntropy(2)) !=
+        AbstractQAtlas._as_key(RenyiEntropy(2))
+    @test length(bag(TsallisEntropy(2) => 0.4, RenyiEntropy(2) => 0.6)) == 2
+end
+
 @testset "RenyiEntropy carries its order, and validates it" begin
     # QAtlas defines its own `RenyiEntropy` with this field, so the two same-named
     # types were not the same type and `relations_constraining` returned 3 for ours
@@ -188,4 +210,29 @@ end
     @test_throws ErrorException bag(FreeEnergy => 1.0, FreeEnergy => 2.0)
     # ...and a genuine pair of distinct keys is unaffected
     @test length(bag(FreeEnergy => 1.0, Energy => 2.0)) == 2
+end
+
+@testset "sector gaps, band velocities and the T=0 entropy are their own slots" begin
+    # Vocabulary ported up from QAtlas (AbstractQAtlas.jl#126): the families
+    # already lived here while the members lived downstream, which put the vague
+    # name (MassGap) in the base package and the sector-resolved ones in the atlas.
+    @test ChargeGap() isa AbstractGap
+    @test SpinGap() isa AbstractGap
+    @test FermiVelocity() isa AbstractVelocity
+    @test LuttingerVelocity() isa AbstractVelocity
+    @test ResidualEntropy() isa AbstractThermalPotential
+    @test LogarithmicNegativity() isa AbstractEntanglementMeasure
+    @test PageEntropy() isa AbstractEntanglementMeasure
+
+    # The alias is one quantity under two names, not a second slot.
+    @test SpinWaveVelocity === LuttingerVelocity
+
+    # ...and the sector gaps are NOT MassGap. Asserted on the identity a bag keys
+    # on, because that is what a relation sees: three gaps must occupy three slots.
+    # A future "just alias ChargeGap to MassGap" would collapse this to 1 and now
+    # fails loudly (bag refuses duplicate keys) instead of silently dropping values.
+    @test length(bag(MassGap => 0.0, ChargeGap => 2.0, SpinGap => 0.0)) == 3
+    @test length(bag(FermiVelocity => 1.0, LuttingerVelocity => 1.5)) == 2
+    @test length(bag(ThermalEntropy => 0.4, ResidualEntropy => 0.3230659669)) == 2
+    @test variable_support(ChargeGap()) isa Global
 end

@@ -228,6 +228,26 @@ struct ThermalEntropy <: AbstractThermalPotential end
 export ThermalEntropy
 
 """
+    ResidualEntropy() <: AbstractThermalPotential
+
+Zero-temperature configurational entropy density,
+
+    s_res = lim_{T → 0⁺} S(T) / N,
+
+the entropy of the (possibly degenerate) ground-state manifold.  Non-negative,
+and nonzero exactly when the ground state carries an extensive degeneracy — the
+antiferromagnetic Ising model on the triangular lattice (Wannier,
+[Wannier1950](@cite)) and the hexagonal-lattice family (Houtappel,
+[Houtappel1950](@cite)) are the classic examples, as are the ice-rule models.
+
+Kept separate from [`ThermalEntropy`](@ref), which is the finite-`β`
+thermodynamic entropy: the `T → 0` limit is its own closed form, not a `β → ∞`
+extrapolation of the finite-`β` one.
+"""
+struct ResidualEntropy <: AbstractThermalPotential end
+export ResidualEntropy
+
+"""
     PartitionFunction() <: AbstractThermalPotential
 
 The partition function `Z(β) = Σ exp(-βE)` itself (finite systems).
@@ -1201,6 +1221,38 @@ struct LiebRobinsonVelocity <: AbstractVelocity end
 export LiebRobinsonVelocity
 
 """
+    FermiVelocity() <: AbstractVelocity
+
+Fermi velocity `v_F = ∂ε/∂k |_{k = k_F}` — the slope of the dispersion at the
+Fermi level.  Well defined for a non-interacting or mean-field band structure
+(tight-binding lattices, Bogoliubov–de Gennes spectra, Dirac cones).
+"""
+struct FermiVelocity <: AbstractVelocity end
+export FermiVelocity
+
+"""
+    LuttingerVelocity() <: AbstractVelocity
+
+Luttinger-liquid (bosonisation) velocity `u` of the linear-dispersion mode of a
+1D critical interacting system (Giamarchi, [Giamarchi2003](@cite)).  Coincides
+with [`FermiVelocity`](@ref) for free fermions; for an interacting system it
+carries the Luttinger renormalisation, so the two are distinct quantities rather
+than two names for one number.
+"""
+struct LuttingerVelocity <: AbstractVelocity end
+export LuttingerVelocity
+
+"""
+    SpinWaveVelocity
+
+Alias of [`LuttingerVelocity`](@ref): in a gapless spin chain the bosonisation
+velocity IS the spin-wave velocity, so this is one quantity under two names and
+not a second slot.
+"""
+const SpinWaveVelocity = LuttingerVelocity
+export SpinWaveVelocity
+
+"""
     MassGap() <: AbstractGap
 
 The spectral (mass) gap `Δ = E₁ − E₀` between the ground state and the
@@ -1210,6 +1262,44 @@ to a quantum critical point.
 """
 struct MassGap <: AbstractGap end
 export MassGap
+
+"""
+    ChargeGap() <: AbstractGap
+
+Charge (Mott) gap of an electron system,
+
+    Δ_c = E₀(N+1) + E₀(N−1) − 2 E₀(N),
+
+the cost of adding a particle plus the cost of removing one — equivalently the
+gap to the lowest charged excitation.  Strictly positive in a Mott insulator and
+zero in a metal; rigorous closed form for the half-filled 1D Hubbard chain (Lieb
+& Wu, [LiebWu1968](@cite)).
+
+Sector-resolved, and so not interchangeable with [`MassGap`](@ref): the two agree
+only when the lowest excitation of the whole spectrum happens to be the charged
+one.
+"""
+struct ChargeGap <: AbstractGap end
+export ChargeGap
+
+"""
+    SpinGap() <: AbstractGap
+
+Spin gap of an electron or spin system,
+
+    Δ_s = E₀(Sᶻ = 1) − E₀(Sᶻ = 0),
+
+the lowest excitation energy at fixed particle number that flips one spin.  Zero
+whenever the spinon branch is gapless — rigorously so for the half-filled 1D
+Hubbard chain (Lieb & Wu, [LiebWu1968](@cite)) — and positive in a spin-gapped
+phase (Haldane chain, BCS superconductor).
+
+Sector-resolved like [`ChargeGap`](@ref).  A model can be gapless in the spin
+sector while gapped in the charge sector, which is why these are two quantities
+rather than one gap with a sector keyword.
+"""
+struct SpinGap <: AbstractGap end
+export SpinGap
 
 """
     DynamicalExponent() <: AbstractQuantity
@@ -1292,13 +1382,29 @@ end
 export RenyiEntropy
 
 """
-    TsallisEntropy() <: AbstractEntanglementMeasure
+    TsallisEntropy(q::Real) <: AbstractEntanglementMeasure
 
-The Tsallis entropy `S_q = (1 − Tr ρ_A^q)/(q − 1)` (Tsallis, [Tsallis1988](@cite)) — the other one-parameter deformation of the
-[`VonNeumannEntropy`](@ref) (`q → 1` limit), non-additive across
-independent subsystems.
+The Tsallis entropy `S_q = (1 − Tr ρ_A^q)/(q − 1)` (Tsallis, [Tsallis1988](@cite)) — the
+other one-parameter deformation of the [`VonNeumannEntropy`](@ref) (`q → 1` limit),
+non-additive across independent subsystems.
+
+The order lives in the type's field, and keys through [`OrderSupport`](@ref), for the
+same reason [`RenyiEntropy`](@ref) does: two Tsallis entropies of different order are
+different quantities, and a bag keyed by type alone would hold only the last one written.
+`q = 1` is refused rather than silently aliased — it is the von Neumann limit.
 """
-struct TsallisEntropy <: AbstractEntanglementMeasure end
+struct TsallisEntropy <: AbstractEntanglementMeasure
+    q::Float64
+    function TsallisEntropy(q::Real)
+        q > 0 || throw(ArgumentError("TsallisEntropy: q must be positive; got $q"))
+        q == 1 && throw(
+            ArgumentError(
+                "TsallisEntropy(1) is the von Neumann limit; use VonNeumannEntropy()."
+            ),
+        )
+        return new(Float64(q))
+    end
+end
 export TsallisEntropy
 
 """
@@ -1406,6 +1512,32 @@ Levin & Wen 2006); nonzero signals topological order.
 """
 struct TopologicalEntanglementEntropy <: AbstractEntanglementMeasure end
 export TopologicalEntanglementEntropy
+
+"""
+    LogarithmicNegativity() <: AbstractEntanglementMeasure
+
+Logarithmic negativity `E_N = log Tr|ρ^{T_B}|`, the trace norm of the partial
+transpose.  A mixed-state entanglement measure: unlike
+[`VonNeumannEntropy`](@ref) it stays meaningful when the two subsystems are not
+complementary halves of a pure state (finite `β`, or a traced-out remainder).
+"""
+struct LogarithmicNegativity <: AbstractEntanglementMeasure end
+export LogarithmicNegativity
+
+"""
+    PageEntropy() <: AbstractEntanglementMeasure
+
+Average subsystem entropy of a Haar-random pure state on `H_A ⊗ H_B`: with
+`m = dim H_A ≤ n = dim H_B`,
+
+    ⟨S_A⟩ = Σ_{k=n+1}^{mn} 1/k − (m−1)/(2n),
+
+which is `log m − 1/2` at `m = n` (Page, [Page1993](@cite)).  The reference value
+for "as entangled as a random state", hence the yardstick used in thermalisation
+and Page-curve arguments.
+"""
+struct PageEntropy <: AbstractEntanglementMeasure end
+export PageEntropy
 
 """
     Purity() <: AbstractQuantity
