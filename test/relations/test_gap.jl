@@ -65,10 +65,13 @@ end
     @test rows[1].subject.type === Velocity{:fermi}   # the SUBJECT is the Fermi velocity
     @test rows[1].pass
 
-    # One velocity in the bag ⇒ nothing to choose between ⇒ no `subject` ceremony,
-    # which is also what lets `solve` (which passes none) traverse the relation.
-    @test check(CorrelationLengthGap(), b; atol=1e-12)
-    @test solve(CorrelationLengthGap(), CorrelationLength, b) ≈ v / Δ
+    # §8a: the bare bag-form of a family-generic relation stays a loud error — the
+    # subject is part of the claim, so it is named, not guessed.
+    @test_throws ErrorException check(CorrelationLengthGap(), b)
+    @test check(CorrelationLengthGap(), b; subject=FermiVelocity, atol=1e-12)
+    # ...and `solve` can now say which component it means, so a relation is solvable
+    # through a family slot exactly as through a concrete one.
+    @test solve(CorrelationLengthGap(), CorrelationLength, b; subject=FermiVelocity) ≈ v / Δ
 end
 
 @testset "two velocity kinds in one bag is a real ambiguity, and refuses" begin
@@ -87,8 +90,11 @@ end
     @test err isa ErrorException
     @test occursin("pass `subject`", err.msg)          # never silently pick one
     @test check(CorrelationLengthGap(), b; subject=Velocity{:fermi}, atol=1e-12)
+    # the two kinds give DIFFERENT answers, which is why guessing would be wrong:
+    # ξ = v/Δ reads 4.0 with v_F = 2.0 and 6.0 with u = 3.0
+    @test solve(CorrelationLengthGap(), CorrelationLength, b; subject=LuttingerVelocity) ≈
+        6.0
     # ...and the report enumerates BOTH kinds rather than collapsing them
     rows = [r for r in relation_report(b) if r.relation isa CorrelationLengthGap]
-    @test Set(r.subject.type for r in rows) ==
-        Set((Velocity{:fermi}, Velocity{:luttinger}))
+    @test Set(r.subject.type for r in rows) == Set((Velocity{:fermi}, Velocity{:luttinger}))
 end

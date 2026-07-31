@@ -733,27 +733,13 @@ function _bag_kwargs(
     for (sym, key) in variable_slots(rel)
         sym === skip && continue
         if key !== nothing && _is_family(key)
-            # No `subject`? Then the bag itself may still be unambiguous: with
-            # EXACTLY ONE component of the family present there is nothing to
-            # choose between, so demanding `subject` would be ceremony. Two or
-            # more (χ_xx and χ_zz) is a genuine ambiguity and still refuses —
-            # picking one silently is the failure this layer exists to prevent.
-            # This is what lets `solve`/`derive` traverse a family-generic
-            # relation at all: neither passes a `subject` down.
-            sub = subject
-            if sub === nothing
-                comps = _bag_components(key, b)
-                length(comps) == 1 || error(
-                    "$(nameof(typeof(rel))) is family-generic in :$sym and the bag " *
-                    "has $(length(comps)) $(nameof(key)) components — pass `subject`",
-                )
-                sub = only(comps)
-            end
-            (sub.type <: key && haskey(b, sub)) || error(
+            subject === nothing &&
+                error("$(nameof(typeof(rel))) is family-generic in :$sym — pass `subject`")
+            (subject.type <: key && haskey(b, subject)) || error(
                 "$(nameof(typeof(rel))) needs the $(nameof(key)) component " *
-                "$(sub.type) in the bag",
+                "$(subject.type) in the bag",
             )
-            push!(out, sym => b[sub])
+            push!(out, sym => b[subject])
             continue
         end
         v = _resolve_slot(sym, key, b, extras)
@@ -828,7 +814,13 @@ solve(KeldyshComponent(), KeldyshGreensFunction,
       bag(GreaterGreensFunction => 2, LesserGreensFunction => 3))    # 5
 ```
 """
-function solve(rel::AbstractRelation, @nospecialize(Q::Type), b::Bag; extras...)
+function solve(
+    rel::AbstractRelation,
+    @nospecialize(Q::Type),
+    b::Bag;
+    subject::Union{Nothing,Type}=nothing,
+    extras...,
+)
     # `derive`/`solve` are concrete-only: a bare family (`Susceptibility`) as the
     # target is ambiguous over its components.  Reject it before `_symbol_for` can
     # "match" the family slot and skip it (which would return a component-blind value);
@@ -841,8 +833,17 @@ function solve(rel::AbstractRelation, @nospecialize(Q::Type), b::Bag; extras...)
     sym = _symbol_for(rel, Q)
     sym === nothing && error("$(nameof(typeof(rel))) has no variable of type $(nameof(Q))")
     ex = values(extras)
+    # `subject` names the component filling a family-generic OTHER slot (§8a keeps the
+    # bare bag-form ambiguous, so the caller says which one); the TARGET `Q` stays
+    # concrete, guarded above. Without this a relation could be solved through a
+    # concrete slot but not through a family one, purely because the bag-form solver
+    # had no way to say which component it meant.
+    sk = subject === nothing ? nothing : VariableKey(subject)
     return solve(
-        rel, Val(sym); _bag_kwargs(rel, b, ex; skip=sym)..., _unconsumed_extras(rel, ex)...
+        rel,
+        Val(sym);
+        _bag_kwargs(rel, b, ex; skip=sym, subject=sk)...,
+        _unconsumed_extras(rel, ex)...,
     )
 end
 
