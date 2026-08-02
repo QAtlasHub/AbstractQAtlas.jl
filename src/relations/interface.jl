@@ -410,15 +410,18 @@ end
 # Load-time validation of a type-keyed relation's identity slots (runs when the
 # `@relation` line is evaluated, so a mistake is loud at package load, never a
 # silent degradation at use):
-#   * every identity type must be CONCRETE — a bare parametric family (e.g.
-#     `Susceptibility`) can never `===`-match a concrete bag key, so it would be a
-#     permanently-dead relation (issue C4; real family-aware matching is a future
-#     `support`-layer decision);
+#   * every identity type must be either a CONCRETE component (`Susceptibility{(:z,:z)}`
+#     — `===`-matched against a bag key) or a bare parametric FAMILY (`Susceptibility`,
+#     a `UnionAll` — matched by auto-discovery against every concrete component of that
+#     family present in the bag; design §8a, LANDED).  A plain ABSTRACT DataType is
+#     still rejected: it can neither `===`-match nor family-enumerate.  (Issue C4 asked
+#     for family-aware matching and §8a answered it; only the abstract-supertype case
+#     remains open, and it is what makes a downstream `AbstractModelQuantity`-style
+#     hierarchy unusable as a slot.)
+#   * at most ONE family-generic slot — unifying an index ACROSS slots is §8b;
 #   * the identity types must be DISTINCT — two slots of one type bind the SAME bag
 #     value, giving an always-passing, physically meaningless check (issue C3; the
 #     `support`/region layer is the escape valve for multi-instance-of-one-type).
-# a bare parametric FAMILY slot (`Susceptibility`, a `UnionAll`) — matched by
-# auto-discovery against every concrete component of that family in the bag (§8a).
 _is_family(@nospecialize(T)) = T isa UnionAll
 
 function _validate_relation(rel::AbstractRelation)

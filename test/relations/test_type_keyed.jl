@@ -318,7 +318,8 @@ end
 end
 
 @testset "declaration guards: non-concrete (C4) and duplicate (C3) identity types" begin
-    # a bare parametric family can't match a concrete bag key → rejected at declaration
+    # an ABSTRACT DataType can neither `===`-match a bag key nor family-enumerate
+    # (unlike a parametric family, which §8a auto-discovers) → rejected at declaration
     @test_throws Exception @eval @relation :test _AbstractSlot(x::AbstractPropagator) = x
     # two slots of one type would bind the same value (always-passing) → rejected
     @test_throws Exception @eval @relation :test _DupSlot(

@@ -249,9 +249,11 @@ Transport, and the tensor response quantities generally, are index-parametric �
 `DynamicalSusceptibility{I}`, … The Phase-1 review flagged (finding C4) that the
 bag matches by `===` while the quantity graph erases to `_family`, so a slot keyed
 on the bare family `Conductivity` can never `===`-match a concrete
-`Conductivity{(:x,:x)}` bag entry — and the load-time guard now rejects such a
-bare-family declaration loudly. This section resolves how the parametric domains
-migrate.
+`Conductivity{(:x,:x)}` bag entry. This section resolves how the parametric domains
+migrate. **Status: §8a below has LANDED** — a bare-family slot is now accepted and
+resolved by auto-discovery, so C4 no longer describes shipped behaviour; what the
+load guard still rejects is a plain *abstract DataType*, which can neither
+`===`-match nor family-enumerate.
 
 **Three index structures appear across the relations:**
 
@@ -278,8 +280,8 @@ relation is simply component-specific, which is physically what HallAngle *is*.
   component. `_auto_quantities` must `unique`-dedup (a relation with two
   `Conductivity{…}` slots erases to `(Conductivity, Conductivity)`; the old
   hand-link was `(Conductivity,)`).
-- **Phase 2 (the real §7 — deferred):** **family-generic slots with index
-  unification**, so the verify-engine *auto-discovers* every component instance
+- **Phase 2 (the real §7 — §8a landed, §8b deferred):** **family-generic slots with
+  index unification**, so the verify-engine *auto-discovers* every component instance
   from a bag (drop `χ_xy, M_x, M_y` → find `χ_xy = β Cov(M_x, M_y)` without a
   hand-written per-component relation). This needs (a) macro support for a type
   variable — `SusceptibilityFDT(χ::Susceptibility{(A,B)}, M_A::Magnetization{A},
@@ -288,12 +290,15 @@ relation is simply component-specific, which is physically what HallAngle *is*.
   analogue of the entanglement `Region` auto-discovery (§5–§6) and shares its
   "quantified relations" machinery; build them together.
 
-The load guard is the safety net between the phases: until Phase 2 lands, a
-bare-family declaration fails at load rather than silently matching nothing.
+The load guard remains the safety net for what has *not* landed: a second
+family-generic slot (which would need 8b's cross-slot unification) fails at load
+rather than silently matching the wrong components, and so does an abstract-DataType
+slot.
 
 ### Phase-2 mechanism (concrete) — family-generic slots + auto-discovery
 
-Worked out for implementation; two sub-capabilities, sequenced.
+Worked out for implementation; two sub-capabilities, sequenced. **8a is
+implemented and shipped; 8b is not.**
 
 **8a — single-family-slot auto-discovery (no cross-slot constraint).** A slot
 keyed on a bare family (`χT::Susceptibility`) matches EVERY concrete component of
