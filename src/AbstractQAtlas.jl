@@ -135,6 +135,12 @@ module QuantumFoundations
     include("relations/quantum.jl")
 end
 
+"Universal bounds stated against a fetched bounding value: Bell (CHSH, Mermin), chaos (MSS), speed limits, fast scrambling, BB84 key rate, optimal cloning, Bekenstein."
+module UniversalBounds
+    using ..AbstractQAtlas
+    include("relations/bounds.jl")
+end
+
 "Topological invariants: Chern number, TKNN, winding, bulk–boundary correspondence."
 module Topology
     using ..AbstractQAtlas
@@ -151,6 +157,7 @@ const _PHYSICS_MODULES = (
     Transport,
     QuantumInformation,
     QuantumFoundations,
+    UniversalBounds,
     Topology,
 )
 for _M in _PHYSICS_MODULES

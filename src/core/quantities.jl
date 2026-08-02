@@ -1744,3 +1744,127 @@ with U(1) symmetry (e.g. XXZ in the critical regime `|Δ| < 1`).
 """
 struct LuttingerParameter <: AbstractQuantity end
 export LuttingerParameter
+
+# ─── Universal bound VALUES (the bounding side of a @bound) ──────────────
+#
+# Each of these is a *bounding value*, not an ordinary observable: the number a
+# theory permits, against which a measured quantity is checked.  They are
+# model-INDEPENDENT — Tsirelson's 2√2 is a fact about quantum mechanics, not
+# about a Hamiltonian — which is why they belong here and not on a model.
+#
+# They arrive WITH their bounds (`relations/bounds.jl`), and each of those bounds
+# leaves its BOUNDED side an untyped slot: no quantity in this vocabulary names
+# "the CHSH correlator I measured" or "the Lyapunov exponent I extracted".  That
+# is the point — a bound can be stated, and its bounding value fetched, before
+# the bounded observable has a type.  See docs/design/bounds.md §4.
+#
+# References (doiget-verified, docs/references.bib): [CHSH1969](@cite),
+# [Tsirelson1980](@cite), [PopescuRohrlich1994](@cite), [Mermin1990](@cite),
+# [MaldacenaShenkerStanford2016](@cite), [Bekenstein1981](@cite),
+# [MargolusLevitin1998](@cite), [SekinoSusskind2008](@cite),
+# [ShorPreskill2000](@cite), [BuzekHillery1996](@cite).
+
+"""
+    CHSHBound() <: AbstractQuantity
+
+The largest CHSH correlator `S = E(a,b) + E(a,b′) + E(a′,b) − E(a′,b′)` a given
+physical theory admits: `2` for local hidden variables ([CHSH1969](@cite)),
+`2√2` for quantum mechanics (Tsirelson, [Tsirelson1980](@cite)), `4` for any
+no-signalling theory (Popescu–Rohrlich, [PopescuRohrlich1994](@cite)).  A
+*bounding value*; which regime a fetched number belongs to is a `scheme`
+distinction on the consumer's registry row, not a separate quantity.
+
+Bounds [`CHSHInequality`](@ref).
+"""
+struct CHSHBound <: AbstractQuantity end
+export CHSHBound
+
+"""
+    MerminGHZBound() <: AbstractQuantity
+
+The largest Mermin three-party operator value `|⟨M₃⟩|` a theory admits: `2`
+under local realism, `4` in quantum mechanics, saturated by the GHZ state
+(Mermin, [Mermin1990](@cite)).  A *bounding value*, regime-selected the same way
+as [`CHSHBound`](@ref).
+
+Bounds [`MerminInequality`](@ref).
+"""
+struct MerminGHZBound <: AbstractQuantity end
+export MerminGHZBound
+
+"""
+    ChaosBound() <: AbstractQuantity
+
+The Maldacena–Shenker–Stanford ceiling on the OTOC Lyapunov exponent,
+`λ_max = 2π/β` in units `ħ = k_B = 1` ([MaldacenaShenkerStanford2016](@cite)) —
+saturated by holographic and large-`N` SYK models.  A *bounding value*.
+
+Bounds [`LyapunovChaosBound`](@ref).
+"""
+struct ChaosBound <: AbstractQuantity end
+export ChaosBound
+
+"""
+    BekensteinBound() <: AbstractQuantity
+
+The Bekenstein universal ceiling on the entropy of a system of radius `R` and
+energy `E`, `S_max = 2π R E` in units `ħ = c = k_B = 1`
+([Bekenstein1981](@cite)).  A *bounding value*.
+
+Bounds [`BekensteinEntropyBound`](@ref).
+"""
+struct BekensteinBound <: AbstractQuantity end
+export BekensteinBound
+
+"""
+    QuantumSpeedLimit() <: AbstractQuantity
+
+The minimum time in which a state can evolve to an orthogonal one — the tighter
+of the Margolus–Levitin `π/(2⟨E − E₀⟩)` ([MargolusLevitin1998](@cite)) and
+Mandelstam–Tamm `π/(2ΔE)` forms.  A *bounding value*, and a LOWER one: it
+bounds the orthogonalization time from below.
+
+Bounds [`OrthogonalizationTimeBound`](@ref).  The two closed forms themselves
+are [`MargolusLevitinBound`](@ref) and [`MandelstamTammBound`](@ref), which
+state the bound directly from the energy data rather than from a fetched value.
+"""
+struct QuantumSpeedLimit <: AbstractQuantity end
+export QuantumSpeedLimit
+
+"""
+    ScramblingTime() <: AbstractQuantity
+
+The fast-scrambling time `t_* = (β/2π) log N` for a thermal system of `N`
+degrees of freedom (Sekino & Susskind, [SekinoSusskind2008](@cite)) — the
+conjectured floor on how fast local information can be scrambled into global
+entanglement, saturated by black holes.  A *bounding value*, and a LOWER one.
+
+Bounds [`FastScramblingBound`](@ref).
+"""
+struct ScramblingTime <: AbstractQuantity end
+export ScramblingTime
+
+"""
+    BB84KeyRate() <: AbstractQuantity
+
+The BB84 asymptotic secret-key rate `R(e) = 1 − 2 H₂(e)` at qubit error rate
+`e`, with `H₂` the binary entropy (Shor & Preskill, [ShorPreskill2000](@cite)) —
+a provably ACHIEVABLE rate, so it bounds the extractable secret-key fraction
+from below; positive for `e < 11%`.  A *bounding value*, and a LOWER one.
+
+Bounds [`SecretKeyRateBound`](@ref).
+"""
+struct BB84KeyRate <: AbstractQuantity end
+export BB84KeyRate
+
+"""
+    OptimalCloningFidelity() <: AbstractQuantity
+
+The optimal universal `1 → 2` qubit cloning fidelity `F = 5/6` (Bužek &
+Hillery, [BuzekHillery1996](@cite)) — the no-cloning theorem made quantitative.
+A *bounding value*, and an UPPER one.
+
+Bounds [`CloningFidelityBound`](@ref).
+"""
+struct OptimalCloningFidelity <: AbstractQuantity end
+export OptimalCloningFidelity

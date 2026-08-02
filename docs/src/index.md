@@ -373,6 +373,7 @@ Modules = [
     AbstractQAtlas.Transport,
     AbstractQAtlas.QuantumInformation,
     AbstractQAtlas.QuantumFoundations,
+    AbstractQAtlas.UniversalBounds,
     AbstractQAtlas.Topology,
 ]
 ```
