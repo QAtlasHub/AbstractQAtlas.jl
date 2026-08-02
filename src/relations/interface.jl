@@ -293,7 +293,9 @@ iff `residual ≥ 0` (within tolerance), so [`check`](@ref) tests that
 direction instead of `abs(residual) ≤ atol`.  [`solve`](@ref) still
 returns the **saturation** value — where the slack vanishes, i.e. the
 tight bound (e.g. `solve(Subadditivity(), Val(:S_AB))` gives the maximum
-`S_A + S_B`).  Declared with [`@inequality`](@ref).
+`S_A + S_B`).  Declared with [`@bound`](@ref), which also records the
+statement's roles — [`bounded_slot`](@ref), [`bounding_slot`](@ref),
+[`bound_direction`](@ref).
 """
 abstract type AbstractInequality <: AbstractRelation end
 export AbstractInequality
