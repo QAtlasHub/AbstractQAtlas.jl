@@ -14,7 +14,7 @@ AbstractQAtlas.domain(::_NonAffineDemo) = :test_only
 
 @testset "registry + traits" begin
     rels = all_relations()
-    @test length(rels) == 124        # universal-only: model-specific (spin glass, Drude mobility, single-band Hall) moved to QAtlas; +LoschmidtRate
+    @test length(rels) == 132        # universal-only: model-specific (spin glass, Drude mobility, single-band Hall) moved to QAtlas; +LoschmidtRate; +8 universal bounds
     @test allunique(typeof.(rels))
     @test length(all_relations(; domain=:scaling)) == 5
     @test length(all_relations(; domain=:thermodynamic)) == 15
@@ -23,7 +23,8 @@ AbstractQAtlas.domain(::_NonAffineDemo) = :test_only
     @test length(all_relations(; domain=:spectral)) == 14
     @test length(all_relations(; domain=:keldysh)) == 15
     @test length(all_relations(; domain=:transport)) == 18
-    @test length(all_relations(; domain=:quantum)) == 10   # +LoschmidtRate (λ = −log L / N)
+    @test length(all_relations(; domain=:quantum)) == 17   # +LoschmidtRate (λ = −log L / N); +7 of the 8 universal bounds
+    @test length(all_relations(; domain=:holographic)) == 1   # BekensteinEntropyBound — the one non-quantum universal bound
     @test length(all_relations(; domain=:ensemble)) == 2
     @test length(all_relations(; domain=:fluctuation)) == 3
     @test length(all_relations(; domain=:entanglement)) == 25
