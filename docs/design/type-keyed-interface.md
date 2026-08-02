@@ -341,6 +341,51 @@ Recommended order: **8a first** (self-contained, immediately useful for the
 positivity / single-tensor-quantity relations, no `where` machinery), then 8b + the
 Region epic together.
 
+### 8c — abstract GROUP slots, under an explicit quantifier (LANDED)
+
+§8a's rule for a parametric family — *match every concrete component present in
+the bag* — is safe **because a family's components are one quantity at different
+indices**. A law written on `Susceptibility` is component-agnostic by
+construction; there is no way to write one that holds for `χ_xx` but not `χ_zz`.
+
+An abstract **group** (`AbstractGap`, or a downstream
+`AbstractTightBindingQuantity`) is different in kind: its members are *different
+quantities*. Both readings are wanted, and they are not interchangeable:
+
+| declaration | reading | report |
+|---|---|---|
+| `g::EachOf{AbstractGap}` | the law holds for every gap (`Δ ≥ 0`) | one row per member |
+| `g::AnyOf{AbstractGap}` | the law is about ONE gap (`ξ = 1/Δ`) | not auto-instantiated |
+
+**Measured, on a prototype that simply widened `_is_family` to accept abstract
+DataTypes:** `AbstractGap ≥ 0` behaves correctly (three gaps, the negative one
+caught), but `g·ξ = 1` on a bag of `MassGap = 0.5`, `ChargeGap = 2.0`,
+`SpinGap = 4.0` with `ξ = 2.0` reports **ChargeGap and SpinGap as VIOLATED** —
+two false violations, produced purely by sharing a supertype with the gap the
+law was about. That is the whole reason the quantifier is explicit rather than
+inferred.
+
+So a **bare** abstract slot is rejected at declaration, with a message naming
+both wrappers. The mechanics are otherwise unchanged: `_bag_components` already
+matched by `<:` and needed nothing, and `_slot_group` unwraps the quantifier for
+it.
+
+`AnyOf` is deliberately **not auto-discoverable** — `applicable_relations` and
+`relation_report` skip it, because the engine cannot know which member a
+one-member law is about. To keep that from being a silent omission,
+[`ambiguous_relations`](@ref) lists exactly those relations whose every slot is
+fillable except for an unresolved `AnyOf` group. The two queries are disjoint by
+construction, and the gap is a list rather than an absence.
+
+`quantities` unwraps the quantifier to the group, so
+`relations_constraining(MassGap)` finds a relation declared on
+`EachOf{AbstractGap}` — which is what makes a downstream group first-class in
+the network (design §6). `solve`/`derive` are unchanged: targets stay concrete,
+and a generic slot is not solvable through, exactly as for a family slot.
+
+Not addressed here: two generic slots in one relation still need §8b's
+cross-slot unification and are still rejected.
+
 ## 9. Status of the in-flight symbol-based work
 
 PR #78 (the symbol-based D1: complex `SpectralFromGreens`, `Dyson` `:G → :GR`
