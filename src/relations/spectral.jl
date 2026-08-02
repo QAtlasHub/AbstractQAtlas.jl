@@ -178,6 +178,30 @@ Variables: `ξ`, `v`, `Δ`.
     ξ - v / Δ
 
 """
+    MassGapPositivity <: AbstractInequality
+
+The spectral gap is non-negative,
+
+`Δ ≥ 0`
+
+(slack `Δ`), because `Δ = E₁ − E₀` and `E₀` is by definition the lowest level —
+so this is airtight rather than a modelling assumption.  Saturated by any
+gapless phase.  A measured `Δ < 0` means the reported "ground state" was not the
+ground state: the variational state is above a level the solver missed, or two
+levels were ordered wrongly.
+
+Stated on [`MassGap`](@ref) alone, NOT on the [`AbstractGap`](@ref) group.  The
+sector-resolved gaps do not share it: [`SpinGap`](@ref) `= E₀(Sᶻ=1) − E₀(Sᶻ=0)`
+is negative whenever the ground state is polarised (a ferromagnet), and
+[`ChargeGap`](@ref) `= E₀(N+1) + E₀(N−1) − 2E₀(N)` is negative where `E₀(N)` is
+concave (phase separation).  Both are excitation energies only when the
+reference sector holds the ground state, which is a statement about the model.
+
+Variables: `Δ`.
+"""
+@bound :spectral MassGapPositivity(Δ::MassGap >= 0)
+
+"""
     KramersKronigReal <: AbstractRelation
 
 The Kramers–Kronig relation fixing the **real** part of a causal
