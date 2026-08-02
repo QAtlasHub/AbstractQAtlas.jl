@@ -228,7 +228,7 @@ Variables: `S`, `dT`, `V`, `dp`, `N`, `dμ`.
     S::ThermalEntropy, dT, V::Volume, dp, N::ParticleNumber, dμ
 ) = S * dT - V * dp + N * dμ
 
-# ─── Thermodynamic stability (convexity ⇒ ≥ 0; @inequality) ─────────────
+# ─── Thermodynamic stability (convexity ⇒ ≥ 0; @bound) ──────────────────
 
 """
     SpecificHeatPositivity <: AbstractInequality
@@ -243,7 +243,7 @@ a broken simulation.
 
 Variables: `Cv`.
 """
-@inequality :thermodynamic SpecificHeatPositivity(Cv::SpecificHeat) = Cv
+@bound :thermodynamic SpecificHeatPositivity(Cv::SpecificHeat >= 0)
 
 """
     CompressibilityPositivity <: AbstractInequality
@@ -256,7 +256,7 @@ Mechanical stability: the isothermal compressibility is non-negative,
 
 Variables: `κT`.
 """
-@inequality :thermodynamic CompressibilityPositivity(κT::IsothermalCompressibility) = κT
+@bound :thermodynamic CompressibilityPositivity(κT::IsothermalCompressibility >= 0)
 
 """
     SusceptibilityPositivity <: AbstractInequality
@@ -274,4 +274,4 @@ Variables: `χT`.
 # Family-generic (§8a): keyed on the bare `Susceptibility` family, so the verify-
 # engine auto-checks EVERY susceptibility component present in a bag (χ_xx, χ_zz, …)
 # — a bag with a negative component is caught, whichever component it is.
-@inequality :thermodynamic SusceptibilityPositivity(χT::Susceptibility) = χT
+@bound :thermodynamic SusceptibilityPositivity(χT::Susceptibility >= 0)

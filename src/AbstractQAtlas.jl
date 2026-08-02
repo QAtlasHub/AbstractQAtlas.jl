@@ -78,7 +78,7 @@ include("structure/keldysh.jl")
 include("structure/fourier.jl")
 
 # relations — the CORE relation machinery (the AbstractFFTs-like interface:
-# the @relation / @inequality macros, residual/check/solve/slack, the
+# the @relation / @bound macros, residual/check/solve/slack, the
 # registry, relation_report/applicable_relations) lives in the parent…
 include("relations/interface.jl")
 

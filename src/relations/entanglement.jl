@@ -55,7 +55,7 @@ function page_average_entropy(dA::Integer, dB::Integer)
 end
 export page_average_entropy
 
-# ─── Entropy / quantum-information inequalities (≥ 0 slack; @inequality) ──
+# ─── Entropy / quantum-information bounds (≥ 0 slack; @bound) ───────────
 #
 # The bound-type constraints a many-body entanglement calculation must
 # satisfy — the first users of the AbstractInequality kind.  Each holds
@@ -70,7 +70,7 @@ The von Neumann / Rényi entanglement entropy is non-negative, `S ≥ 0`
 
 Variables: `S`.
 """
-@inequality :entanglement EntropyNonNegativity(S) = S
+@bound :entanglement EntropyNonNegativity(S >= 0)
 
 """
     MaxEntropyBound <: AbstractInequality
@@ -81,7 +81,7 @@ mixed state; the gap `ln d − S` is the maximal-entanglement deficit.
 
 Variables: `S`, `log_d` = `ln d`.
 """
-@inequality :entanglement MaxEntropyBound(S, log_d) = log_d - S
+@bound :entanglement MaxEntropyBound(S <= log_d)
 
 """
     Subadditivity <: AbstractInequality
@@ -93,7 +93,7 @@ Subadditivity of the von Neumann entropy, `S(AB) ≤ S(A) + S(B)` (slack
 
 Variables: `S_A`, `S_B`, `S_AB`.
 """
-@inequality :entanglement Subadditivity(S_A, S_B, S_AB) = S_A + S_B - S_AB
+@bound :entanglement Subadditivity(S_A, S_B, S_AB) = S_AB <= S_A + S_B
 
 """
     ArakiLieb <: AbstractInequality
@@ -105,7 +105,7 @@ subsystem purifies the other.
 
 Variables: `S_AB`, `S_A`, `S_B`.
 """
-@inequality :entanglement ArakiLieb(S_AB, S_A, S_B) = S_AB - abs(S_A - S_B)
+@bound :entanglement ArakiLieb(S_AB, S_A, S_B) = S_AB >= abs(S_A - S_B)
 
 """
     StrongSubadditivity <: AbstractInequality
@@ -118,8 +118,8 @@ monogamy backbone of quantum information.
 
 Variables: `S_AB`, `S_BC`, `S_ABC`, `S_B`.
 """
-@inequality :entanglement StrongSubadditivity(S_AB, S_BC, S_ABC, S_B) =
-    S_AB + S_BC - S_ABC - S_B
+@bound :entanglement StrongSubadditivity(S_AB, S_BC, S_ABC, S_B) =
+    S_ABC + S_B <= S_AB + S_BC
 
 """
     WeakMonotonicity <: AbstractInequality
@@ -133,7 +133,7 @@ less than SSA — no full-system `S(ABC)` — so it is checkable from partial da
 
 Variables: `S_AB`, `S_BC`, `S_A`, `S_C`.
 """
-@inequality :entanglement WeakMonotonicity(S_AB, S_BC, S_A, S_C) = S_AB + S_BC - S_A - S_C
+@bound :entanglement WeakMonotonicity(S_AB, S_BC, S_A, S_C) = S_A + S_C <= S_AB + S_BC
 
 """
     RenyiMonotonicity <: AbstractInequality
@@ -142,9 +142,10 @@ The Rényi entropy `S_α` is non-increasing in the order `α`: for
 `α_low < α_high`, `S_{α_low} ≥ S_{α_high}` (slack `S_low − S_high`).  In
 particular `S_0 ≥ S_1 (von Neumann) ≥ S_2 ≥ … ≥ S_∞`.
 
-Variables: `S_low` = `S_{α_low}`, `S_high` = `S_{α_high}` (with `α_low < α_high`).
+Variables: `S_high` = `S_{α_high}` (the bounded one), `S_low` = `S_{α_low}`
+(with `α_low < α_high`).
 """
-@inequality :entanglement RenyiMonotonicity(S_low, S_high) = S_low - S_high
+@bound :entanglement RenyiMonotonicity(S_high <= S_low)
 
 # ─── The entropy zoo: Rényi / Tsallis / mutual / conditional / relative ──
 #
@@ -217,7 +218,7 @@ subadditivity and the second law (Lindblad, [Lindblad1975](@cite); Vedral, [Vedr
 
 Variables: `S_rel` = `S(ρ‖σ)`.
 """
-@inequality :entanglement RelativeEntropyNonNegativity(S_rel) = S_rel
+@bound :entanglement RelativeEntropyNonNegativity(S_rel >= 0)
 
 # ─── Entropy of mixing: concavity + the Holevo upper bound ───────────────
 #
@@ -237,9 +238,10 @@ Concavity of the von Neumann entropy — mixing states cannot decrease the entro
 (slack `S_mix − S_avg`; Wehrl, [Wehrl1978](@cite)).  Saturated when every
 `ρᵢ` with `pᵢ > 0` is the same state.
 
-Variables: `S_mix` = `S(Σᵢ pᵢ ρᵢ)`, `S_avg` = the caller-supplied `Σᵢ pᵢ S(ρᵢ)`.
+Variables: `S_avg` = the caller-supplied `Σᵢ pᵢ S(ρᵢ)` (the bounded one),
+`S_mix` = `S(Σᵢ pᵢ ρᵢ)`.
 """
-@inequality :entanglement EntropyMixingConcavity(S_mix, S_avg) = S_mix - S_avg
+@bound :entanglement EntropyMixingConcavity(S_avg <= S_mix)
 
 """
     HolevoMixingBound <: AbstractInequality
@@ -255,8 +257,7 @@ when the `ρᵢ` have mutually orthogonal support; the gap `S_mix − S_avg` is 
 
 Variables: `S_avg` = `Σᵢ pᵢ S(ρᵢ)`, `H_weights` = `H(p)`, `S_mix` = `S(Σᵢ pᵢ ρᵢ)`.
 """
-@inequality :entanglement HolevoMixingBound(S_avg, H_weights, S_mix) =
-    S_avg + H_weights - S_mix
+@bound :entanglement HolevoMixingBound(S_avg, H_weights, S_mix) = S_mix <= S_avg + H_weights
 
 # ─── Measurement and quantum-Markov entropies ───────────────────────────
 
@@ -270,9 +271,9 @@ A projective measurement (dephasing) does not decrease the entropy,
 (slack `S_meas − S`; [`MeasurementEntropy`](@ref)).  Saturated iff `ρ` is
 already diagonal in the measurement basis (`Δρ = ρ`).
 
-Variables: `S_meas` = `S(Δρ)`, `S` = `S(ρ)`.
+Variables: `S` = `S(ρ)` (the bounded one), `S_meas` = `S(Δρ)`.
 """
-@inequality :entanglement MeasurementEntropyIncrease(S_meas, S) = S_meas - S
+@bound :entanglement MeasurementEntropyIncrease(S <= S_meas)
 
 """
     MeasurementEntropyRelative <: AbstractRelation
@@ -400,7 +401,7 @@ Entanglement cannot be freely shared.
 
 Variables: `τ_ABC`, `τ_AB`, `τ_AC`.
 """
-@inequality :entanglement Monogamy(τ_ABC, τ_AB, τ_AC) = τ_ABC - τ_AB - τ_AC
+@bound :entanglement Monogamy(τ_ABC, τ_AB, τ_AC) = τ_ABC >= τ_AB + τ_AC
 
 """
     ThreeTangleDefinition <: AbstractRelation

@@ -126,6 +126,58 @@ function _auto_quantities(types::Tuple)
 end
 
 """
+    bounded_slot(rel::AbstractRelation) -> Union{Nothing,Symbol}
+
+The variable a bound constrains — its **subject**, the quantity being bounded.
+`nothing` for an equality, and for a bound whose bounded side is an expression
+rather than a single declared variable (`S_ABC + S_B ≤ S_AB + S_BC` bounds no
+one variable).  Filled in by [`@bound`](@ref) from the left of the declared
+comparison.  See [`bounding_slot`](@ref), [`bound_direction`](@ref).
+"""
+bounded_slot(::AbstractRelation) = nothing
+export bounded_slot
+
+"""
+    bounding_slot(rel::AbstractRelation) -> Union{Nothing,Symbol}
+
+The variable that DOES the bounding — the right of the declared comparison, when
+that side is a single declared variable.  `nothing` when the bound is a constant
+(see [`bounding_constant`](@ref)) or an expression, and for every equality.
+
+Together with [`bounded_slot`](@ref) this is what makes "*what bounds this?*"
+a machine question: the roles are declared, not inferred from the sign of a
+slack expression.
+"""
+bounding_slot(::AbstractRelation) = nothing
+export bounding_slot
+
+"""
+    bounding_constant(rel::AbstractRelation) -> Union{Nothing,Number}
+
+The literal on the bounding side, for a bound stated against a constant
+(`C ≥ 0` → `0`; `kFℓ ≥ 1` → `1`).  `nothing` when the bounding side is a
+variable or an expression.
+"""
+bounding_constant(::AbstractRelation) = nothing
+export bounding_constant
+
+"""
+    bound_direction(rel::AbstractRelation) -> Union{Nothing,Symbol}
+
+Which way the bound constrains its subject:
+
+- `:upper` — declared `bounded ≤ bounding` (the subject is bounded from above),
+- `:lower` — declared `bounded ≥ bounding`,
+- `:slack` — declared in the bare slack form, where no direction was stated,
+- `nothing` — not a bound at all (an equality relation).
+
+Declared, so a consumer's own `direction` field can be checked against the
+statement instead of maintained beside it.
+"""
+bound_direction(::AbstractRelation) = nothing
+export bound_direction
+
+"""
     also_constrains(rel::AbstractRelation) -> Tuple{Vararg{Type}}
 
 Extra quantity TYPES a relation constrains that do NOT appear as a typed identity
@@ -246,6 +298,27 @@ tight bound (e.g. `solve(Subadditivity(), Val(:S_AB))` gives the maximum
 abstract type AbstractInequality <: AbstractRelation end
 export AbstractInequality
 
+# A slack that came back `Bool` means the declaration stated a COMPARISON where a
+# slack expression was expected, so the kernel evaluated the comparison instead of
+# measuring it.  `true ≥ -atol` and `false ≥ -atol` are both `true`, so the bound
+# would pass on every input, violation included — the failure mode is total silence.
+# Caught at the one place every verb funnels through.
+function _reject_bool_slack(rel::AbstractInequality, r)
+    r isa Bool && error(
+        "$(nameof(typeof(rel))): its slack kernel returned a Bool, so `slack ≥ -atol` " *
+        "would hold for every input, violations included. The declaration states a " *
+        "comparison in the bare-slack position — use @bound's comparison form " *
+        "`Name(a <= b)` or statement form `Name(vars...) = a <= b`.",
+    )
+    return r
+end
+
+function residual(rel::AbstractInequality; kwargs...)
+    return _reject_bool_slack(
+        rel, _residual(rel; _normalize_kwargs(rel, values(kwargs))...)
+    )
+end
+
 # an inequality holds when its slack is non-negative (float noise: ≥ −atol)
 check(rel::AbstractInequality; atol=0, kwargs...) = residual(rel; kwargs...) >= -atol
 
@@ -317,10 +390,11 @@ end
 
 # ─── The declaration macros ─────────────────────────────────────────────
 
-# Shared code generation for `@relation` (equality) and `@inequality`
-# (≥ 0 slack).  `super` is the supertype the generated struct subtypes,
-# `what` names the macro for error messages.
-function _build_relation(dom, defn, super::Symbol, what::String)
+# Shared code generation for `@relation` (equality) and `@bound` (≥ 0 slack).
+# `super` is the supertype the generated struct subtypes, `what` names the macro
+# for error messages, and `roles` is the bound's declared
+# (bounded, bounding, constant, direction) metadata — `nothing` for an equality.
+function _build_relation(dom, defn, super::Symbol, what::String; roles=nothing)
     Meta.isexpr(defn, :(=), 2) || error("$what expects `Name(vars...) = expr`, got $defn")
     call, body = defn.args
     Meta.isexpr(call, :call) || error("$what: left side must be a call, got $call")
@@ -392,6 +466,20 @@ function _build_relation(dom, defn, super::Symbol, what::String)
     end
     domval = QuoteNode(dom isa QuoteNode ? dom.value : dom)
     supertype = :(AbstractQAtlas.$super)
+    # `@bound`'s declared roles: who is bounded, by what, in which direction.
+    # An equality passes `roles = nothing` and keeps the `nothing` defaults.
+    role_methods = if roles === nothing
+        nothing
+    else
+        bd, bg, bc, dir = roles
+        Expr(
+            :block,
+            :(AbstractQAtlas.bounded_slot(::$ename) = $(QuoteNode(bd))),
+            :(AbstractQAtlas.bounding_slot(::$ename) = $(QuoteNode(bg))),
+            :(AbstractQAtlas.bounding_constant(::$ename) = $bc),
+            :(AbstractQAtlas.bound_direction(::$ename) = $(QuoteNode(dir))),
+        )
+    end
     return quote
         Core.@__doc__ struct $ename <: $supertype end
         $kernel
@@ -400,7 +488,9 @@ function _build_relation(dom, defn, super::Symbol, what::String)
         AbstractQAtlas.variable_types(::$ename) = $types_tuple
         AbstractQAtlas.domain(::$ename) = $domval
         $quantities_method
+        $role_methods
         AbstractQAtlas._validate_relation($ename())   # load-time: concrete + distinct slots
+        AbstractQAtlas._validate_bound_roles($ename())   # load-time: roles name real slots
         push!(AbstractQAtlas._RELATION_REGISTRY, $ename())
         $(Expr(:export, name))
         $ename
@@ -481,22 +571,255 @@ macro relation(dom, defn)
 end
 export var"@relation"
 
-"""
-    @inequality :domain Name(x, y, z, opt=default) = expr
+# ─── @bound: parsing the three declaration forms ────────────────────────
+#
+# The comparison operators a bound may be stated with, and the slack each
+# implies.  `bounded ≤ bounding` has slack `bounding − bounded`; `≥` is the
+# mirror.  `<`/`>` are deliberately absent: every criterion here is `slack ≥
+# −atol`, so a strict inequality would be declared and then checked non-strictly
+# — a silent weakening.  State the non-strict form.
+const _BOUND_OPS = (:<=, :≤, :>=, :≥)
+const _STRICT_OPS = (:<, :>)
+_bound_direction_of(op::Symbol) = op in (:<=, :≤) ? :upper : :lower
 
-Declare an INEQUALITY relation, `expr ≥ 0`.  Identical to
-[`@relation`](@ref) but the generated struct subtypes
-[`AbstractInequality`](@ref): `residual` returns the slack `expr`,
-`check` tests `expr ≥ −atol`, and `solve` returns the saturation value.
+function _is_comparison(ex, ops)
+    return Meta.isexpr(ex, :call, 3) && ex.args[1] isa Symbol && ex.args[1] in ops
+end
+_is_bound_comparison(ex) = _is_comparison(_unwrap_body(ex), _BOUND_OPS)
+
+# `Name(vars...) = body` reaches a macro with `body` wrapped in a `:block` that
+# carries a LineNumberNode.  Comparison detection must see THROUGH that wrapper:
+# an un-unwrapped `a >= b` reads as an ordinary slack expression, the kernel then
+# returns a Bool, and `slack ≥ -atol` is `true ≥ -atol` — a bound that can never
+# fail.  (`@relation` never had to care: any expression is a valid residual.)
+function _unwrap_body(ex)
+    Meta.isexpr(ex, :block) || return ex
+    inner = filter(a -> !(a isa LineNumberNode), ex.args)
+    return length(inner) == 1 ? inner[1] : ex
+end
+
+function _reject_strict(ex)
+    return _is_comparison(ex, _STRICT_OPS) && error(
+        "@bound: `$(ex.args[1])` is strict, but the criterion is `slack ≥ -atol`, so a " *
+        "strict declaration would be checked non-strictly — declare the non-strict form.",
+    )
+end
+
+# One side of a declared comparison, classified:
+#   (:slot, :name, TypeExpr|nothing)  a variable, optionally identity-typed
+#   (:const, value, nothing)          a numeric literal
+#   (:expr,  ex,    nothing)          anything else
+function _bound_side(ex)
+    ex isa Symbol && return (:slot, ex, nothing)
+    ex isa Number && return (:const, ex, nothing)
+    if Meta.isexpr(ex, :(::), 2) && ex.args[1] isa Symbol
+        return (:slot, ex.args[1], ex.args[2])
+    end
+    return (:expr, ex, nothing)
+end
+
+# Rebuild a declared side as a parameter for the generated call signature —
+# `x::T` keeps its key, a bare `x` stays bare.
+_bound_param(sym, ty) = ty === nothing ? sym : Expr(:(::), sym, ty)
+
+# The slack expression for `lhs op rhs`, written on the SYMBOLS (the kernel body
+# sees plain variables, never the `::Type` key).  A literal `0` on the bounding
+# side collapses to the bare subject so `slack(EntropyNonNegativity(); S) === S`
+# exactly, preserving the exact-arithmetic contract with no `- 0` round trip.
+function _bound_slack(lhs, rhs, op::Symbol)
+    upper = op in (:<=, :≤)
+    hi, lo = upper ? (rhs, lhs) : (lhs, rhs)
+    lo isa Number && iszero(lo) && return hi
+    hi isa Number && iszero(hi) && return :(-$lo)
+    return :($hi - $lo)
+end
+
+# `@bound :dom Name(a OP b, opts...)` — the comparison IS a parameter.  Returns
+# the equivalent `Name(params...) = slack` plus the declared roles, or `nothing`
+# if no parameter is a comparison (then it is not this form).
+function _parse_bound_call(call)
+    idx = findall(_is_bound_comparison, call.args[2:end])
+    isempty(idx) && return nothing
+    length(idx) == 1 || error(
+        "@bound: $(call.args[1]) states $(length(idx)) comparisons — a bound is ONE " *
+        "statement; declare the others as separate bounds.",
+    )
+    i = idx[1] + 1
+    cmp = call.args[i]
+    op = cmp.args[1]
+    (lk, lv, lt) = _bound_side(cmp.args[2])
+    (rk, rv, rt) = _bound_side(cmp.args[3])
+    nm = call.args[1]
+    lk === :expr && error(
+        "@bound $nm: the bounded side `$(cmp.args[2])` is an expression, so its " *
+        "variables are undeclared — use the statement form " *
+        "`$nm(vars...) = $(cmp.args[2]) $op $(cmp.args[3])`.",
+    )
+    rk === :expr && error(
+        "@bound $nm: the bounding side `$(cmp.args[3])` is an expression, so its " *
+        "variables are undeclared — use the statement form " *
+        "`$nm(vars...) = $(cmp.args[2]) $op $(cmp.args[3])`.",
+    )
+    lk === :const && error(
+        "@bound $nm: the BOUNDED quantity goes on the left — `$(cmp.args[2])` is a " *
+        "constant.  Write the subject first and flip the operator.",
+    )
+    # the comparison's slots take the comparison's position in the signature, in
+    # written order, so `variables` reads left-to-right off the declaration
+    params = copy(call.args[2:end])
+    newparams = Any[_bound_param(lv, lt)]
+    rk === :slot && push!(newparams, _bound_param(rv, rt))
+    splice!(params, i - 1, newparams)
+    newcall = Expr(:call, nm, params...)
+    slack = _bound_slack(lv, rv, op)
+    roles = (
+        lv,
+        rk === :slot ? rv : nothing,
+        rk === :const ? rv : nothing,
+        _bound_direction_of(op),
+    )
+    return (newcall, slack, roles)
+end
+
+# `@bound :dom Name(vars...) = lhs OP rhs` — the STATEMENT form: slots are
+# declared normally and the body is a comparison over them (either side may be
+# an expression).  A role is recorded only for a side that is exactly one
+# declared variable; an expression side leaves it `nothing`, which is honest —
+# `S_ABC + S_B ≤ S_AB + S_BC` has no single subject.
+function _parse_bound_statement(call, body)
+    op = body.args[1]
+    (lk, lv, _) = _bound_side(body.args[2])
+    (rk, rv, _) = _bound_side(body.args[3])
+    declared = Set{Symbol}()
+    for p in call.args[2:end]
+        if p isa Symbol
+            push!(declared, p)
+        elseif Meta.isexpr(p, :(::), 2) && p.args[1] isa Symbol
+            push!(declared, p.args[1])
+        end
+    end
+    bounded = (lk === :slot && lv in declared) ? lv : nothing
+    bounding = (rk === :slot && rv in declared) ? rv : nothing
+    constant = rk === :const ? rv : nothing
+    slack = _bound_slack(body.args[2], body.args[3], op)
+    return (call, slack, (bounded, bounding, constant, _bound_direction_of(op)))
+end
+
+# A declared role must name a REQUIRED variable of the relation — otherwise the
+# metadata points at nothing and every consumer reading it is silently wrong.
+function _validate_bound_roles(rel::AbstractRelation)
+    vs = variables(rel)
+    nm = nameof(typeof(rel))
+    for (what, s) in ((:bounded, bounded_slot(rel)), (:bounding, bounding_slot(rel)))
+        s === nothing && continue
+        s in vs || error("@bound $nm: $what slot :$s is not one of its variables $vs")
+    end
+    return nothing
+end
+
+"""
+    @bound :domain Name(bounded OP bounding)              # comparison form
+    @bound :domain Name(x, y, z, opt=default) = x OP expr # statement form
+    @bound :domain Name(x, y, z, opt=default) = slack     # bare-slack form
+
+Declare a BOUND — a relation asserting an inequality rather than an equality.
+The generated struct subtypes [`AbstractInequality`](@ref): [`residual`](@ref)
+returns the slack in `≥ 0` form, [`check`](@ref) tests `slack ≥ −atol`, and
+[`solve`](@ref) returns the **saturation** value.  Everything [`@relation`](@ref)
+generates (kernel, `variables`, `variable_slots`, `domain`, auto-`quantities`,
+registry insertion, export) is generated here too.
+
+`OP` is `<=`/`≤` or `>=`/`≥`, and the **bounded quantity is written first** —
+the statement reads as a sentence about its subject.  Strict `<`/`>` are
+rejected: the criterion is `slack ≥ −atol`, so a strict declaration would be
+checked non-strictly.
+
+The first two forms additionally record the roles — [`bounded_slot`](@ref),
+[`bounding_slot`](@ref), [`bounding_constant`](@ref), [`bound_direction`](@ref)
+— so "*what bounds this, and from which side?*" is answerable from the
+declaration instead of being re-derived from the sign of a slack expression, or
+maintained a second time in a consumer's own `direction` field.
 
 ```julia
-@inequality :entanglement Subadditivity(S_A, S_B, S_AB) = S_A + S_B - S_AB
+@bound :thermodynamic SpecificHeatPositivity(C::SpecificHeat >= 0)
+@bound :quantum LiebRobinsonBound(v <= v_LR::LiebRobinsonVelocity)
+@bound :entanglement Subadditivity(S_A, S_B, S_AB) = S_AB <= S_A + S_B
+@bound :entanglement Monogamy(τ_ABC, τ_AB, τ_AC) = τ_ABC - τ_AB - τ_AC
+```
+
+In the comparison form the **bounded side may be an untyped slot** while the
+bounding side carries the quantity type (`@bound :quantum Tsirelson(S <=
+S_max::CHSHBound)`).  That is what lets a bound be stated — and its bounding
+value fetched — before any quantity type names the bounded observable.
+"""
+macro bound(dom, defn)
+    if Meta.isexpr(defn, :call)
+        # comparison form: `Name(a OP b, …)`
+        foreach(_reject_strict, defn.args[2:end])
+        parsed = _parse_bound_call(defn)
+        parsed === nothing && error(
+            "@bound expects `Name(bounded OP bounding)` or `Name(vars...) = …`, " *
+            "got $defn",
+        )
+        call, slack, roles = parsed
+        return _build_relation(
+            dom, Expr(:(=), call, slack), :AbstractInequality, "@bound"; roles=roles
+        )
+    end
+    Meta.isexpr(defn, :(=), 2) || error(
+        "@bound expects `Name(bounded OP bounding)` or `Name(vars...) = …`, got $defn"
+    )
+    call, body = defn.args
+    Meta.isexpr(call, :call) || error("@bound: left side must be a call, got $call")
+    body = _unwrap_body(body)
+    _reject_strict(body)
+    if _is_bound_comparison(body)
+        # statement form: `Name(vars...) = lhs OP rhs`
+        call2, slack, roles = _parse_bound_statement(call, body)
+        return _build_relation(
+            dom, Expr(:(=), call2, slack), :AbstractInequality, "@bound"; roles=roles
+        )
+    end
+    # bare-slack form: the body IS the `≥ 0` slack, no direction stated
+    return _build_relation(
+        dom,
+        Expr(:(=), call, body),
+        :AbstractInequality,
+        "@bound";
+        roles=(nothing, nothing, nothing, :slack),
+    )
+end
+export var"@bound"
+
+"""
+    bounds_on(q) -> Vector{AbstractInequality}
+
+Every registered bound whose **subject** is the quantity `q` — the answer to
+"*what bounds this?*".  Matches on the identity type of [`bounded_slot`](@ref),
+so a concrete component is found by a bound declared on its family.  Accepts a
+quantity instance or its type.
+
+The complement of [`relations_constraining`](@ref), which is role-blind: a
+bound's *bounding* quantity (`LiebRobinsonVelocity`) is constrained by it too,
+but is not the thing being bounded.
+
+```julia
+bounds_on(SpecificHeat)   # [SpecificHeatPositivity()]
 ```
 """
-macro inequality(dom, defn)
-    return _build_relation(dom, defn, :AbstractInequality, "@inequality")
+bounds_on(q::AbstractQuantity) = bounds_on(typeof(q))
+function bounds_on(::Type{Q}) where {Q<:AbstractQuantity}
+    return filter(_RELATION_REGISTRY) do r
+        r isa AbstractInequality || return false
+        s = bounded_slot(r)
+        s === nothing && return false
+        for (sym, key) in variable_slots(r)
+            sym === s && return key !== nothing && Q <: key
+        end
+        return false
+    end
 end
-export var"@inequality"
+export bounds_on
 
 # ─── Adoption surface: one-call verification over a data set ────────────
 
