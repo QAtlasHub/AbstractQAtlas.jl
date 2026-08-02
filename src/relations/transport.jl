@@ -327,4 +327,4 @@ of Boltzmann quasiparticle transport (the "bad-metal" regime).
 
 Variables: `kFℓ` = `k_F ℓ`.
 """
-@inequality :transport IoffeRegel(kFℓ) = kFℓ - 1
+@bound :transport IoffeRegel(kFℓ >= 1)

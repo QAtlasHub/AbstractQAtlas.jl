@@ -198,7 +198,7 @@ others). The core stays lattice-free and ND-ready regardless of `LatticeCore`'s
 2. Define the `RelationVariable` layer: reuse `AbstractQuantity` /
    `AbstractField`; add `AbstractCoordinate`, `AbstractExponent`. Design the
    variable key as `(type, support)` with `support = global` default (R1).
-3. Rebuild `@relation` / `@inequality` to take **typed** variables, keeping the
+3. Rebuild `@relation` / `@bound` to take **typed** variables, keeping the
    residual kernels verbatim and auto-generating `quantities(rel)`. Keep the
    identity/supplied split (R3).
 4. Rebuild `residual` / `check` / `solve` over type keys (preserve exact

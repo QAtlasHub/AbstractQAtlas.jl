@@ -96,7 +96,7 @@ squeezed) state.
 
 Variables: `ΔA`, `ΔB`, `comm` = `⟨[A, B]⟩`.
 """
-@inequality :quantum RobertsonUncertainty(ΔA, ΔB, comm) = ΔA * ΔB - abs(comm) / 2
+@bound :quantum RobertsonUncertainty(ΔA, ΔB, comm) = ΔA * ΔB >= abs(comm) / 2
 
 """
     LiebRobinsonBound <: AbstractInequality
@@ -119,7 +119,7 @@ atlases have the bound, not the measurement.
 
 Variables: `v`, `v_LR`.
 """
-@inequality :quantum LiebRobinsonBound(v, v_LR::LiebRobinsonVelocity) = v_LR - v
+@bound :quantum LiebRobinsonBound(v <= v_LR::LiebRobinsonVelocity)
 
 # ─── Quantum speed limits: the minimal time to an orthogonal state ───────
 
@@ -137,7 +137,7 @@ one faster than its energy spread allows.
 
 Variables: `τ` = orthogonalization time, `ΔE` = energy uncertainty.
 """
-@inequality :quantum MandelstamTammBound(τ, ΔE) = τ - π / (2 * ΔE)
+@bound :quantum MandelstamTammBound(τ, ΔE) = τ >= π / (2 * ΔE)
 
 """
     MargolusLevitinBound <: AbstractInequality
@@ -155,7 +155,7 @@ bounded below by the mean energy above the ground state (Margolus & Levitin,
 Variables: `τ` = orthogonalization time, `E_above` = `E − E₀` (mean energy above the
 ground state).
 """
-@inequality :quantum MargolusLevitinBound(τ, E_above) = τ - π / (2 * E_above)
+@bound :quantum MargolusLevitinBound(τ, E_above) = τ >= π / (2 * E_above)
 
 """
     LoschmidtRate <: AbstractRelation

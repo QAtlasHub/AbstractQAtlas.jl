@@ -10,7 +10,7 @@
 # aspirational form; the enforced minimum is per-file, matching the established
 # header-"References:" convention (e.g. scaling.jl).
 #
-# `interface.jl` is exempt: it DEFINES the @relation/@inequality macros, and its
+# `interface.jl` is exempt: it DEFINES the @relation/@bound macros, and its
 # `@relation :scaling Rushbrooke(...)` lines are docstring EXAMPLES (the real
 # Rushbrooke is declared in scaling.jl), not registered relations.
 
@@ -20,7 +20,7 @@ using Test
 const _RELATIONS_DIR = joinpath(pkgdir(AbstractQAtlas), "src", "relations")
 const _CITE_EXEMPT = ("interface.jl",)   # macro-definition home (its @relation lines are doc examples)
 
-_declares_relation(src) = occursin(r"@(relation|inequality)\s+:", src)
+_declares_relation(src) = occursin(r"@(relation|bound)\s+:", src)
 _has_citation(src) = occursin("(@cite)", src) || occursin(r"\((1[89]\d\d|20\d\d)\)", src)
 
 @testset "every relations file cites its sources (core-functions.md pillar 3)" begin

@@ -24,7 +24,7 @@ The package exports ~90 names. They fall into two layers, and only the first is
 The core is exactly three surfaces:
 
 ```
-A. the RELATION        @relation/@inequality  ·  residual/check/solve/slack  ·  introspection
+A. the RELATION        @relation/@bound       ·  residual/check/solve/slack  ·  introspection
 B. ADOPTION            bag  →  applicable_relations / relation_report / check_all
 C. the SEAMS           fetch · report · principal_value_hilbert/spectral_moment · thermal_derivative · derive
                        ("interface here, values / numerics / derivations there")
@@ -145,7 +145,7 @@ the `never-fabricate-citations` rule).
 
 **Established contract.**
 
-- **Every `@relation`/`@inequality` docstring carries a reference**, in one of
+- **Every `@relation`/`@bound` docstring carries a reference**, in one of
   two forms:
   - **`[key](@cite)`** to a `docs/references.bib` entry, for any result with a
     DOI or arXiv id. The entry is **doiget-verified** before it is added.

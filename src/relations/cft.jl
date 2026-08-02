@@ -69,6 +69,6 @@ from the ultraviolet to the infrared fixed point,
 (slack `c_UV − c_IR`).  Irreversibility of RG flow — `c` counts the
 massless degrees of freedom, which can only be integrated out.
 
-Variables: `c_UV`, `c_IR`.
+Variables: `c_IR` (the bounded one), `c_UV`.
 """
-@inequality :cft CTheorem(c_UV, c_IR) = c_UV - c_IR
+@bound :cft CTheorem(c_IR <= c_UV)

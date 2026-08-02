@@ -40,9 +40,9 @@ on the system cannot be less than the free-energy difference,
 (slack `W_avg − ΔF` = the dissipated work `W_diss ≥ 0`).  Saturated by a quasistatic
 (reversible) protocol; a strictly positive slack measures irreversibility.
 
-Variables: `W_avg` = `⟨W⟩`, `ΔF`.
+Variables: `ΔF` (the bounded one), `W_avg` = `⟨W⟩`.
 """
-@inequality :fluctuation JarzynskiSecondLaw(W_avg, ΔF) = W_avg - ΔF
+@bound :fluctuation JarzynskiSecondLaw(ΔF <= W_avg)
 
 """
     CrooksFluctuationTheorem <: AbstractRelation
