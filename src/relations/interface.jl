@@ -122,7 +122,11 @@ export variable_types
 # and de-duplicated — a relation with two components of one family (HallAngle's
 # `σxy`, `σxx`) constrains that family once — for the auto-derived `quantities`.
 function _auto_quantities(types::Tuple)
-    return Tuple(unique(_family(T) for T in types if T <: AbstractQuantity))
+    # A quantified slot (`EachOf{AbstractGap}`) is not itself a quantity — unwrap it
+    # to the GROUP, so the relation enters the graph under it and
+    # `relations_constraining(MassGap)` finds it via `MassGap <: AbstractGap`.
+    unwrapped = Any[something(_group(T), T) for T in types]
+    return Tuple(unique(_family(T) for T in unwrapped if T <: AbstractQuantity))
 end
 
 """
@@ -516,25 +520,62 @@ end
 #     `support`/region layer is the escape valve for multi-instance-of-one-type).
 _is_family(@nospecialize(T)) = T isa UnionAll
 
+# What a slot matches against in the bag, and how many members it takes:
+#
+#   :one    a concrete component — `===`-matched, no discovery
+#   :each   a parametric family, or `EachOf{Group}` — every member present
+#   :any    `AnyOf{Group}` — one member, named by the caller via `subject`
+#
+# `_slot_group` is what `_bag_components` compares `<:` against: the family
+# itself, or the group a quantifier wraps.
+_slot_quantifier(@nospecialize(T)) =
+    if _is_family(T)
+        :each
+    elseif (T isa DataType && T <: EachOf)
+        :each
+    elseif (T isa DataType && T <: AnyOf)
+        :any
+    else
+        :one
+    end
+_slot_group(@nospecialize(T)) = _is_family(T) ? T : _group(T)
+# a slot the engine can auto-discover from a bag (`:one` resolves by exact type)
+_is_discoverable(@nospecialize(T)) = _slot_quantifier(T) !== :any
+# a slot that resolves through group/family membership rather than an exact key
+_is_generic(@nospecialize(T)) = _slot_quantifier(T) !== :one
+
 function _validate_relation(rel::AbstractRelation)
     ts = variable_types(rel)
     isempty(ts) && return nothing
     nm = nameof(typeof(rel))
     for T in ts
-        # concrete component (Conductivity{(:x,:x)}) OR a family (Susceptibility, a
-        # UnionAll matched by auto-discovery); a plain ABSTRACT DataType is still
-        # rejected (it can neither `===`-match nor family-enumerate).
-        isconcretetype(T) ||
-            _is_family(T) ||
+        # concrete component (Conductivity{(:x,:x)}), a parametric family
+        # (Susceptibility, a UnionAll auto-discovered per §8a), or an abstract group
+        # under an explicit quantifier (EachOf/AnyOf).
+        isconcretetype(T) && continue
+        _is_generic(T) && continue
+        # A BARE abstract group is rejected — not because it cannot be matched (it
+        # can: `<:` works), but because the two readings differ and picking one for
+        # the author would be a guess.  MEASURED: silently choosing "every member"
+        # turns a one-member law into false violations on its siblings.
+        if T isa DataType && isabstracttype(T) && T <: RelationVariable
             error(
-                "@relation $nm: identity variable type `$T` is neither a concrete " *
-                "component nor a parametric family — it cannot match a bag key.",
+                "@relation $nm: `$T` is an abstract GROUP, whose members are " *
+                "different quantities — say how many the relation is about: " *
+                "`EachOf{$T}` (the law holds for every member; one report row each) " *
+                "or `AnyOf{$T}` (the law is about one member, named by the caller).",
             )
+        end
+        error(
+            "@relation $nm: identity variable type `$T` is neither a concrete " *
+            "component, a parametric family, nor a quantified group — it cannot " *
+            "match a bag key.",
+        )
     end
-    # single-family-slot only (§8a): cross-slot index unification (two `Family{I}`
+    # single-generic-slot only (§8a): cross-slot index unification (two `Family{I}`
     # sharing an index) is §8b, and lands with the Region epic.
-    count(_is_family, ts) <= 1 || error(
-        "@relation $nm: more than one family-generic slot needs cross-slot index " *
+    count(_is_generic, ts) <= 1 || error(
+        "@relation $nm: more than one family- or group-generic slot needs cross-slot " *
         "unification (design §8b) — not yet supported; key the components concretely.",
     )
     allunique(ts) || error(
@@ -1024,11 +1065,19 @@ function _bag_components(@nospecialize(family), b::Bag)
     return [k for k in keys(b) if k.type <: family && isconcretetype(k.type)]
 end
 
-# The (single, §8a) family-generic slot's key, or `nothing` if the relation is
-# fully concrete.
+# The (single, §8a) generic slot's GROUP — the family itself, or the group an
+# `EachOf`/`AnyOf` wraps — or `nothing` if the relation is fully concrete.
 function _family_slot(rel::AbstractRelation)
     for (_, key) in variable_slots(rel)
-        key !== nothing && _is_family(key) && return key
+        key !== nothing && _is_generic(key) && return _slot_group(key)
+    end
+    return nothing
+end
+
+# The quantifier on that slot (`:each` / `:any`), or `nothing` if fully concrete.
+function _generic_quantifier(rel::AbstractRelation)
+    for (_, key) in variable_slots(rel)
+        key !== nothing && _is_generic(key) && return _slot_quantifier(key)
     end
     return nothing
 end
@@ -1038,9 +1087,28 @@ end
 # A legacy symbol-only relation is never a match.
 function _bag_applicable(rel::AbstractRelation, b::Bag, extras)
     isempty(variable_types(rel)) && return false
+    # an `AnyOf` slot is a DECLARATION that the engine cannot pick the member, so
+    # such a relation is never auto-applicable; `ambiguous_relations` lists it
+    # instead, so it is visibly pending rather than silently skipped.
+    any(((_, k),) -> k !== nothing && !_is_discoverable(k), variable_slots(rel)) &&
+        return false
     return all(variable_slots(rel)) do (sym, key)
-        if key !== nothing && _is_family(key)
-            return !isempty(_bag_components(key, b))
+        if key !== nothing && _is_generic(key)
+            return !isempty(_bag_components(_slot_group(key), b))
+        end
+        return _resolve_slot(sym, key, b, extras) !== nothing
+    end
+end
+
+# The relations a bag ALMOST supports: every slot fillable, but one is an
+# `AnyOf` group whose member the caller must name.  Checkable, not discoverable —
+# surfaced so the gap is a visible list rather than an absent row.
+function _bag_ambiguous(rel::AbstractRelation, b::Bag, extras)
+    isempty(variable_types(rel)) && return false
+    _generic_quantifier(rel) === :any || return false
+    return all(variable_slots(rel)) do (sym, key)
+        if key !== nothing && _is_generic(key)
+            return !isempty(_bag_components(_slot_group(key), b))
         end
         return _resolve_slot(sym, key, b, extras) !== nothing
     end
@@ -1060,12 +1128,14 @@ function _bag_kwargs(
     out = Pair{Symbol,Any}[]
     for (sym, key) in variable_slots(rel)
         sym === skip && continue
-        if key !== nothing && _is_family(key)
-            subject === nothing &&
-                error("$(nameof(typeof(rel))) is family-generic in :$sym — pass `subject`")
-            (subject.type <: key && haskey(b, subject)) || error(
-                "$(nameof(typeof(rel))) needs the $(nameof(key)) component " *
-                "$(subject.type) in the bag",
+        if key !== nothing && _is_generic(key)
+            grp = _slot_group(key)
+            subject === nothing && error(
+                "$(nameof(typeof(rel))) is generic in :$sym over $(grp) — pass `subject`",
+            )
+            (subject.type <: grp && haskey(b, subject)) || error(
+                "$(nameof(typeof(rel))) needs a $(grp) member; $(subject.type) is not " *
+                "one of it, or is not in the bag",
             )
             push!(out, sym => b[subject])
             continue
@@ -1158,6 +1228,12 @@ function solve(
         "solve: $(nameof(Q)) is a parametric family, not a concrete component — " *
         "pass e.g. $(nameof(Q)){(:x, :x)}",
     )
+    # same reason, for an abstract group: `derive`/`solve` targets stay concrete
+    # because a group target is ambiguous over members that are DIFFERENT quantities.
+    (Q isa DataType && isabstracttype(Q)) && error(
+        "solve: $(nameof(Q)) is an abstract group, not a concrete member — pass the " *
+        "member you mean",
+    )
     sym = _symbol_for(rel, Q)
     sym === nothing && error("$(nameof(typeof(rel))) has no variable of type $(nameof(Q))")
     ex = values(extras)
@@ -1190,6 +1266,28 @@ function applicable_relations(b::Bag; domain::Union{Nothing,Symbol}=nothing, ext
 end
 
 """
+    ambiguous_relations(b::Bag; domain=nothing, extras...) -> Vector{AbstractRelation}
+
+Relations this bag could satisfy **once you name a member** — every slot is
+fillable, but one is an [`AnyOf`](@ref) group and the law is about ONE of its
+members, which the engine cannot choose:
+
+```julia
+check(rel, b; subject = MassGap)     # the caller says which
+```
+
+Disjoint from [`applicable_relations`](@ref) by construction, and that is the
+point: an `AnyOf` relation is deliberately excluded from auto-discovery, so
+without this query it would be *absent* from every report rather than *pending*
+in one.  A gap you can list is a gap you can close.
+"""
+function ambiguous_relations(b::Bag; domain::Union{Nothing,Symbol}=nothing, extras...)
+    ex = values(extras)
+    return filter(r -> _bag_ambiguous(r, b, ex), all_relations(; domain=domain))
+end
+export ambiguous_relations
+
+"""
     relation_report(b::Bag; atol=0, domain=nothing, extras...)
 
 Type-keyed [`relation_report`](@ref): evaluate every applicable type-keyed
@@ -1207,7 +1305,9 @@ function relation_report(b::Bag; atol=0, domain::Union{Nothing,Symbol}=nothing, 
                 out, (relation=rel, subject=nothing, residual=r, pass=_passes(rel, r, atol))
             )
         else
-            # §8a auto-discovery: one row per concrete component of the family slot
+            # §8a auto-discovery: one row per concrete member of the family or
+            # `EachOf` group.  An `AnyOf` relation never reaches here — it is not
+            # auto-applicable; see `ambiguous_relations`.
             for comp in _bag_components(fam, b)
                 r = residual(rel, b; subject=comp.type, ex...)
                 push!(

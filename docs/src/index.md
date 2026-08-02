@@ -88,6 +88,27 @@ bound_direction(LiebRobinsonBound()) # :upper — v is bounded from above
 bounding_slot(LiebRobinsonBound())   # :v_LR
 ```
 
+**Family and group slots.** A slot may be keyed on a parametric **family**
+(`χT::Susceptibility`), and [`relation_report`](@ref) then auto-discovers every
+concrete component in the bag — one row per component. That is safe because a
+family's components are one quantity at different indices, so a law written on
+the family is component-agnostic by construction.
+
+An abstract **group** is different in kind — `MassGap`, `ChargeGap` and
+`SpinGap` are different quantities — so the quantifier is written explicitly:
+
+```julia
+@bound :test EveryGapPositive(g::EachOf{AbstractGap} >= 0)   # holds for every gap
+@relation :test OneGapSetsXi(g::AnyOf{AbstractGap}, ξ) = g * ξ - 1   # about ONE gap
+```
+
+[`EachOf`](@ref) enumerates like a family. [`AnyOf`](@ref) does not: the engine
+cannot know which member a one-member law is about, so such a relation is
+checkable with an explicit `subject` but is not auto-discovered — and
+[`ambiguous_relations`](@ref) lists them, so the gap is visible instead of
+absent. A **bare** abstract slot is refused at declaration, because guessing the
+quantifier turns a one-member law into false violations on its siblings.
+
 ## Adopting from another package: one call
 
 A consumer never hand-lists relations — [`applicable_relations`](@ref)

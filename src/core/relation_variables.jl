@@ -73,6 +73,60 @@ export RelationVariable
 _family(::Type{T}) where {T} = Base.typename(T).wrapper
 _family(q::AbstractQuantity) = _family(typeof(q))
 
+# ─── Group slots: how many members of an ABSTRACT group a slot takes ─────
+#
+# A parametric FAMILY (`Susceptibility`) needs no quantifier: its components are
+# one quantity at different indices, so a law written on the family is
+# component-agnostic by construction and "check every component" is the only
+# reading (§8a).
+#
+# An abstract GROUP (`AbstractGap`, or a downstream `AbstractTightBindingQuantity`)
+# is different in kind — its members are DIFFERENT quantities.  Both readings are
+# wanted and they are not interchangeable:
+#
+#   EachOf{AbstractGap}   every gap is non-negative        — one report row per member
+#   AnyOf{AbstractGap}    THE gap sets ξ = 1/Δ             — one member, named by the caller
+#
+# MEASURED: applying the family rule to a group turns the second kind into false
+# violations — `ξ = 1/Δ` on a bag of three gaps reports the two irrelevant ones as
+# VIOLATED purely for sharing a supertype.  So the quantifier is written at the
+# declaration, and a BARE abstract slot is rejected with a message naming both.
+
+"""
+    EachOf{G}
+
+Slot quantifier: the relation holds for **every** member of the abstract group
+`G`.  Written as a slot key, `g::EachOf{AbstractGap}`, it behaves exactly like a
+parametric-family slot — [`relation_report`](@ref) auto-discovers each concrete
+member present in a bag and emits one row per member.
+
+Use it only when the law really is member-agnostic (`every gap ≥ 0`).  For a law
+about one member, use [`AnyOf`](@ref) — stating it with `EachOf` reports the
+other members as violated purely because they share a supertype.
+"""
+struct EachOf{G} end
+export EachOf
+
+"""
+    AnyOf{G}
+
+Slot quantifier: the relation holds for **one** member of the abstract group `G`,
+and the caller says which (`check(rel, b; subject = MassGap)`).
+
+Unlike [`EachOf`](@ref), such a relation is *not auto-discoverable*: the engine
+cannot know which member a one-member law is about, so [`relation_report`](@ref)
+does not instantiate it and [`applicable_relations`](@ref) does not list it.
+[`ambiguous_relations`](@ref) lists them instead — the pending work is visible
+rather than silently absent.
+"""
+struct AnyOf{G} end
+export AnyOf
+
+# The abstract group a quantifier wraps, or `nothing` for anything else.
+_group(::Type{EachOf{G}}) where {G} = G
+_group(::Type{AnyOf{G}}) where {G} = G
+_group(@nospecialize(T)) = nothing
+
 # ─── Support: WHERE a variable is evaluated ─────────────────────────────
 
 """
