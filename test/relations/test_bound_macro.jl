@@ -26,6 +26,7 @@ using AbstractQAtlas:
     bounding_slot,
     bounds_on,
     check,
+    quantities,
     residual,
     slack,
     solve,
@@ -43,10 +44,18 @@ function _unregister!(::Type{T}) where {T}
     return filter!(r -> !(r isa T), AbstractQAtlas._RELATION_REGISTRY)
 end
 
-@bound :test _BoolSlackProbe(a, b) = a - b
-@bound :test _BareSlackBound(x, y) = x - y
-_unregister!(_BoolSlackProbe)
-_unregister!(_BareSlackBound)
+# One probe per FORM, so each expansion path is exercised here and not only at
+# package load: the physics declarations all expand during precompilation, where
+# a form that stopped working would take the whole package down rather than fail
+# a test — which is louder, but tells you nothing about which form broke.
+@bound :test _BoolSlackProbe(a, b) = a - b                            # bare slack
+@bound :test _BareSlackBound(x, y) = x - y                            # bare slack
+@bound :test _CmpProbe(u <= u_max::SpecificHeat)                      # comparison, typed bounding
+@bound :test _CmpConstProbe(w >= 2)                                   # comparison, constant bounding
+@bound :test _StmtProbe(p, q) = p >= q / 2                            # statement, expression bounding
+foreach(
+    _unregister!, (_BoolSlackProbe, _BareSlackBound, _CmpProbe, _CmpConstProbe, _StmtProbe)
+)
 
 @testset "every declared bound measures its slack — never evaluates it" begin
     bs = _bounds()
@@ -116,6 +125,40 @@ end
     @test slack(_BareSlackBound(); x=3.0, y=1.0) == 2.0
     @test check(_BareSlackBound(); x=3.0, y=1.0)
     @test !check(_BareSlackBound(); x=1.0, y=3.0)
+end
+
+@testset "each form expands here, not only at package load" begin
+    # comparison form with a TYPED bounding slot: the slot list is rebuilt from the
+    # comparison, left to right, and the type reaches `variable_slots`
+    @test variables(_CmpProbe()) == (:u, :u_max)
+    @test variable_slots(_CmpProbe()) == ((:u, nothing), (:u_max, SpecificHeat))
+    @test bounded_slot(_CmpProbe()) === :u
+    @test bounding_slot(_CmpProbe()) === :u_max
+    @test bound_direction(_CmpProbe()) === :upper
+    @test slack(_CmpProbe(); u=1.0, u_max=3.0) == 2.0
+    @test quantities(_CmpProbe()) == (SpecificHeat,)
+
+    # comparison against a non-zero constant: the constant is recorded AND used
+    @test bounding_constant(_CmpConstProbe()) == 2
+    @test variables(_CmpConstProbe()) == (:w,)
+    @test slack(_CmpConstProbe(); w=5) === 3
+    @test !check(_CmpConstProbe(); w=1)
+
+    # statement form with an expression on the bounding side
+    @test bounded_slot(_StmtProbe()) === :p
+    @test bounding_slot(_StmtProbe()) === nothing
+    @test bound_direction(_StmtProbe()) === :lower
+    @test slack(_StmtProbe(); p=3.0, q=4.0) == 1.0
+end
+
+@testset "the role validator rejects a slot that names nothing" begin
+    # Defensive: the macro cannot produce this, but a hand-written `bounded_slot`
+    # method can, and a role pointing at no variable makes every consumer reading
+    # it silently wrong.  Exercised by calling the validator directly.
+    AbstractQAtlas.bounded_slot(::_BareSlackBound) = :not_a_variable
+    @test_throws ErrorException AbstractQAtlas._validate_bound_roles(_BareSlackBound())
+    AbstractQAtlas.bounded_slot(::_BareSlackBound) = nothing          # restore
+    @test AbstractQAtlas._validate_bound_roles(_BareSlackBound()) === nothing
 end
 
 @testset "an equality relation claims no bound roles" begin
