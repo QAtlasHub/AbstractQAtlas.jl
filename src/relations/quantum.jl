@@ -121,6 +121,30 @@ Variables: `v`, `v_LR`.
 """
 @bound :quantum LiebRobinsonBound(v <= v_LR::LiebRobinsonVelocity)
 
+"""
+    VelocityPositivity <: AbstractInequality
+
+Every characteristic velocity in this vocabulary is a propagation **speed**, so
+
+`v ≥ 0`
+
+(slack `v`) holds for each member of [`AbstractVelocity`](@ref) — the
+[`Velocity`](@ref) components (`:fermi`, `:luttinger`, `:sound`, …) and the
+[`LiebRobinsonVelocity`](@ref).  Not a convention: every relation that consumes
+one requires it positive — `ξ = v/Δ` ([`CorrelationLengthGap`](@ref)) would give
+a negative correlation length, and the CFT finite-size forms
+([`FiniteSizeGap`](@ref), [`CasimirCentralCharge`](@ref)) a negative gap.  A
+measured `v < 0` is a sign error in a dispersion derivative, which is exactly the
+mistake a group-wide check catches.
+
+Declared with `EachOf` because the members are DIFFERENT quantities that happen
+to share this law — see `docs/design/type-keyed-interface.md` §8c, and the
+negative results recorded there for the groups that do NOT share one.
+
+Variables: `v`.
+"""
+@bound :quantum VelocityPositivity(v::EachOf{AbstractVelocity} >= 0)
+
 # ─── Quantum speed limits: the minimal time to an orthogonal state ───────
 
 """

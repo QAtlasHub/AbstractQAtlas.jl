@@ -141,10 +141,55 @@ end
     @test solve(_EveryGapPositive(), Val(:g)) == 0
 end
 
+# The probes above are withdrawn HERE, not at the end of the file: everything below
+# asserts on the SHIPPED registry, and `_EveryGapPositive` is declared over
+# `AbstractGap` — leaving it registered makes `bounds_on(SpinGap)` non-empty and the
+# "these groups are not claimed to share a law" assertions pass for the wrong reason.
+# (Measured: they failed exactly that way before this line moved.)
+foreach(_unregister!, (_EveryGapPositive, _OneGapSetsXi, _DownstreamGroupLaw))
+
+@testset "the shipped EachOf bound enumerates every velocity present" begin
+    # VelocityPositivity is the library's first EachOf user.  It exists to make the
+    # mechanism have a real caller — a mechanism with none is untested by
+    # construction, and writing this one is what exposed the `bounds_on` unwrap bug
+    # fixed alongside it.
+    b = bag(
+        Velocity{:fermi} => 1.5, Velocity{:luttinger} => -0.2, LiebRobinsonVelocity => 3.0
+    )
+    rows = [r for r in relation_report(b) if r.relation isa VelocityPositivity]
+    @test length(rows) == 3
+    # exactly the negative one fails, and it is named
+    @test [r.subject.type for r in rows if !r.pass] == [Velocity{:luttinger}]
+    # "what bounds this?" must see THROUGH the quantifier — the group is not a type
+    # any concrete velocity subtypes, so an un-unwrapped `bounds_on` returns nothing
+    for T in (LiebRobinsonVelocity, Velocity{:fermi}, Velocity{:luttinger})
+        @test VelocityPositivity() in bounds_on(T)
+    end
+end
+
+@testset "the groups that do NOT share a law are not claimed to" begin
+    # Each of these is an obvious-looking group law that is FALSE, and false in the
+    # way that matters: it would flag exactly the physics the quantity exists to
+    # detect.  Asserted so a future "surely every X is non-negative" has to argue
+    # with a test rather than with a comment.  See design §8c.
+    #
+    # ConditionalEntropy is negative for entangled states; that negativity IS the
+    # entanglement signature.
+    @test isempty(bounds_on(ConditionalEntropy))
+    @test isempty(bounds_on(TripartiteInformation))
+    # SpinGap is negative for a polarised (ferromagnetic) ground state, ChargeGap
+    # where E₀(N) is concave — both are excitation energies only when the reference
+    # sector holds the ground state, which is a model statement.
+    @test isempty(bounds_on(SpinGap))
+    @test isempty(bounds_on(ChargeGap))
+    # ...while the airtight one IS claimed, on the concrete slot, not the group
+    @test MassGapPositivity() in bounds_on(MassGap)
+    @test bounded_slot(MassGapPositivity()) === :Δ
+    @test AbstractQAtlas._slot_quantifier(MassGap) === :one
+end
+
 @testset "two generic slots are still refused (§8b not landed)" begin
     @test_throws Exception @eval @relation :test _TwoGeneric(
         a::EachOf{AbstractGap}, b::EachOf{AbstractVelocity}
     ) = a - b
 end
-
-foreach(_unregister!, (_EveryGapPositive, _OneGapSetsXi, _DownstreamGroupLaw))

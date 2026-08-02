@@ -184,10 +184,18 @@ end
     @test SpecificHeatPositivity() in bounds_on(SpecificHeat)
     # family-declared, so a concrete component finds it (§8a)
     @test SusceptibilityPositivity() in bounds_on(Susceptibility{(:z, :z)})
-    # LiebRobinsonVelocity is what DOES the bounding — it is constrained by the
-    # relation but is not its subject, so the role-aware query excludes it while
-    # the role-blind one includes it
-    @test isempty(bounds_on(LiebRobinsonVelocity))
+    # The sharp case: `LiebRobinsonVelocity` appears in BOTH queries, but for
+    # different relations, because its ROLE differs in each.
+    #   - in `LiebRobinsonBound(v <= v_LR)` it DOES the bounding, so the role-aware
+    #     query must not return that relation...
+    #   - ...while the role-blind `relations_constraining` does;
+    #   - and in `VelocityPositivity(v >= 0)` it IS the subject, so `bounds_on`
+    #     returns that one.
+    # A `bounds_on` that ignored roles would return both; one that ignored the
+    # `EachOf` quantifier would return neither.
+    lrv_bounds = bounds_on(LiebRobinsonVelocity)
+    @test !(LiebRobinsonBound() in lrv_bounds)
+    @test VelocityPositivity() in lrv_bounds
     @test LiebRobinsonBound() in AbstractQAtlas.relations_constraining(LiebRobinsonVelocity)
 end
 

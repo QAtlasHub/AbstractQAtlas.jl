@@ -386,6 +386,31 @@ and a generic slot is not solvable through, exactly as for a family slot.
 Not addressed here: two generic slots in one relation still need §8b's
 cross-slot unification and are still rejected.
 
+**Which groups actually share a law — measured, and mostly they do not.** Giving
+`EachOf` its first users meant auditing the abstract groups for a genuinely
+universal member-agnostic statement. Three obvious-looking candidates are wrong,
+each in a way that would produce false violations on exactly the physics the
+quantity exists to detect:
+
+| group | the "obvious" law | why it is false |
+|---|---|---|
+| `AbstractEntanglementMeasure` (15) | every measure `≥ 0` | `ConditionalEntropy` `S(A|B)` is **negative** for entangled states — that negativity *is* its diagnostic value. `TripartiteInformation` likewise. |
+| `AbstractGap` (3) | every gap `≥ 0` | `SpinGap = E₀(Sᶻ=1) − E₀(Sᶻ=0)` is negative when the ground state is polarised (a ferromagnet); `ChargeGap = E₀(N+1)+E₀(N−1)−2E₀(N)` is negative where `E₀(N)` is concave (phase separation). Each is an *excitation* energy only when the reference sector holds the ground state — a statement about the model, not a universal law. |
+| `AbstractStructureFactor` (4) | every `S ≥ 0` | true for the axis-agnostic members and the diagonal components, false for off-diagonal `S^{xz}(q)`, which is not a squared modulus. |
+
+Only `AbstractVelocity` survived: every member is a propagation **speed**, and
+every relation consuming one (`ξ = v/Δ`, `πv/L`) requires it positive. Hence
+`VelocityPositivity(v::EachOf{AbstractVelocity} >= 0)`, the first `EachOf` in the
+library. `MassGap ≥ 0` is airtight (`E₁ − E₀`, and `E₀` is the lowest level by
+definition) but belongs on the **concrete** slot, not the group — which is the
+whole point of making the quantifier explicit.
+
+The lesson generalises: an abstract group is a *taxonomy*, and a taxonomy rarely
+carries a law. Parametric families do, because their components are one quantity
+at different indices. Before declaring `EachOf{G}`, check every member, not the
+one that motivated the idea.
+
+
 ## 9. Status of the in-flight symbol-based work
 
 PR #78 (the symbol-based D1: complex `SpectralFromGreens`, `Dyson` `:G → :GR`

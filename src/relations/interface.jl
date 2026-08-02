@@ -857,7 +857,13 @@ function bounds_on(::Type{Q}) where {Q<:AbstractQuantity}
         s = bounded_slot(r)
         s === nothing && return false
         for (sym, key) in variable_slots(r)
-            sym === s && return key !== nothing && Q <: key
+            sym === s || continue
+            key === nothing && return false
+            # A quantified slot (`EachOf{AbstractVelocity}`) is not itself a type `Q`
+            # can subtype — match against the GROUP it wraps, exactly as
+            # `_auto_quantities` does.  Without this, a bound declared over a group
+            # is invisible to the one question this function exists to answer.
+            return Q <: something(_group(key), key)
         end
         return false
     end
