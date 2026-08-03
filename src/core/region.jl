@@ -87,3 +87,19 @@ region_report(b)                                    # subadditivity, Araki–Lie
 entanglement_entropy(r::Region) = VariableKey(VonNeumannEntropy, RegionSupport(r))
 entanglement_entropy(sites...) = entanglement_entropy(Region(sites...))
 export entanglement_entropy
+
+"""
+    fermionic_entanglement_entropy(region::Region) -> VariableKey
+    fermionic_entanglement_entropy(sites...) -> VariableKey
+
+The bag key for the [`FermionicEntanglementEntropy`](@ref) `S_f(region)`.  The
+fermionic twin of [`entanglement_entropy`](@ref), and a **different key** — the
+two entropies agree only on a single contiguous interval, so a bag may hold both
+and [`region_report`](@ref) will discover the inequalities within each family
+without ever mixing them.
+"""
+function fermionic_entanglement_entropy(r::Region)
+    return VariableKey(FermionicEntanglementEntropy, RegionSupport(r))
+end
+fermionic_entanglement_entropy(sites...) = fermionic_entanglement_entropy(Region(sites...))
+export fermionic_entanglement_entropy

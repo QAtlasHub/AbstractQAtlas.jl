@@ -1390,6 +1390,42 @@ struct VonNeumannEntropy <: AbstractEntanglementMeasure end
 export VonNeumannEntropy
 
 """
+    FermionicEntanglementEntropy() <: AbstractEntanglementMeasure
+
+The von Neumann entropy of the state restricted to the **fermionic** algebra of a
+region, `S_f(A) = −Tr(ρ^f_A ln ρ^f_A)`, where `ρ^f_A` is obtained by restricting
+the Majorana covariance matrix to `A`'s Majorana indices.
+
+Distinct from [`VonNeumannEntropy`](@ref) and **not** interchangeable with it.
+Under a Jordan–Wigner map, the spin operators of a region carry a string that
+leaves the region unless the region is a single contiguous interval, so the spin
+algebra of `A` and the fermion algebra of `A` are the same algebra only in that
+case.  Measured on the open `Δ = 0` XXZ chain at `N = 12` (QAtlas):
+
+| region | spin | fermionic |
+|---|---|---|
+| `{1,2,3,4}` | 0.628316 | 0.628316 |
+| `{1,2,5,6}` | 1.112324 | 1.224109 |
+| `{1,3}` | 1.166659 | 1.386294 |
+
+Exact agreement on the contiguous region, and a gap of 0.1–0.2 nats on the
+disconnected ones — a gap that does **not** cancel in the mutual information
+(there `I_spin` is roughly twice `I_f`).  Nothing in the entropy inequalities
+would flag a route that returned one where the other was asked for: both are
+honest von Neumann entropies of honest states, so both satisfy every one of
+them.  That is why this is a separate quantity rather than a keyword on
+`VonNeumannEntropy` — a shared [`VariableKey`](@ref) would let the two mix
+inside one bag, and [`region_report`](@ref) keys its auto-discovery on that.
+
+This is the quantity the multi-interval Calabrese–Cardy / Casini–Huerta closed
+forms predict: for free fermions the entanglement entropy of an arbitrary union
+of intervals is a signed sum of the bipartite chord kernel over the endpoint
+pairs, and the object it reproduces is `S_f`, not the spin entropy.
+"""
+struct FermionicEntanglementEntropy <: AbstractEntanglementMeasure end
+export FermionicEntanglementEntropy
+
+"""
     RenyiEntropy(α::Real) <: AbstractEntanglementMeasure
 
 The Rényi entanglement entropy `S_α = (1−α)⁻¹ ln Tr(ρ_A^α)`.  `α = 2` is fixed by
