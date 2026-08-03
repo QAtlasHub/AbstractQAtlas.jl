@@ -2,48 +2,33 @@ ENV["GKSwstype"] = "100"
 
 using AbstractQAtlas
 using Test, Aqua
-const dirs = ["core", "structure", "relations", "report", "ext"]
+using TestShards
 
-const FIG_BASE = joinpath(pkgdir(AbstractQAtlas), "docs", "src", "assets")
-const PATHS = Dict()
-mkpath.(values(PATHS))
-
-# The runnable CASES: "aqua" (the module's own Aqua suite) + every dir/test_*.jl file.
-# `test/ci/plan_shards.jl` splits this SAME list across CI shards and hands each shard
-# its subset in the `CI_CASES` env var (space-separated).  An empty `CI_CASES` — a
-# local run, or the reusable's unsharded fallback — runs everything.
-function all_cases()
-    cases = String["aqua"]
-    for dir in dirs
-        dpath = joinpath(@__DIR__, dir)
-        isdir(dpath) || continue
-        for f in
-            sort(filter(f -> startswith(f, "test_") && endswith(f, ".jl"), readdir(dpath)))
-            push!(cases, "$dir/$f")
+# Every `test_*.jl` under `test/`, in a deterministic order, each one its own shardable unit,
+# plus Aqua. `@shard` shadows `include` inside the block, so a unit is whatever this loop
+# includes — a new file, or a whole new directory, is picked up BY BEING ON DISK, rather than by
+# being added to the `dirs` list and the `all_cases()` function that used to sit here and could
+# both disagree with the tree.
+#
+# Two rules when adding to this, and they are the only two:
+#
+#   1. SHARED FIXTURES GO ABOVE THIS BLOCK. A helper included inside becomes a unit of its own,
+#      lands on ONE shard, and every test file on the other shards that needed it fails.
+#   2. ANYTHING THAT IS NOT A `test_*.jl` FILE MUST BE NAMED, as Aqua is below. The glob does not
+#      error on what it does not match; it silently stops running it.
+#
+# A bare `Pkg.test()` with nothing set in the environment runs all of it, in this order. Run one
+# shard locally with `TESTSHARDS_ID=s2 TESTSHARDS_N=4 julia --project -e 'using Pkg; Pkg.test()'`.
+TestShards.@shard begin
+    for (dir, _, files) in sort!(collect(walkdir(@__DIR__)))
+        for f in sort(files)
+            startswith(f, "test_") && endswith(f, ".jl") || continue
+            include(joinpath(dir, f))
         end
     end
-    return cases
-end
-
-const _CI_CASES = String.(split(strip(get(ENV, "CI_CASES", ""))))
-const CASES = isempty(_CI_CASES) ? all_cases() : _CI_CASES
-
-@testset "tests" begin
-    println("Passed arguments ARGS = $(copy(ARGS)) to tests.")
-    println("Running $(length(CASES)) case(s): $(join(CASES, ", "))")
-    @test !isempty(CASES)                       # never a silent empty run (bad CI_CASES)
-    @time for case in CASES
-        if case == "aqua"
-            @testset "Aqua tests" begin
-                Aqua.test_all(AbstractQAtlas)
-            end
-        else
-            @testset "$case" begin
-                @time begin
-                    println("  Including $(case)")
-                    include(joinpath(@__DIR__, case))
-                end
-            end
-        end
+    # The module's own QA. Not a file, so `@unit` gives it a key of its own — it was already a
+    # first-class case here (`all_cases()` began with "aqua"), and it stays one.
+    TestShards.@unit "aqua" begin
+        Aqua.test_all(AbstractQAtlas)
     end
 end
