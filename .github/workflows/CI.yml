@@ -1,7 +1,45 @@
 name: CI
 on: { push: { branches: [main] }, pull_request: {} }
+
+# Two calls into TestShards, one per Julia version, in ONE run — which is why both carry an
+# `artifact-prefix`. Without one they publish artifacts under the same names and the second call
+# fails on an upload AFTER its tests passed, because upload-artifact rejects a duplicate name.
+#
+# `record-timings: false` on the LTS leg is the quieter half and matters more. Both legs would
+# otherwise record to the same `ci-timings` branch having measured DIFFERENT configurations:
+# whichever finished last would win, silently, and every later run would be planned against a
+# history that is half one version and half the other. Nothing would fail; the balance would
+# just stop meaning what it says.
+#
+# Called directly, and passing the secret, because this repository is public and in the same
+# organisation as TestShards.
 jobs:
-  ci: { uses: QAtlasHub/.github/.github/workflows/julia-ci.yml@main, with: { shards: 4 }, secrets: inherit }
-  # Also exercise the julia 1.10 LTS floor (the package is stdlib-only + uses no
-  # 1.11-only features) so the lowered `julia` compat bound is actually tested.
-  ci-lts: { uses: QAtlasHub/.github/.github/workflows/julia-ci.yml@main, with: { shards: 4, julia-version: "1.10" }, secrets: inherit }
+  ci:
+    permissions:
+      contents: write   # the timing history is pushed to the `ci-timings` orphan branch
+    uses: QAtlasHub/TestShards.jl/.github/workflows/sharded-tests.yml@main
+    with:
+      shards: 4
+      artifact-prefix: v1
+      registries: |
+        General
+    secrets:
+      CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
+
+  # Also exercise the julia 1.10 LTS floor (the package is stdlib-only and uses no 1.11-only
+  # features) so the lowered `julia` compat bound is actually tested.
+  ci-lts:
+    permissions:
+      contents: write
+    uses: QAtlasHub/TestShards.jl/.github/workflows/sharded-tests.yml@main
+    with:
+      shards: 4
+      julia-version: '1.10'
+      artifact-prefix: lts
+      # The history belongs to the version above: two legs measuring different configurations
+      # cannot both own it.
+      record-timings: false
+      registries: |
+        General
+    secrets:
+      CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}

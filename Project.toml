@@ -1,6 +1,6 @@
 name = "AbstractQAtlas"
 uuid = "dcea2817-62f8-4a75-b498-1b50a9ed1e4d"
-version = "0.6.4"
+version = "0.6.5"
 authors = ["sota shimozono <shimozono-sota631@g.ecc.u-tokyo.ac.jp>"]
 
 [deps]
@@ -23,6 +23,7 @@ LinearAlgebra = "1"
 Random = "1"
 Test = "1"
 Zygote = "0.6, 0.7"
+TestShards = "0.3"
 julia = "1.10"
 
 [extras]
@@ -31,6 +32,7 @@ Aqua = "4c88cf16-eb10-579e-8560-4a9242c79595"
 Random = "9a3f8284-a2c9-5f02-9a11-845980a1fd5c"
 ForwardDiff = "f6369f11-7733-5829-9624-2563aa707210"
 Zygote = "e88e6eb3-aa80-5325-afca-941959d7151f"
+TestShards = "acceef1d-f5e0-4fe4-a546-818dc56ce7b2"
 
 [targets]
-test = ["Test", "Aqua", "Random", "ForwardDiff", "Zygote"]
+test = ["Test", "Aqua", "Random", "ForwardDiff", "Zygote", "TestShards"]
