@@ -289,3 +289,80 @@ end
     )
     @test isempty(region_tee_report(nofull))
 end
+
+@testset "Fermionic entanglement entropy is a SEPARATE family" begin
+    ee = entanglement_entropy
+    fe = fermionic_entanglement_entropy
+    A, B = Region(1, 2), Region(5, 6)
+
+    # different key on the same region — the whole point of the split
+    @test ee(A) != fe(A)
+    @test fe(A).type === FermionicEntanglementEntropy
+    @test fe(A).support == RegionSupport(A)
+    @test fe(1, 2) == fe(Region(1, 2))
+
+    # opt-in trait: entanglement measures that are NOT strongly subadditive
+    # away from the von Neumann limit stay out
+    @test AQ.obeys_entropy_inequalities(VonNeumannEntropy)
+    @test AQ.obeys_entropy_inequalities(FermionicEntanglementEntropy)
+    @test !AQ.obeys_entropy_inequalities(RenyiEntropy)
+    @test !AQ.obeys_entropy_inequalities(TsallisEntropy)
+    @test !AQ.obeys_entropy_inequalities(MutualInformation)
+
+    # Measured on the open XXZ(Δ = 0) chain at N = 12 (QAtlas, dense ED for the
+    # spin entropy and the free-fermion covariance for the fermionic one).  The
+    # two agree exactly on the contiguous blocks and differ only on the
+    # disconnected union — which is the entire content of the Jordan–Wigner
+    # caveat, and the reason the union entropy alone cannot be shared.
+    S_spin = Dict(A => 0.519867, B => 0.814639, A ∪ B => 1.112324)
+    S_ferm = Dict(A => 0.519867, B => 0.814639, A ∪ B => 1.224109)
+    @test S_spin[A] == S_ferm[A] && S_spin[B] == S_ferm[B]
+    @test S_spin[A ∪ B] != S_ferm[A ∪ B]
+
+    both = bag((ee(R) => v for (R, v) in S_spin)..., (fe(R) => v for (R, v) in S_ferm)...)
+    rep = region_report(both)
+    @test !isempty(rep)
+    @test all(r -> r.pass, rep)
+    @test region_check_all(both)
+
+    # The detector for a merged sweep.  `_region_entropies` returns Region =>
+    # value, so if the two families shared one Dict their equal region keys would
+    # COLLIDE and one union entropy would silently overwrite the other: the report
+    # would come back at single-family length with one family's numbers gone.
+    single = region_report(bag((ee(R) => v for (R, v) in S_spin)...))
+    @test length(rep) == 2 * length(single)
+
+    # …and both families' own numbers survive, with DIFFERENT slacks on the same
+    # region pair — the sharpest statement that nothing was overwritten
+    subs = [r.slack for r in rep if r.relation isa Subadditivity && r.regions == (A, B)]
+    @test length(subs) == 2
+    @test !isapprox(subs[1], subs[2]; atol=1e-6)
+    @test Set(round.(subs; digits=6)) == Set(
+        round.([0.519867 + 0.814639 - 1.112324, 0.519867 + 0.814639 - 1.224109]; digits=6)
+    )
+
+    # `quantity` selects the family for the mutual information
+    I_spin = mutual_information(both, A, B)
+    I_ferm = mutual_information(both, A, B; quantity=FermionicEntanglementEntropy)
+    @test I_spin ≈ 0.222182 atol = 1e-6
+    @test I_ferm ≈ 0.110397 atol = 1e-6
+    @test I_spin > I_ferm            # the JW string ADDS spin correlation across the gap
+
+    # a fermionic-only bag is swept on its own
+    fonly = bag((fe(R) => v for (R, v) in S_ferm)...)
+    @test length(region_report(fonly)) == length(single)
+    @test region_check_all(fonly)
+
+    # a family that has not opted in is invisible rather than swept — even when
+    # its values would violate subadditivity outright
+    ronly = bag(
+        VariableKey(RenyiEntropy, RegionSupport(A)) => 0.5,
+        VariableKey(RenyiEntropy, RegionSupport(B)) => 0.5,
+        VariableKey(RenyiEntropy, RegionSupport(A ∪ B)) => 3.0,
+    )
+    @test isempty(region_report(ronly))
+    @test !region_check_all(ronly)   # an empty match is never a silent green
+
+    # row order is deterministic (regions come out of a Dict)
+    @test [(typeof(r.relation), r.regions) for r in region_report(both)] == [(typeof(r.relation), r.regions) for r in region_report(both)]
+end

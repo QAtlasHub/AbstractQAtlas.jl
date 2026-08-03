@@ -26,23 +26,53 @@ struct RegionReportRow
 end
 export RegionReportRow
 
-# the von Neumann region-entropies present in a bag: Region → S(Region)
+"""
+    obeys_entropy_inequalities(::Type) -> Bool
+
+Whether a region-keyed quantity satisfies subadditivity, Araki–Lieb, strong
+subadditivity and weak monotonicity, and may therefore be swept by
+[`region_report`](@ref).
+
+Opt-in, defaulting to `false`, because "is an entanglement measure" is not the
+criterion: [`RenyiEntropy`](@ref) and [`TsallisEntropy`](@ref) live on the same
+regions and are **not** strongly subadditive away from the von Neumann limit, so
+a `<: AbstractEntanglementMeasure` test would auto-discover inequalities they are
+not required to satisfy and report correct data as broken.  Declared `true` only
+for [`VonNeumannEntropy`](@ref) and [`FermionicEntanglementEntropy`](@ref), each
+of which is the von Neumann entropy of an honest reduced state.
+"""
+obeys_entropy_inequalities(::Type) = false
+obeys_entropy_inequalities(::Type{VonNeumannEntropy}) = true
+obeys_entropy_inequalities(::Type{FermionicEntanglementEntropy}) = true
+export obeys_entropy_inequalities
+
+# the region-entropies of ONE quantity present in a bag: Region → S(Region)
 #
-# `<:` and not `===`, because `VonNeumannEntropy` is a parametric family
-# (`{:equilibrium}`, `{:quench}`). [`entanglement_entropy`](@ref) keys with the
-# UnionAll, which `===` matched, but a caller keying a concrete mode —
-# `VariableKey(VonNeumannEntropy{:quench}, …)` — was silently invisible to
-# `region_report` rather than an error. `<:` is reflexive, so it accepts both.
+# `===` and not `<:`, and the quantity is an ARGUMENT rather than hard-coded.  A
+# bag may legitimately carry `VonNeumannEntropy` and `FermionicEntanglementEntropy`
+# on the same regions holding DIFFERENT numbers — they agree only on a single
+# contiguous interval — so merging the two families would build inequalities out of
+# one entropy's `S(A)` and the other's `S(A∪B)`.  That mixture is not a quantity at
+# all, and it fails or passes for no stateable reason.
 #
-# NOTE the deliberate absence of `isconcretetype`, which `_family_keys` in
-# interface.jl does include: there the intent is to pull data-carrying members out of
-# a bag and skip a family placeholder, whereas here the family placeholder IS the
-# documented key, so demanding concreteness would match nothing at all.
-function _region_entropies(b::Bag)
+# (An earlier comment here justified `<:` by `VonNeumannEntropy` being a parametric
+# family with a `{:quench}` member.  It is not: it is a plain struct, and the quench
+# entropy was split off downstream as `QuenchEntanglementEntropy`.  With no subtypes
+# the two spellings agreed, so nothing failed when the rationale expired.)
+function _region_entropies(b::Bag, Q::Type=VonNeumannEntropy)
     return Dict(
-        k.support.region => v for
-        (k, v) in b if k.type <: VonNeumannEntropy && k.support isa RegionSupport
+        k.support.region => v for (k, v) in b if k.type === Q && k.support isa RegionSupport
     )
+end
+
+# every entropy family in the bag that has opted into the inequalities, in a
+# deterministic order so report rows do not shuffle between runs
+function _region_entropy_families(b::Bag)
+    ts = unique(
+        k.type for
+        (k, _) in b if k.support isa RegionSupport && obeys_entropy_inequalities(k.type)
+    )
+    return sort!(collect(ts); by=string)
 end
 
 """
@@ -66,6 +96,12 @@ hand-labeling — the region twin of [`relation_report`](@ref):
 A negative (conditional) mutual information — a broken MPS/ED entanglement
 calculation — is caught for whichever regions expose it.
 
+Every entropy family in the bag that declares
+[`obeys_entropy_inequalities`](@ref) is swept **separately**: a bag holding both
+`entanglement_entropy(A)` and [`fermionic_entanglement_entropy`](@ref)`(A)` on
+the same regions yields both sets of rows, and no inequality is ever built from
+one family's `S(A)` and another's `S(A∪B)`.
+
 ```julia
 b = bag(entanglement_entropy(1) => 0.7, entanglement_entropy(2) => 0.7,
         entanglement_entropy(1, 2) => 1.0)      # S(A), S(B), S(A∪B)
@@ -73,9 +109,19 @@ all(row -> row.pass, region_report(b))          # true — S is subadditive here
 ```
 """
 function region_report(b::Bag; atol=0)
-    ents = _region_entropies(b)
-    regions = collect(keys(ents))
     out = RegionReportRow[]
+    for Q in _region_entropy_families(b)
+        _region_report_family!(out, _region_entropies(b, Q); atol=atol)
+    end
+    return out
+end
+export region_report
+
+# one family's sweep.  Split out of `region_report` so that adding a second
+# entropy family cannot accidentally let regions from one family match unions
+# from the other: the matcher only ever sees a single family's Dict.
+function _region_report_family!(out::Vector{RegionReportRow}, ents::AbstractDict; atol=0)
+    regions = sort!(collect(keys(ents)); by=r -> (length(r.sites), string(r)))
     for i in eachindex(regions), j in (i + 1):lastindex(regions)
         A, B = regions[i], regions[j]
         disjoint(A, B) || continue
@@ -111,7 +157,6 @@ function region_report(b::Bag; atol=0)
     end
     return out
 end
-export region_report
 
 """
     region_check_all(b::Bag; atol=0) -> Bool
@@ -127,19 +172,25 @@ end
 export region_check_all
 
 """
-    mutual_information(b::Bag, A::Region, B::Region) -> Number
+    mutual_information(b::Bag, A::Region, B::Region; quantity=VonNeumannEntropy) -> Number
 
 The mutual information `I(A:B) = S(A) + S(B) − S(A∪B)`, computed from the region
 entropies in the bag `b` (the [`Subadditivity`](@ref) slack; `≥ 0`).  Errors if any
 of the three entropies is absent.
+
+`quantity` selects the entropy family — pass
+[`FermionicEntanglementEntropy`](@ref) to read the fermionic mutual information
+out of a bag built with [`fermionic_entanglement_entropy`](@ref).  The two are
+different numbers whenever a region is disconnected, and the difference does not
+cancel here, so the family is named rather than inferred.
 
 ```julia
 mutual_information(bag(entanglement_entropy(1) => 0.7, entanglement_entropy(2) => 0.7,
                        entanglement_entropy(1, 2) => 1.0), Region(1), Region(2))   # 0.4
 ```
 """
-function mutual_information(b::Bag, A::Region, B::Region)
-    ents = _region_entropies(b)
+function mutual_information(b::Bag, A::Region, B::Region; quantity=VonNeumannEntropy)
+    ents = _region_entropies(b, quantity)
     for R in (A, B, A ∪ B)
         haskey(ents, R) || error("mutual_information: S($R) is not in the bag")
     end
