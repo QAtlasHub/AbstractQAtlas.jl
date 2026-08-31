@@ -34,6 +34,13 @@ representation(::Type{<:DynamicalConductivity}) = (MomentumSpace(), FrequencyDom
 representation(::Type{<:CurrentCorrelation}) = (RealSpace(), TimeDomain())
 # the current-noise spectral density is the (q, ω) FT of the current correlation
 representation(::Type{<:CurrentNoise}) = (MomentumSpace(), FrequencyDomain())
+# the nonlinear response kernel is the time-domain side of the susceptibility/conductivity
+function representation(::Type{ResponseKernel{I}}) where {I}
+    return (RealSpace(), TimeDomain())
+end
+function representation(::Type{CurrentResponseKernel{I}}) where {I}
+    return (RealSpace(), TimeDomain())
+end
 # single-particle propagators live in (q, ω)
 representation(::Type{RetardedGreensFunction}) = (MomentumSpace(), FrequencyDomain())
 representation(::Type{SelfEnergy}) = (MomentumSpace(), FrequencyDomain())
@@ -66,6 +73,17 @@ fourier_conjugate_quantity(::Type{<:DynamicalCorrelation}) = DynamicalStructureF
 # current channel: S^j(q,ω) ↔ ⟨jj⟩(r,t)
 fourier_conjugate_quantity(::Type{<:CurrentNoise}) = CurrentCorrelation
 fourier_conjugate_quantity(::Type{<:CurrentCorrelation}) = CurrentNoise
+# the RESPONSE channel had no Fourier partner at all: the time-domain kernel a real-time
+# method computes was unnameable. Declared BOTH ways — Fourier conjugacy is symmetric, and
+# the invariant suite fails a one-sided declaration.
+fourier_conjugate_quantity(::Type{DynamicalSusceptibility{I}}) where {I} = ResponseKernel{I}
+fourier_conjugate_quantity(::Type{ResponseKernel{I}}) where {I} = DynamicalSusceptibility{I}
+function fourier_conjugate_quantity(::Type{DynamicalConductivity{I}}) where {I}
+    return CurrentResponseKernel{I}
+end
+function fourier_conjugate_quantity(::Type{CurrentResponseKernel{I}}) where {I}
+    return DynamicalConductivity{I}
+end
 export fourier_conjugate_quantity
 
 """
