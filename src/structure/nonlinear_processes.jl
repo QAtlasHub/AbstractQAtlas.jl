@@ -193,27 +193,18 @@ function process_frequencies(p::WaveMixing{M}, ws::Vararg{Any,N}) where {M,N}
     N == M || throw(
         ArgumentError("this process has $M drive(s) but got $N frequency argument(s)")
     )
-    # `NTuple{n}` demands ONE element type, so mixing an Int with a Float — which the
-    # `WaveMixing` docstring invites, the Pockels effect being this process at `ω₂ = 0` —
-    # otherwise died inside Base's tuple construction with a raw TypeError. Promote first:
-    # mixed numeric types are ordinary in every other Julia numeric API.
-    fs = promote(ws...)
-    # `promote` unifies the drives with EACH OTHER, which is not the same as unifying them
-    # with their own NEGATION — and this layer negates. Two types break on that distinction:
-    # `Bool` is not closed under `-` (`-true isa Int`), which merely crashes; `Unsigned` IS
-    # closed, but wrongly — `-UInt(5)` wraps to ~1.8e19 instead of erroring, which would put
-    # a nonsense frequency into the answer with nothing at all to signal it. Refuse the
-    # unsigned case whenever the process actually applies a −ω, and widen otherwise.
-    (any(>(0), p.minus) && eltype(fs) <: Unsigned) && throw(
-        ArgumentError(
-            "this process applies −ω, which the unsigned frequency type $(eltype(fs)) " *
-            "cannot represent: negation wraps around. Convert the drives to a signed type.",
-        ),
-    )
-    gs = map(x -> convert(promote_type(eltype(fs), typeof(-first(fs))), x), fs)
+    fs = _common_drive_type(ws)
+    # A purely additive process never applies −ω, so it has no business demanding that its
+    # drives be negatable: doing the widening eagerly is what used to crash harmonic
+    # generation on a `Rational{UInt}` that it was never going to negate.
+    gs = any(>(0), p.minus) ? _negatable(fs) : fs
+    # The −ω branch is a generator, not `Iterators.repeated(-gs[k], …)`: Julia evaluates a
+    # call's arguments eagerly, so the repeated form negated EVERY drive even when its own
+    # multiplicity was zero — which is how a purely additive process still crashed on a type
+    # that cannot be negated at all.
     args = Iterators.flatten(
         Iterators.flatten((
-            Iterators.repeated(gs[k], p.plus[k]), Iterators.repeated(-gs[k], p.minus[k])
+            Iterators.repeated(gs[k], p.plus[k]), (-gs[k] for _ in 1:p.minus[k])
         )) for k in 1:M
     )
     return NTuple{response_order(p)}(args)
@@ -237,7 +228,78 @@ emitted_frequency(OpticalRectification(), 0.5)     # 0.0
 emitted_frequency(FourWaveMixing(), 1, 3)          # -1    ( = 2·1 − 3 )
 ```
 """
-emitted_frequency(p::AbstractNonlinearProcess, w...) = sum(process_frequencies(p, w...))
+function emitted_frequency(p::AbstractNonlinearProcess, ws...)
+    args = process_frequencies(p, ws...)
+    total = sum(args)
+    # Negation is not the only operation that can wrap: summing same-sign machine integers
+    # overflows with no exotic type at all — `emitted_frequency(HarmonicGeneration(2),
+    # typemax(Int64) - 1)` used to return −4, a NEGATIVE frequency out of a process that
+    # only ever adds. Redo the sum unbounded and refuse if the two disagree, mirroring what
+    # `degeneracy_factor` does one function below.
+    exact = sum(_unbounded, args)
+    exact == _unbounded(total) || throw(
+        OverflowError(
+            "emitted_frequency: this process emits at $exact, which does not fit in " *
+            "$(typeof(total)); widen the drive frequencies or use a floating type",
+        ),
+    )
+    return total
+end
+
+# ── keeping the drives safe for the two operations this layer performs on them ───────────
+#
+# Three review rounds each found a new type that slipped a type-NAME-based deny-list:
+# `UInt` (negation wraps to ~1.8e19), then `Int8` at `typemin` (negates to itself — and it
+# is `Signed`, so a `<: Unsigned` test never sees it), then `Complex{UInt}` (not `<:
+# Unsigned` at all, yet wraps componentwise). Every one of them returned a plausible number
+# with nothing to signal it. A deny-list is not closed under types that do not exist yet,
+# so the check below is on the VALUE and the OPERATION instead: redo the arithmetic in an
+# unbounded domain and demand the same answer.
+
+"An unbounded stand-in used only to re-check arithmetic; identity where none is needed."
+_unbounded(x::Integer) = big(x)
+_unbounded(z::Complex{<:Integer}) = Complex{BigInt}(z)
+_unbounded(x) = x
+
+function _common_drive_type(ws)
+    return try
+        promote(ws...)
+    catch err
+        # A signed/unsigned mix makes `promote` itself throw an InexactError from deep
+        # inside Base; this layer should name the arguments it could not reconcile.
+        throw(
+            ArgumentError(
+                "the drive frequencies $(map(typeof, ws)) have no common type " *
+                "($(sprint(showerror, err)))",
+            ),
+        )
+    end
+end
+
+function _negatable(fs)
+    E = try
+        # `Bool` is not closed under `-` (`-true isa Int`), so the element type has to be
+        # widened to one that is before the tuple can hold both `ω` and `−ω`.
+        promote_type(eltype(fs), typeof(-first(fs)))
+    catch err
+        throw(
+            ArgumentError(
+                "this process applies −ω, but $(eltype(fs)) cannot be negated " *
+                "($(sprint(showerror, err)))",
+            ),
+        )
+    end
+    gs = map(x -> convert(E, x), fs)
+    for (k, g) in pairs(gs)
+        -_unbounded(g) == _unbounded(-g) || throw(
+            ArgumentError(
+                "drive $k is $g::$(typeof(g)), which does not negate exactly " *
+                "(−$g gives $(-g)); use a signed or floating drive type",
+            ),
+        )
+    end
+    return gs
+end
 export emitted_frequency
 
 """

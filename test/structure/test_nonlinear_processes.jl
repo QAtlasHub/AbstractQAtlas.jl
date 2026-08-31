@@ -355,22 +355,65 @@ end
     @test_throws "non-negative" WaveMixing((-2,), (0,))
 end
 
-@testset "promotion is closed under NEGATION, not merely across the drives" begin
-    # `promote` unifies the arguments with each other; this layer also negates them, and two
-    # types break on that distinction. Bool is not closed under `-` (`-true isa Int`), which
-    # merely crashed. Unsigned IS closed but wrongly so — `-UInt(5)` wraps to ~1.8e19, so
-    # `emitted_frequency(DifferenceFrequencyGeneration(), UInt(3), UInt(5))` used to return
-    # 18446744073709551614 where the answer is −2, with nothing to signal it.
-    @test process_frequencies(OpticalRectification(), true) === (1, -1)
-    @test process_frequencies(SumFrequencyGeneration(), true, 2.0) === (1.0, 2.0)
-    @test emitted_frequency(OpticalRectification(), true) == 0
+@testset "a drive must survive the arithmetic this layer performs on it" begin
+    # Three review rounds each found a new type that slipped a type-NAME deny-list, every
+    # one returning a plausible number with nothing to signal it. The check is now on the
+    # VALUE and the OPERATION, so this testset is the list of what a name-based test missed.
+    # Both the type AND the message are pinned at each site: `@test_throws SomeType` alone
+    # would still pass if a different guard in the same function fired, and
+    # `@test_throws "msg"` alone does not check the type at all.
 
-    @test_throws ArgumentError process_frequencies(
+    # (1) unsigned negation wraps to ~1.8e19
+    @test_throws ArgumentError emitted_frequency(
         DifferenceFrequencyGeneration(), UInt(3), UInt(5)
     )
-    @test_throws "negation wraps around" emitted_frequency(OpticalRectification(), UInt(3))
-    # ... but only where the process actually applies a −ω; unsigned is fine without one
+    @test_throws "does not negate exactly" emitted_frequency(
+        DifferenceFrequencyGeneration(), UInt(3), UInt(5)
+    )
+    # (2) typemin of a fixed-width SIGNED type negates to itself — a `<: Unsigned` test
+    #     never sees it; this used to return −125 where the answer is 131
+    @test_throws ArgumentError emitted_frequency(
+        DifferenceFrequencyGeneration(), Int8(3), Int8(-128)
+    )
+    @test_throws "does not negate exactly" process_frequencies(
+        DifferenceFrequencyGeneration(), Int8(3), Int8(-128)
+    )
+    # (3) Complex{UInt} is not `<: Unsigned` at all, yet wraps componentwise
+    @test_throws ArgumentError emitted_frequency(
+        DifferenceFrequencyGeneration(), Complex{UInt}(3), Complex{UInt}(5)
+    )
+    # (4) a signed/unsigned mix made `promote` itself throw a raw InexactError from Base
+    @test_throws ArgumentError process_frequencies(
+        DifferenceFrequencyGeneration(), UInt(3), -5
+    )
+    @test_throws "have no common type" process_frequencies(
+        DifferenceFrequencyGeneration(), UInt(3), -5
+    )
+    # (5) negation is not the only wrapping operation: summing same-sign machine integers
+    #     overflows with no exotic type at all, and used to return a NEGATIVE frequency out
+    #     of a process that only ever adds
+    @test_throws OverflowError emitted_frequency(HarmonicGeneration(2), typemax(Int64) - 1)
+    @test_throws "does not fit in" emitted_frequency(
+        HarmonicGeneration(2), typemax(Int64) - 1
+    )
+
+    # ── and what must keep working ──────────────────────────────────────────────────────
+    # a purely additive process never negates, so it may not demand negatability: the −ω
+    # branch is a lazy generator precisely so `Rational{UInt}` is not negated here
+    @test process_frequencies(HarmonicGeneration(2), Rational{UInt}(3, 5)) ===
+        (Rational{UInt}(3, 5), Rational{UInt}(3, 5))
     @test process_frequencies(HarmonicGeneration(2), UInt(3)) === (UInt(3), UInt(3))
-    # and the signed answer is the right one
+    @test emitted_frequency(HarmonicGeneration(2), UInt(3)) === UInt(6)
+    # Bool is not closed under `-`, so it is widened rather than rejected
+    @test process_frequencies(OpticalRectification(), true) === (1, -1)
+    @test emitted_frequency(OpticalRectification(), true) == 0
+    @test process_frequencies(DifferenceFrequencyGeneration(), true, false) === (1, 0)
+    # ordinary signed and floating drives are untouched
     @test emitted_frequency(DifferenceFrequencyGeneration(), 3, 5) == -2
+    @test process_frequencies(SumFrequencyGeneration(), 1, 2) === (1, 2)
+    @test process_frequencies(SumFrequencyGeneration(), 0.5, 0) === (0.5, 0.0)
+    @test process_frequencies(SumFrequencyGeneration(), 0.5, 1//2) === (0.5, 0.5)
+    @test emitted_frequency(
+        SumFrequencyGeneration(), Complex(0.5, 0.1), Complex(1.0, 0.0)
+    ) ≈ Complex(1.5, 0.1)
 end
