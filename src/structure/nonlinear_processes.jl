@@ -146,8 +146,12 @@ export DifferenceFrequencyGeneration
     FourWaveMixing()
 
 Four-wave mixing: `χ⁽³⁾(ω₁, ω₁, −ω₂)`, emitting at `2ω₁ − ω₂` — the third-order
-two-colour process behind coherent anti-Stokes Raman scattering and phase conjugation
+two-colour process behind coherent anti-Stokes Raman scattering
 ([ArmstrongBloembergen1962](@cite) for the permutation bookkeeping it obeys).
+
+Optical phase conjugation is **not** this cut: it needs the fully degenerate case, all four
+waves at one frequency, which is [`KerrEffect`](@ref) here. At `ω₁ ≠ ω₂` the output at
+`2ω₁ − ω₂` is in general not even at the probe's own frequency.
 """
 FourWaveMixing() = WaveMixing((2, 0), (0, 1))
 export FourWaveMixing
@@ -194,9 +198,22 @@ function process_frequencies(p::WaveMixing{M}, ws::Vararg{Any,N}) where {M,N}
     # otherwise died inside Base's tuple construction with a raw TypeError. Promote first:
     # mixed numeric types are ordinary in every other Julia numeric API.
     fs = promote(ws...)
+    # `promote` unifies the drives with EACH OTHER, which is not the same as unifying them
+    # with their own NEGATION — and this layer negates. Two types break on that distinction:
+    # `Bool` is not closed under `-` (`-true isa Int`), which merely crashes; `Unsigned` IS
+    # closed, but wrongly — `-UInt(5)` wraps to ~1.8e19 instead of erroring, which would put
+    # a nonsense frequency into the answer with nothing at all to signal it. Refuse the
+    # unsigned case whenever the process actually applies a −ω, and widen otherwise.
+    (any(>(0), p.minus) && eltype(fs) <: Unsigned) && throw(
+        ArgumentError(
+            "this process applies −ω, which the unsigned frequency type $(eltype(fs)) " *
+            "cannot represent: negation wraps around. Convert the drives to a signed type.",
+        ),
+    )
+    gs = map(x -> convert(promote_type(eltype(fs), typeof(-first(fs))), x), fs)
     args = Iterators.flatten(
         Iterators.flatten((
-            Iterators.repeated(fs[k], p.plus[k]), Iterators.repeated(-fs[k], p.minus[k])
+            Iterators.repeated(gs[k], p.plus[k]), Iterators.repeated(-gs[k], p.minus[k])
         )) for k in 1:M
     )
     return NTuple{response_order(p)}(args)
@@ -250,9 +267,11 @@ function degeneracy_factor(p::WaveMixing)
     # silently from order ~36 upward — returning, among other things, NEGATIVE counts. A
     # wrong-but-plausible integer out of a library used as an oracle is worse than an error,
     # so the arithmetic is exact and the single narrowing at the end fails loudly, with the
-    # true value in the message.
+    # true value in the message. Successive binomials rather than `n!/∏mᵢ!` even so: the
+    # intermediates stay far smaller (36! ≈ 4e41 against an answer of ≈1e19).
+    n = response_order(p)
     d = big(1)
-    remaining = response_order(p)
+    remaining = n
     for m in Iterators.flatten((p.plus, p.minus))
         m == 0 && continue
         d *= binomial(big(remaining), big(m))
@@ -260,7 +279,7 @@ function degeneracy_factor(p::WaveMixing)
     end
     typemin(Int) <= d <= typemax(Int) || throw(
         OverflowError(
-            "degeneracy_factor: this order-$(response_order(p)) process has $d distinct " *
+            "degeneracy_factor: this order-$n process has $d distinct " *
             "argument arrangements, which does not fit in Int",
         ),
     )

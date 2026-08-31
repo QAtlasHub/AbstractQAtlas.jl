@@ -354,3 +354,23 @@ end
     @test_throws "never enters" WaveMixing((0,), (0,))
     @test_throws "non-negative" WaveMixing((-2,), (0,))
 end
+
+@testset "promotion is closed under NEGATION, not merely across the drives" begin
+    # `promote` unifies the arguments with each other; this layer also negates them, and two
+    # types break on that distinction. Bool is not closed under `-` (`-true isa Int`), which
+    # merely crashed. Unsigned IS closed but wrongly so — `-UInt(5)` wraps to ~1.8e19, so
+    # `emitted_frequency(DifferenceFrequencyGeneration(), UInt(3), UInt(5))` used to return
+    # 18446744073709551614 where the answer is −2, with nothing to signal it.
+    @test process_frequencies(OpticalRectification(), true) === (1, -1)
+    @test process_frequencies(SumFrequencyGeneration(), true, 2.0) === (1.0, 2.0)
+    @test emitted_frequency(OpticalRectification(), true) == 0
+
+    @test_throws ArgumentError process_frequencies(
+        DifferenceFrequencyGeneration(), UInt(3), UInt(5)
+    )
+    @test_throws "negation wraps around" emitted_frequency(OpticalRectification(), UInt(3))
+    # ... but only where the process actually applies a −ω; unsigned is fine without one
+    @test process_frequencies(HarmonicGeneration(2), UInt(3)) === (UInt(3), UInt(3))
+    # and the signed answer is the right one
+    @test emitted_frequency(DifferenceFrequencyGeneration(), 3, 5) == -2
+end

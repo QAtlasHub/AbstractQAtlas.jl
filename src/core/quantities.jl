@@ -994,7 +994,9 @@ The `n`-th order term `DynamicalCorrelation(α, β₁, …, βₙ)` is the
 operators at `n` independent time differences, so it is intrinsically
 **n-time** (`frequency_arguments == n == response_order`).  Its `n`-fold
 nested-commutator (retarded) part is exactly the Kubo kernel of the
-order-`n` `DynamicalSusceptibility(α, β₁, …, βₙ)` (Kubo, [Kubo1957](@cite)): an `n`-th order response is an `n`-time
+order-`n` `DynamicalSusceptibility(α, β₁, …, βₙ)` (Kubo,
+[Kubo1957](@cite) for `n = 1`; the `n`-th order generalisation is Peterson,
+[Peterson1967](@cite)): an `n`-th order response is an `n`-time
 correlation.
 """
 struct DynamicalCorrelation{I} <: AbstractQuantity
@@ -1107,7 +1109,9 @@ so the response is intrinsically **multi-time** — `frequency_arguments
 second-order `χ⁽²⁾(ω₁, ω₂)` of two-dimensional coherent spectroscopy
 (Wan & Armitage, [WanArmitage2019](@cite)).  Its microscopic
 Kubo expression is the `n`-fold nested-commutator response function
-(Kubo, [Kubo1957](@cite)); see `structure/spectral.jl`.
+(Kubo, [Kubo1957](@cite) is the linear `n = 1` case; the general `n`-th
+order formal theory is Peterson, [Peterson1967](@cite)); see
+`structure/spectral.jl`.
 
 The static `Susceptibility{I}` of the same order is the zero-frequency
 limit, `χ⁽ⁿ⁾(0, …, 0)`.
@@ -1142,7 +1146,8 @@ The **time-domain** nonlinear response kernel — the Volterra kernel
 [`DynamicalSusceptibility`](@ref).  This is the object a real-time method
 produces directly: the response is `⟨Q_α⟩⁽ⁿ⁾(t) = ∫ dt̄₁⋯dt̄ₙ χ⁽ⁿ⁾(t̄₁,…,t̄ₙ)
 f_{β₁}(t−t̄₁)⋯f_{βₙ}(t−t̄ₙ)`, and its microscopic form is the `n`-fold nested
-commutator (Kubo, [Kubo1957](@cite)).
+commutator ([Kubo1957](@cite) is the linear `n = 1` case; the general `n`-th
+order formal theory is Peterson, [Peterson1967](@cite)).
 
 It is **not** the frequency-domain object with the arguments renamed.  The
 retarded kernel is supported only on the causally ordered region
