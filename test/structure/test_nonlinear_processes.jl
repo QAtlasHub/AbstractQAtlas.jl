@@ -1,4 +1,12 @@
 using AbstractQAtlas
+using AbstractQAtlas:
+    CurrentCorrelation,
+    DynamicalConductivity,
+    DynamicalCorrelation,
+    frequency_arguments,
+    index_spaces,
+    response_order,
+    tensor_rank
 using Test
 
 const PROCESSES_1F = (
@@ -234,4 +242,115 @@ end
     @test !causally_ordered(-0.1, 1.0)           # before the field acted
     @test causally_ordered(3.0)
     @test_throws ArgumentError causally_ordered()
+end
+
+# ── regressions found in review ────────────────────────────────────────────────────────
+
+@testset "degeneracy_factor is exact, and fails loudly rather than wrapping" begin
+    # It used to accumulate the multinomial in Int64. Base checks each individual binomial,
+    # but their PRODUCT wraps from order ~36 up — silently, and for some shapes NEGATIVE.
+    # A negative count is impossible, and nothing downstream would have caught it.
+    exact(p) = begin
+        n = response_order(p)
+        d = big(1)
+        for m in Iterators.flatten((p.plus, p.minus))
+            d *= binomial(big(n), big(m))
+            n -= m
+        end
+        d
+    end
+    for p in (
+        HarmonicGeneration(17),
+        WaveMixing((2, 1, 0), (0, 1, 1)),
+        WaveMixing((8, 8), (8, 0)),            # order 24 — well past the old wrap point's shape
+        WaveMixing((10, 10), (5, 5)),          # order 30, still inside Int
+    )
+        @test degeneracy_factor(p) == exact(p)
+        @test degeneracy_factor(p) > 0
+    end
+    # beyond Int the answer is refused, not wrapped, and the true value is in the message
+    big_one = WaveMixing((6, 9), (10, 11))     # order 36; used to return −8617483035347986816
+    @test exact(big_one) > typemax(Int)
+    @test_throws OverflowError degeneracy_factor(big_one)
+    @test_throws "9829261038361564800" degeneracy_factor(big_one)
+end
+
+@testset "drive frequencies of mixed numeric type are promoted, not rejected" begin
+    # The WaveMixing docstring says the Pockels effect is this process at ω₂ = 0. Written
+    # that way — an Int literal beside a Float — it used to die inside Base's tuple
+    # construction with a raw TypeError, because NTuple{n} demands one element type.
+    @test process_frequencies(SumFrequencyGeneration(), 0.5, 0) === (0.5, 0.0)
+    @test emitted_frequency(SumFrequencyGeneration(), 0.5, 0) ≈ 0.5      # Pockels
+    @test process_frequencies(SumFrequencyGeneration(), 0.5, 1//2) === (0.5, 0.5)
+    @test process_frequencies(FourWaveMixing(), 1, 2.5) === (1.0, 1.0, -2.5)
+    # homogeneous input keeps its type
+    @test process_frequencies(SumFrequencyGeneration(), 1, 2) === (1, 2)
+end
+
+@testset "causally_ordered refuses non-finite times instead of answering" begin
+    # NaN used to return `false` — indistinguishable from "genuinely out of order" — and Inf
+    # `true`, i.e. an infinite delay reported as inside the support.
+    @test_throws ArgumentError causally_ordered(NaN, 1.0)
+    @test_throws ArgumentError causally_ordered(0.0, NaN, 2.0)
+    @test_throws ArgumentError causally_ordered(0.0, Inf)
+    @test_throws "must be finite" causally_ordered(0.0, 1.0, Inf)
+    # times are real; a complex argument is a MethodError on the signature, not a comparison
+    @test_throws MethodError causally_ordered(1.0 + 0im, 2.0 + 0im)
+end
+
+@testset "the Fourier edges are visible to the reflection sweep, not just to this file" begin
+    # test/core/test_invariants.jl reaches leaves as bare UnionAlls and skips any type whose
+    # fourier_conjugate_quantity returns nothing. Declaring only `::Type{X{I}} where {I}` made
+    # all four of these invisible to it — the test that exists to catch a one-sided
+    # declaration ran zero assertions against them while reporting green.
+    fcq = AbstractQAtlas.fourier_conjugate_quantity
+    for (fam, conj) in (
+        (DynamicalSusceptibility, ResponseKernel),
+        (ResponseKernel, DynamicalSusceptibility),
+        (DynamicalConductivity, CurrentResponseKernel),
+        (CurrentResponseKernel, DynamicalConductivity),
+    )
+        @test fcq(fam) === conj                       # the bare form the sweep actually calls
+        @test fcq(fam) !== nothing                    # ⇒ the sweep does not `continue` past it
+    end
+end
+
+@testset "the kernels carry the Kubo edge their docstrings claim" begin
+    # ResponseKernel's docstring says it IS the n-fold nested commutator; without an edge the
+    # graph showed it reachable only by detouring through the frequency-domain object.
+    so = AbstractQAtlas.spectral_origin
+    @test so(ResponseKernel(:x, :y, :z)).from === DynamicalCorrelation{(:x, :y, :z)}
+    @test so(ResponseKernel(:x, :y, :z)).via === :kubo
+    @test so(CurrentResponseKernel(:x, :y, :z)).from === CurrentCorrelation{(:x, :y, :z)}
+    @test so(ResponseKernel).from === DynamicalCorrelation          # index-erased form too
+    @test so(CurrentResponseKernel).from === CurrentCorrelation
+    # order-faithful: the edge preserves the response order, as the χ edge does
+    @test response_order(so(ResponseKernel(:x, :y, :z)).from) ==
+        response_order(ResponseKernel(:x, :y, :z))
+end
+
+@testset "the two kernels live in different index spaces" begin
+    # They are near-identical copies of one another; swapping SpinAxis for SpatialDirection is
+    # a copy-paste away and length-only trait checks cannot see it.
+    @test index_spaces(ResponseKernel(:x, :y, :z)) == (SpinAxis(), SpinAxis(), SpinAxis())
+    @test index_spaces(CurrentResponseKernel(:x, :y, :z)) ==
+        (SpatialDirection(), SpatialDirection(), SpatialDirection())
+    @test index_spaces(ResponseKernel(:x, :y, :z)) !=
+        index_spaces(CurrentResponseKernel(:x, :y, :z))
+    # and the current kernel's traits are asserted directly, not only via its transform
+    @test response_order(CurrentResponseKernel(:x, :y, :z)) == 2
+    @test frequency_arguments(CurrentResponseKernel(:x, :y, :z)) == 2
+    @test tensor_rank(CurrentResponseKernel(:x, :y, :z)) == 3
+    @test_throws ErrorException ResponseKernel(:x)            # ≥2 indices
+    @test_throws ErrorException CurrentResponseKernel(:x)
+end
+
+@testset "HarmonicGeneration validates its own argument, not by accident" begin
+    # WaveMixing's own guards also reject (0,)/(−2,), for unrelated reasons, so asserting
+    # only "an ArgumentError happened" would still pass if HarmonicGeneration's check were
+    # deleted. Pin the message that is actually its own.
+    @test_throws "harmonic order must be at least 1" HarmonicGeneration(0)
+    @test_throws "harmonic order must be at least 1" HarmonicGeneration(-2)
+    @test_throws "never enters" WaveMixing((0,), (0,))
+    @test_throws "non-negative" WaveMixing((-2,), (0,))
 end

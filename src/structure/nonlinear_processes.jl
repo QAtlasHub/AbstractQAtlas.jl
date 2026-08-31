@@ -145,7 +145,7 @@ export DifferenceFrequencyGeneration
 """
     FourWaveMixing()
 
-Degenerate four-wave mixing: `χ⁽³⁾(ω₁, ω₁, −ω₂)`, emitting at `2ω₁ − ω₂` — the third-order
+Four-wave mixing: `χ⁽³⁾(ω₁, ω₁, −ω₂)`, emitting at `2ω₁ − ω₂` — the third-order
 two-colour process behind coherent anti-Stokes Raman scattering and phase conjugation
 ([ArmstrongBloembergen1962](@cite) for the permutation bookkeeping it obeys).
 """
@@ -189,12 +189,17 @@ function process_frequencies(p::WaveMixing{M}, ws::Vararg{Any,N}) where {M,N}
     N == M || throw(
         ArgumentError("this process has $M drive(s) but got $N frequency argument(s)")
     )
-    args = Iterators.flatten((
+    # `NTuple{n}` demands ONE element type, so mixing an Int with a Float — which the
+    # `WaveMixing` docstring invites, the Pockels effect being this process at `ω₂ = 0` —
+    # otherwise died inside Base's tuple construction with a raw TypeError. Promote first:
+    # mixed numeric types are ordinary in every other Julia numeric API.
+    fs = promote(ws...)
+    args = Iterators.flatten(
         Iterators.flatten((
-            Iterators.repeated(ws[k], p.plus[k]), Iterators.repeated(-ws[k], p.minus[k])
+            Iterators.repeated(fs[k], p.plus[k]), Iterators.repeated(-fs[k], p.minus[k])
         )) for k in 1:M
-    ),)
-    return NTuple{sum(p.plus) + sum(p.minus)}(args)
+    )
+    return NTuple{response_order(p)}(args)
 end
 export process_frequencies
 
@@ -212,7 +217,7 @@ probe frequency while being driven by a pump as well.
 ```julia
 emitted_frequency(HarmonicGeneration(2), 0.5)      # 1.0
 emitted_frequency(OpticalRectification(), 0.5)     # 0.0
-emitted_frequency(FourWaveMixing(), 0.5, 1.2)      # -0.2  ( = 2·0.5 − 1.2 )
+emitted_frequency(FourWaveMixing(), 1, 3)          # -1    ( = 2·1 − 3 )
 ```
 """
 emitted_frequency(p::AbstractNonlinearProcess, w...) = sum(process_frequencies(p, w...))
@@ -240,15 +245,26 @@ degeneracy_factor(KerrEffect())                # 3  — (ω, ω, −ω)
 ```
 """
 function degeneracy_factor(p::WaveMixing)
-    # successive binomials rather than n!/∏mᵢ! so the intermediate stays small and exact
-    d = 1
+    # Accumulated in `BigInt`, deliberately. Base's `binomial` checks each individual
+    # coefficient, but the running PRODUCT is the full multinomial and wrapped `Int64`
+    # silently from order ~36 upward — returning, among other things, NEGATIVE counts. A
+    # wrong-but-plausible integer out of a library used as an oracle is worse than an error,
+    # so the arithmetic is exact and the single narrowing at the end fails loudly, with the
+    # true value in the message.
+    d = big(1)
     remaining = response_order(p)
     for m in Iterators.flatten((p.plus, p.minus))
         m == 0 && continue
-        d *= binomial(remaining, m)
+        d *= binomial(big(remaining), big(m))
         remaining -= m
     end
-    return d
+    typemin(Int) <= d <= typemax(Int) || throw(
+        OverflowError(
+            "degeneracy_factor: this order-$(response_order(p)) process has $d distinct " *
+            "argument arrangements, which does not fit in Int",
+        ),
+    )
+    return Int(d)
 end
 export degeneracy_factor
 
@@ -306,8 +322,14 @@ breaks it), while its Fourier transform is symmetrised into `χ̄⁽ⁿ⁾`; and
 the ordered region is what produces the nested denominators of the frequency-domain
 response.
 """
-function causally_ordered(ts::Vararg{Any,N}) where {N}
+function causally_ordered(ts::Vararg{Real,N}) where {N}
     N >= 1 || throw(ArgumentError("need at least one time argument"))
+    # Without this, NaN returns `false` — indistinguishable from a genuinely out-of-order
+    # sequence — and Inf returns `true`, telling a caller an infinite delay lies inside the
+    # support. Both bury a corrupted time argument under a confident Boolean. The same guard
+    # is house style: see the `all(isfinite, ...)` check in relations/interface.jl.
+    all(isfinite, ts) ||
+        throw(ArgumentError("causally_ordered: time arguments must be finite, got $ts"))
     ts[1] >= 0 || return false
     return all(ts[i] <= ts[i + 1] for i in 1:(N - 1))
 end
