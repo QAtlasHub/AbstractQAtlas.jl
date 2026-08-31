@@ -994,7 +994,9 @@ The `n`-th order term `DynamicalCorrelation(α, β₁, …, βₙ)` is the
 operators at `n` independent time differences, so it is intrinsically
 **n-time** (`frequency_arguments == n == response_order`).  Its `n`-fold
 nested-commutator (retarded) part is exactly the Kubo kernel of the
-order-`n` `DynamicalSusceptibility(α, β₁, …, βₙ)` (Kubo, [Kubo1957](@cite)): an `n`-th order response is an `n`-time
+order-`n` `DynamicalSusceptibility(α, β₁, …, βₙ)` (Kubo,
+[Kubo1957](@cite) for `n = 1`; the `n`-th order generalisation is Peterson,
+[Peterson1967](@cite)): an `n`-th order response is an `n`-time
 correlation.
 """
 struct DynamicalCorrelation{I} <: AbstractQuantity
@@ -1107,7 +1109,9 @@ so the response is intrinsically **multi-time** — `frequency_arguments
 second-order `χ⁽²⁾(ω₁, ω₂)` of two-dimensional coherent spectroscopy
 (Wan & Armitage, [WanArmitage2019](@cite)).  Its microscopic
 Kubo expression is the `n`-fold nested-commutator response function
-(Kubo, [Kubo1957](@cite)); see `structure/spectral.jl`.
+(Kubo, [Kubo1957](@cite) is the linear `n = 1` case; the general `n`-th
+order formal theory is Peterson, [Peterson1967](@cite)); see
+`structure/spectral.jl`.
 
 The static `Susceptibility{I}` of the same order is the zero-frequency
 limit, `χ⁽ⁿ⁾(0, …, 0)`.
@@ -1132,6 +1136,77 @@ response_order(::Type{DynamicalSusceptibility{I}}) where {I} = length(I) - 1
 # multi-time: an n-th order dynamical response depends on n frequencies
 frequency_arguments(::Type{DynamicalSusceptibility{I}}) where {I} = length(I) - 1
 export DynamicalSusceptibility
+
+"""
+    ResponseKernel{I}() <: AbstractQuantity
+    ResponseKernel(α, β₁, …, βₙ)          # each a Symbol
+
+The **time-domain** nonlinear response kernel — the Volterra kernel
+`χ⁽ⁿ⁾_{α;β₁…βₙ}(t̄₁, …, t̄ₙ)` whose Fourier transform is
+[`DynamicalSusceptibility`](@ref).  This is the object a real-time method
+produces directly: the response is `⟨Q_α⟩⁽ⁿ⁾(t) = ∫ dt̄₁⋯dt̄ₙ χ⁽ⁿ⁾(t̄₁,…,t̄ₙ)
+f_{β₁}(t−t̄₁)⋯f_{βₙ}(t−t̄ₙ)`, and its microscopic form is the `n`-fold nested
+commutator ([Kubo1957](@cite) is the linear `n = 1` case; the general `n`-th
+order formal theory is Peterson, [Peterson1967](@cite)).
+
+It is **not** the frequency-domain object with the arguments renamed.  The
+retarded kernel is supported only on the causally ordered region
+`0 ≤ t̄₁ ≤ ⋯ ≤ t̄ₙ` (`causally_ordered`), so — unlike its transform — it is
+**not** permutation symmetric; the symmetrisation that produces `χ̄⁽ⁿ⁾` happens
+on the frequency side.  Integrating over the ordered region is what turns the
+kernel into the nested denominators of `χ⁽ⁿ⁾(ω₁,…,ωₙ)`.
+
+Order-parametric exactly like [`DynamicalSusceptibility`](@ref): `n` time
+arguments for an `n`-th order response.
+"""
+struct ResponseKernel{I} <: AbstractQuantity
+    function ResponseKernel{I}() where {I}
+        return (
+            length(_axistuple(I)) >= 2 || error(
+                "ResponseKernel needs ≥2 indices (1 response + ≥1 field), got $(repr(I))",
+            );
+            new{I}()
+        )
+    end
+end
+ResponseKernel(idx::Symbol...) = ResponseKernel{idx}()
+tensor_rank(::Type{ResponseKernel{I}}) where {I} = length(I)
+index_spaces(::Type{ResponseKernel{I}}) where {I} = ntuple(_ -> SpinAxis(), length(I))
+indices(::Type{ResponseKernel{I}}) where {I} = I
+response_order(::Type{ResponseKernel{I}}) where {I} = length(I) - 1
+# n independent time arguments — the same multi-time dimensionality as its transform
+frequency_arguments(::Type{ResponseKernel{I}}) where {I} = length(I) - 1
+export ResponseKernel
+
+"""
+    CurrentResponseKernel{I}() <: AbstractQuantity
+    CurrentResponseKernel(α, β₁, …, βₙ)          # each a Symbol
+
+The current-channel mirror of [`ResponseKernel`](@ref): the time-domain kernel
+whose Fourier transform is [`DynamicalConductivity`](@ref).  Same causal
+support, same order parametrisation; it exists so the response and current
+channels each have both sides of their Fourier edge, as the spin and current
+*correlation* channels already do.
+"""
+struct CurrentResponseKernel{I} <: AbstractQuantity
+    function CurrentResponseKernel{I}() where {I}
+        return (
+            length(_axistuple(I)) >= 2 || error(
+                "CurrentResponseKernel needs ≥2 indices (1 current + ≥1 field), got $(repr(I))",
+            );
+            new{I}()
+        )
+    end
+end
+CurrentResponseKernel(idx::Symbol...) = CurrentResponseKernel{idx}()
+tensor_rank(::Type{CurrentResponseKernel{I}}) where {I} = length(I)
+function index_spaces(::Type{CurrentResponseKernel{I}}) where {I}
+    return ntuple(_ -> SpatialDirection(), length(I))
+end
+indices(::Type{CurrentResponseKernel{I}}) where {I} = I
+response_order(::Type{CurrentResponseKernel{I}}) where {I} = length(I) - 1
+frequency_arguments(::Type{CurrentResponseKernel{I}}) where {I} = length(I) - 1
+export CurrentResponseKernel
 
 """
     NMRSpinRelaxationRate() <: AbstractQuantity

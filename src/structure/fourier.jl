@@ -34,6 +34,13 @@ representation(::Type{<:DynamicalConductivity}) = (MomentumSpace(), FrequencyDom
 representation(::Type{<:CurrentCorrelation}) = (RealSpace(), TimeDomain())
 # the current-noise spectral density is the (q, ω) FT of the current correlation
 representation(::Type{<:CurrentNoise}) = (MomentumSpace(), FrequencyDomain())
+# the nonlinear response kernel is the time-domain side of the susceptibility/conductivity
+function representation(::Type{ResponseKernel{I}}) where {I}
+    return (RealSpace(), TimeDomain())
+end
+function representation(::Type{CurrentResponseKernel{I}}) where {I}
+    return (RealSpace(), TimeDomain())
+end
 # single-particle propagators live in (q, ω)
 representation(::Type{RetardedGreensFunction}) = (MomentumSpace(), FrequencyDomain())
 representation(::Type{SelfEnergy}) = (MomentumSpace(), FrequencyDomain())
@@ -66,6 +73,26 @@ fourier_conjugate_quantity(::Type{<:DynamicalCorrelation}) = DynamicalStructureF
 # current channel: S^j(q,ω) ↔ ⟨jj⟩(r,t)
 fourier_conjugate_quantity(::Type{<:CurrentNoise}) = CurrentCorrelation
 fourier_conjugate_quantity(::Type{<:CurrentCorrelation}) = CurrentNoise
+# the RESPONSE channel had no Fourier partner at all: the time-domain kernel a real-time
+# method computes was unnameable. Each pair is declared FOUR times, not two: both directions
+# (Fourier conjugacy is symmetric), and for each direction both the applied type AND the
+# index-erased family — exactly as the Kubo edges in structure/spectral.jl are. The family
+# form is not decoration. The reflection sweep in test/core/test_invariants.jl reaches leaves
+# as bare `UnionAll`s, and a `::Type{X{I}} where {I}` method does not match `f(X)`, so a
+# family declaring only the applied form is SKIPPED by the very test meant to catch a
+# one-sided declaration.
+fourier_conjugate_quantity(::Type{DynamicalSusceptibility{I}}) where {I} = ResponseKernel{I}
+fourier_conjugate_quantity(::Type{DynamicalSusceptibility}) = ResponseKernel
+fourier_conjugate_quantity(::Type{ResponseKernel{I}}) where {I} = DynamicalSusceptibility{I}
+fourier_conjugate_quantity(::Type{ResponseKernel}) = DynamicalSusceptibility
+function fourier_conjugate_quantity(::Type{DynamicalConductivity{I}}) where {I}
+    return CurrentResponseKernel{I}
+end
+fourier_conjugate_quantity(::Type{DynamicalConductivity}) = CurrentResponseKernel
+function fourier_conjugate_quantity(::Type{CurrentResponseKernel{I}}) where {I}
+    return DynamicalConductivity{I}
+end
+fourier_conjugate_quantity(::Type{CurrentResponseKernel}) = DynamicalConductivity
 export fourier_conjugate_quantity
 
 """

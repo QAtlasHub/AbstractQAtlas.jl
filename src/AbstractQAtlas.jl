@@ -76,6 +76,7 @@ include("structure/tensor_symmetry.jl")
 include("structure/spectral.jl")
 include("structure/keldysh.jl")
 include("structure/fourier.jl")
+include("structure/nonlinear_processes.jl")  # named nonlinear cuts through χ⁽ⁿ⁾
 
 # relations — the CORE relation machinery (the AbstractFFTs-like interface:
 # the @relation / @bound macros, residual/check/solve/slack, the

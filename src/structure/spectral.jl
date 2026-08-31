@@ -84,11 +84,26 @@ function spectral_origin(::Type{DynamicalSusceptibility})
 end
 # Kubo edge for the AC conductivity: σ⁽ⁿ⁾{I} is the retarded part of the
 # same-order n-time current–current correlation (order-faithful, like the
-# susceptibility) — Kubo, [Kubo1957](@cite).
+# susceptibility) — Kubo, [Kubo1957](@cite) at n = 1, Peterson,
+# [Peterson1967](@cite) for the n-th order formal theory.
 function spectral_origin(::Type{DynamicalConductivity{I}}) where {I}
     return SpectralOrigin(CurrentCorrelation{I}, :kubo)
 end
 spectral_origin(::Type{DynamicalConductivity}) = SpectralOrigin(CurrentCorrelation, :kubo)
+# The kernel side of the same Kubo statement, and the more primitive one: the time-domain
+# response kernel IS the retarded nested commutator of the correlation, POINTWISE in time,
+# no transform involved. The DynamicalSusceptibility edge above is this composed with the
+# Fourier edge in structure/fourier.jl, so declaring the kernel edge makes the graph
+# decompose instead of leaving the kernel reachable only by detouring through the
+# frequency-domain object. Order-faithful and index-erased, as above.
+function spectral_origin(::Type{ResponseKernel{I}}) where {I}
+    return SpectralOrigin(DynamicalCorrelation{I}, :kubo)
+end
+spectral_origin(::Type{ResponseKernel}) = SpectralOrigin(DynamicalCorrelation, :kubo)
+function spectral_origin(::Type{CurrentResponseKernel{I}}) where {I}
+    return SpectralOrigin(CurrentCorrelation{I}, :kubo)
+end
+spectral_origin(::Type{CurrentResponseKernel}) = SpectralOrigin(CurrentCorrelation, :kubo)
 # the current-noise spectral density is the space-time FT of the current
 # correlation — the fluctuation side, mirroring DynamicalStructureFactor
 function spectral_origin(::Type{<:CurrentNoise})

@@ -75,6 +75,8 @@ end
         DynamicalSusceptibility(:x, :y, :z),
         Conductivity(:x, :y),
         DynamicalConductivity(:x, :y, :z),
+        ResponseKernel(:x, :y, :z),
+        CurrentResponseKernel(:x, :y, :z),
     )
         @test response_order(q) == tensor_rank(q) - 1
     end
