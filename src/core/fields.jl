@@ -56,6 +56,23 @@ struct ChemicalPotential <: AbstractField end
 export ChemicalPotential
 
 """
+    VectorPotentialField <: AbstractField
+
+The optical vector potential `A`.  Conjugate (via `j = −∂H/∂A`) to the
+[`ElectricCurrent`](@ref) — the velocity-gauge analogue of `M = −∂F/∂h`,
+with the Hamiltonian in place of the free energy because `A` couples to
+the hopping rather than to a thermodynamic variable.
+
+A VECTOR field: unlike the scalar tags above it carries a direction, and
+its values are [`VectorPotential`](@ref)s whose dimension is the number
+of [`SpatialDirection`](@ref) slots the model ranges over.  See
+`structure/velocity_gauge.jl` for the phase it enters through and the
+length unit that phase depends on.
+"""
+struct VectorPotentialField <: AbstractField end
+export VectorPotentialField
+
+"""
     conjugate_field(quantity) -> AbstractField
     conjugate_field(::Type{<:AbstractQuantity}) -> AbstractField
 
@@ -69,4 +86,5 @@ conjugate_field(q::AbstractQuantity) = conjugate_field(typeof(q))
 conjugate_field(::Type{<:AbstractMagnetization}) = MagneticField()
 conjugate_field(::Type{ThermalEntropy}) = Temperature()
 conjugate_field(::Type{ParticleNumber}) = ChemicalPotential()   # N ⟷ μ (grand canonical)
+conjugate_field(::Type{ElectricCurrent}) = VectorPotentialField()   # j ⟷ A (velocity gauge)
 export conjugate_field

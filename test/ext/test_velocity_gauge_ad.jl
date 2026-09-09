@@ -1,4 +1,5 @@
 using AbstractQAtlas
+using AbstractQAtlas: check
 using ForwardDiff
 using Test
 
@@ -20,19 +21,23 @@ end
     for a in (0.0, 0.35, -1.2)
         fd = (scalar(a + ε) - scalar(a - ε)) / (2ε)
         @test peierls_current(H, VectorPotential(a)) ≈ -fd atol = 1.0e-7
-        # The two exported routes land on the same sign, so a consumer holding a derivative
-        # already and one holding a function do not disagree.
-        @test peierls_current(H, VectorPotential(a)) ≈
-            current_from_hamiltonian_derivative(ForwardDiff.derivative(scalar, a))
+        # The AD seam and the relation state the same sign, so a consumer that differentiates
+        # here and one that supplies its own derivative do not disagree.
+        @test check(
+            ElectricCurrentResponse();
+            j=peierls_current(H, VectorPotential(a)),
+            dH_dA=ForwardDiff.derivative(scalar, a),
+        )
     end
 end
 
 @testset "peierls_current carries no length unit of its own" begin
-    # The seam differentiates with respect to whatever `A` it is handed; the unit is
-    # `PeierlsConvention`'s business. Two models differing only by that unit give currents
-    # differing by the same factor — the fact a consumer must not rediscover by fitting.
-    Hsite(a) = cos(peierls_phase(PeierlsConvention(1), a))
-    Hcell(a) = cos(peierls_phase(PeierlsConvention(2), a))
+    # The seam differentiates with respect to whatever `A` it is handed; the unit lives in
+    # the DISPLACEMENT, which the model supplies. Two models differing only by that give
+    # currents differing by the same factor — a fact a consumer must not rediscover by
+    # fitting, and one this layer refuses to name for them.
+    Hsite(a) = cos(peierls_phase(a, (1.0,)))
+    Hcell(a) = cos(peierls_phase(a, (0.5,)))
     A = 0.4
     @test peierls_current(Hcell, VectorPotential(A)) ≈
         peierls_current(Hsite, VectorPotential(A / 2)) / 2

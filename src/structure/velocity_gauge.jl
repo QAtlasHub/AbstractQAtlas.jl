@@ -5,12 +5,15 @@
 # that are conventions rather than facts, and both are invisible to every static check and to
 # the linear and second-order responses:
 #
-#   * the LENGTH UNIT the displacement is measured in, and
-#   * the sign in `J = -∂H/∂A`.
+#   * the LENGTH UNIT the displacement is measured in — which is a LATTICE fact, so it is not
+#     here: a model supplies the displacement and this layer only contracts it; and
+#   * the sign in `j = -∂H/∂A`, which is `ElectricCurrentResponse` in relations/fundamental.jl,
+#     where every other signed field-derivative already lives.
 #
-# They live here because a calculation with a k-space arm, a real-space arm and a
-# tensor-network arm needs both in all three, and three private copies is how three arms come
-# to share one convention, agree with each other, and be wrong together.
+# What IS here is the field itself, the contraction, and the AD seam that evaluates the edge —
+# the three things a k-space arm, a real-space arm and a tensor-network arm each need and each
+# would otherwise write privately, which is how three arms come to share one convention, agree
+# with each other, and be wrong together.
 #
 # `A` is a VECTOR. The dimension is carried in the type rather than left to a bare `Real`, so
 # a seam that only handles one dimension has to say so instead of accepting a number and
@@ -67,10 +70,18 @@ export VectorPotential
 """
     dimension(A::VectorPotential) -> Int
 
-How many spatial components `A` has.
+How many spatial components `A` has — the number of [`SpatialDirection`](@ref) slots, the
+same count [`tensor_rank`](@ref) reports.
 """
 dimension(::VectorPotential{N}) where {N} = N
 export dimension
+
+# The same traits the quantities carry, so "N counts SpatialDirection slots" holds by
+# construction rather than by a comment. `ElectricCurrent` is rank 1 in that space for any
+# model; a VALUE of the conjugate field is rank 1 in it `N` times over, one per direction the
+# model actually ranges over.
+tensor_rank(::Type{<:VectorPotential{N}}) where {N} = N
+index_spaces(::Type{<:VectorPotential{N}}) where {N} = ntuple(_ -> SpatialDirection(), N)
 
 Base.getindex(A::VectorPotential, i::Int) = A.components[i]
 Base.length(A::VectorPotential) = length(A.components)
@@ -85,76 +96,15 @@ The hopping becomes `exp(-i·peierls_phase(A, d))` in the forward direction and 
 in the reverse. Applying the same sign to both is not a gauge transformation, and shows up as
 an open chain whose energy moves with `A`.
 
-`displacement` is measured in whatever length unit the model uses — see
-[`PeierlsConvention`](@ref) for the one-dimensional case, where every bond spans the same
-distance and the unit is the whole of the choice.
+`displacement` is measured in whatever length unit the model uses, and that unit is a choice
+the model must state: it is invisible to every static check and to the linear and
+second-order responses, and separates only at third order in the drive. This layer does not
+name it, because how far a bond spans is a fact about a lattice, not about a definition.
 """
 function peierls_phase(A::VectorPotential{N}, displacement::NTuple{N,<:Real}) where {N}
     return sum(A.components .* displacement)
 end
 export peierls_phase
-
-"""
-    PeierlsConvention(bonds_per_cell)
-
-The one-dimensional shortcut: a uniform chain whose every bond spans `1 / bonds_per_cell`, so
-naming that integer names the length unit.
-
-`PeierlsConvention(1)` measures `A` in units of the SITE spacing, so one bond carries
-`e^{iA}`. `PeierlsConvention(2)` measures it in units of a two-site CELL, so each bond spans
-half a unit and carries `e^{iA/2}`.
-
-Neither is more correct — they are different units — and the difference separates only at
-third order in the drive. So this is something a model STATES; it is not something a test
-discovers.
-
-Beyond one dimension the displacements are not all equal and there is no single integer to
-name; pass them to [`peierls_phase`](@ref) directly.
-"""
-struct PeierlsConvention
-    bonds_per_cell::Int
-    function PeierlsConvention(n::Integer)
-        n >= 1 || throw(ArgumentError("PeierlsConvention: need ≥1 bond per cell, got $n"))
-        return new(Int(n))
-    end
-end
-export PeierlsConvention
-
-"""
-    bond_displacement(c::PeierlsConvention) -> Real
-
-`1 / bonds_per_cell`, the displacement every bond of the uniform chain spans.
-
-Separated from [`peierls_phase`](@ref) because it is the model-dependent half: the phase is
-always `A · d`, and this is what `d` happens to be in one dimension.
-"""
-bond_displacement(c::PeierlsConvention) = 1 / c.bonds_per_cell
-export bond_displacement
-
-"""
-    peierls_phase(c::PeierlsConvention, A::VectorPotential{1}) -> Real
-
-The one-dimensional phase, `A / bonds_per_cell`. The general `A · d` with the displacement
-[`bond_displacement`](@ref) supplies.
-"""
-function peierls_phase(c::PeierlsConvention, A::VectorPotential{1})
-    return peierls_phase(A, (bond_displacement(c),))
-end
-
-"""
-    current_from_hamiltonian_derivative(dH_dA)
-
-`J = -∂H/∂A`, for a number, an expectation value, or an operator, given the derivative.
-
-One negation, named because a driven current oscillates about zero and the checks that watch
-it mostly take `|J|`: a flipped sign passes them and inverts every odd-order response.
-
-Use this when the derivative is already in hand — a closed form, or a finite difference of a
-measured energy. When the Hamiltonian is available as a FUNCTION of `A`, prefer
-[`peierls_current`](@ref), which differentiates it rather than asking a caller to.
-"""
-current_from_hamiltonian_derivative(dH_dA) = -dH_dA
-export current_from_hamiltonian_derivative
 
 """
     peierls_current(H_of_A, A::VectorPotential) -> value
