@@ -15,6 +15,26 @@
 # `A` is a VECTOR. The dimension is carried in the type rather than left to a bare `Real`, so
 # a seam that only handles one dimension has to say so instead of accepting a number and
 # meaning something narrower than it looks.
+#
+# WHERE THIS SITS IN THE EXISTING LAYERS. Three of them already carry a piece of this and
+# none of them carried the phase:
+#
+#   * `SpatialDirection` (core/indices.jl) names the index `μ` that currents and transport
+#     tensors carry — `σ_μν`, `DynamicalConductivity(:x, :y)`. `VectorPotential{N}` is a
+#     VALUE in that same space, so `N` counts `SpatialDirection` slots. The existing rule
+#     there is that "its range is set by the model, so the interface names the space without
+#     enumerating it"; `N` is that range, made concrete once a caller supplies a field.
+#   * `Region` (core/region.jl) is the SUPPORT a quantity is evaluated on, and is
+#     deliberately dimension-agnostic: a site is any hashable label. That is the right shape
+#     for WHICH sites, and it is not the shape for the displacement BETWEEN two of them —
+#     `A · (r_i - r_j)` needs positions in a vector space, which a label set does not have.
+#     The two are complementary: `Region` says where, `VectorPotential` says along what.
+#   * `DynamicalConductivity` and `CurrentCorrelation` (core/quantities.jl) already index by
+#     `SpatialDirection`. `J = -∂H/∂A` is the operator whose correlations those quantities
+#     ARE, so the sign fixed here is the sign their Kubo expressions inherit.
+#
+# The layer added here is the one between them: the field, its contraction with a
+# displacement, and the sign of the current that contraction defines.
 
 """
     VectorPotential(components::Real...)
@@ -22,8 +42,20 @@
 
 The optical vector potential `A`, with its dimension in the type.
 
-`peierls_phase` contracts it with a bond's displacement, so the dimension of one has to match
-the other; a bare number cannot express that and cannot say which dimension a method supports.
+`N` IS THE DIMENSION OF THE SPACE DISPLACEMENTS LIVE IN — the ambient space the sites are
+embedded in — because [`peierls_phase`](@ref) contracts `A` with `r_i - r_j`. It is not a
+property of the site SET, and in particular it is not a Hausdorff dimension: a Sierpiński
+gasket drawn in the plane has sites whose set is `log3/log2`-dimensional and displacements
+that are ordinary 2-vectors, so its `A` is `VectorPotential{2}`.
+
+For a cut-and-project quasicrystal it is the PARALLEL dimension (`D_par` in
+QuasiCrystal.jl's `cut_and_project_dimensions`), not the hyperspace `D_hyper`: a Fibonacci
+chain has `D_par = 1`, `D_hyper = 2`, and its optical `A` is `VectorPotential{1}` because the
+hops it multiplies are displacements in the physical line. A drive along the PERPENDICULAR
+directions is a phason, not a vector potential, and does not belong in this type — conflating
+the two is the mistake `N` exists to make impossible to write.
+
+A bare number could say none of this.
 """
 struct VectorPotential{N,T<:Real}
     components::NTuple{N,T}
