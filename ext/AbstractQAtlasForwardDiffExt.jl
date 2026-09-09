@@ -10,7 +10,7 @@
 module AbstractQAtlasForwardDiffExt
 
 using AbstractQAtlas
-import AbstractQAtlas: thermal_derivative        # extended below → must import
+import AbstractQAtlas: peierls_current, thermal_derivative   # extended below → must import
 using AbstractQAtlas:
     response_order,
     indices,
@@ -107,5 +107,10 @@ thermal_derivative(::SpecificHeat, U, T::Number) = derivative(U, T)
 
 # U = ∂(βF)/∂β  (Gibbs–Helmholtz; the potential is βF, not F — pass βF(β))
 thermal_derivative(::Energy, βF, β::Number) = derivative(βF, β)
+
+# J = -∂H/∂A. The same forward-mode route `thermal_derivative` takes, and the same sign
+# convention as `M = -∂F/∂h`: differentiating at the seam is what keeps a consumer from
+# hand-coding a current operator and getting its sign wrong in a way no static check sees.
+peierls_current(H_of_A, A::Number) = -derivative(H_of_A, A)
 
 end # module AbstractQAtlasForwardDiffExt
