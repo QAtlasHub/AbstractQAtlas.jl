@@ -38,10 +38,18 @@ end
     @test !isapprox(current_from_hamiltonian_derivative(d), d)
 end
 
-@testset "peierls_current refuses without a backend" begin
-    # The seam errors rather than silently returning something: a missing AD backend must
-    # not look like a zero current.
-    if !isdefined(Main, :ForwardDiff)
-        @test_throws ErrorException peierls_current(a -> a^2, 0.3)
+@testset "peierls_current refuses rather than returning a zero current" begin
+    # A missing AD backend must not read as "no current". Reached through `invoke` on the
+    # fallback's own signature, so the assertion does not depend on whether ForwardDiff
+    # happens to be loaded — a shard that ran the extension's tests first would otherwise
+    # skip this silently, which is what the first version of this test did.
+    @test_throws ErrorException invoke(peierls_current, Tuple{Any,Any}, a -> a^2, 0.3)
+    # The message has to name the backend, or a reader learns only that something failed.
+    msg = try
+        invoke(peierls_current, Tuple{Any,Any}, a -> a^2, 0.3)
+        ""
+    catch e
+        sprint(showerror, e)
     end
+    @test occursin("ForwardDiff", msg)
 end

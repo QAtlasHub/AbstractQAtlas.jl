@@ -39,3 +39,12 @@ end
     # Not equal, which is the whole point of naming the unit.
     @test !isapprox(peierls_current(Hcell, A), peierls_current(Hsite, A))
 end
+
+@testset "the fallback still refuses, with the extension loaded" begin
+    # Both branches of `peierls_current` are exercised in this file: the extension's method
+    # above, and the fallback here through `invoke`. Reaching only one leaves the other
+    # uncovered in whichever shard happens not to load ForwardDiff.
+    @test_throws ErrorException invoke(peierls_current, Tuple{Any,Any}, a -> a^2, 0.3)
+    # And the extension's method is genuinely a different one, not the fallback rethrown.
+    @test peierls_current(a -> a^2, 0.3) ≈ -0.6
+end
