@@ -62,9 +62,21 @@ A bare number could say none of this.
 """
 struct VectorPotential{N,T<:Real}
     components::NTuple{N,T}
+    # Written out rather than left to the implicit constructor: that one is
+    # `VectorPotential(::NTuple{N,T}) where {N,T}` with `N` appearing only inside the tuple
+    # type, which Aqua reports as an unbound parameter on Julia 1.10.
+    VectorPotential{N,T}(components::NTuple{N,T}) where {N,T<:Real} = new{N,T}(components)
 end
-VectorPotential(components::Real...) = VectorPotential(promote(components...))
-VectorPotential(a::Real) = VectorPotential((a,))
+# No `where {N}` on the outer constructors. A method whose only mention of `N` is inside a
+# tuple type is an unbound parameter on Julia 1.10 and Aqua refuses it; taking the tuple
+# without naming its length, and letting the inner constructor bind both, avoids the
+# question entirely.
+function VectorPotential(components::Tuple{Vararg{Real}})
+    return VectorPotential{length(components),eltype(promote(components...))}(
+        promote(components...)
+    )
+end
+VectorPotential(components::Real...) = VectorPotential(components)
 export VectorPotential
 
 """
