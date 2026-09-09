@@ -53,6 +53,10 @@ derivative_edge(::Type{<:AbstractQuantity}) = nothing
 # so a nonlinear susceptibility's parent is the next-lower-order one,
 # bottoming out at the α-component magnetization.
 derivative_edge(::Type{<:Magnetization}) = DerivativeEdge(FreeEnergy, MagneticField)
+# j = -∂H/∂A. The parent is the HAMILTONIAN, not the free energy: `A` couples to the hopping
+# in the velocity gauge, so this edge leaves the thermodynamic tree even though its shape —
+# a quantity as a signed field-derivative of a potential — is the same one.
+derivative_edge(::Type{ElectricCurrent}) = DerivativeEdge(Energy, VectorPotentialField)
 function derivative_edge(::Type{Susceptibility{I}}) where {I}
     length(I) == 2 && return DerivativeEdge(Magnetization{I[1]}, MagneticField)
     return DerivativeEdge(Susceptibility{I[1:(end - 1)]}, MagneticField)

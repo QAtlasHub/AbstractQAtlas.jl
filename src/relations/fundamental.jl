@@ -102,6 +102,23 @@ Supplied-derivative convention: `dF_dh` is the caller-computed
 @relation :fundamental MagnetizationResponse(M::Magnetization{:z}, dF_dh) = M - (-dF_dh)
 
 """
+    ElectricCurrentResponse <: AbstractRelation
+
+The electric current as the field-derivative of the Hamiltonian in the
+velocity gauge,
+
+`j = −∂H/∂A`.
+
+The edge [`derivative_edge`](@ref)`(ElectricCurrent)` names, stated
+exactly — the same shape as [`MagnetizationResponse`](@ref) with the
+Hamiltonian in place of the free energy, because the vector potential
+couples to the hopping rather than to a thermodynamic variable.
+Supplied-derivative convention: `dH_dA` is the caller-computed `∂H/∂A`
+at the working point.
+"""
+@relation :fundamental ElectricCurrentResponse(j::ElectricCurrent, dH_dA) = j - (-dH_dA)
+
+"""
     SusceptibilityResponse <: AbstractRelation
 
 The susceptibility as the field-derivative of the order parameter,

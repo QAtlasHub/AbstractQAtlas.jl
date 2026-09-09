@@ -111,6 +111,8 @@ thermal_derivative(::Energy, βF, β::Number) = derivative(βF, β)
 # J = -∂H/∂A. The same forward-mode route `thermal_derivative` takes, and the same sign
 # convention as `M = -∂F/∂h`: differentiating at the seam is what keeps a consumer from
 # hand-coding a current operator and getting its sign wrong in a way no static check sees.
-peierls_current(H_of_A, A::Number) = -derivative(H_of_A, A)
+function peierls_current(H_of_A, A::AbstractQAtlas.VectorPotential{1})
+    return -derivative(a -> H_of_A(AbstractQAtlas.VectorPotential(a)), A[1])
+end
 
 end # module AbstractQAtlasForwardDiffExt
