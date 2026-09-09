@@ -90,10 +90,10 @@ end
 @testset "peierls_current refuses rather than answering a narrower question" begin
     A1 = VectorPotential(0.3)
     @test_throws ErrorException invoke(
-        peierls_current, Tuple{Any,VectorPotential{1,Float64}}, a -> a[1]^2, A1
+        peierls_current, Tuple{Any,VectorPotential}, a -> a[1]^2, A1
     )
     msg1 = try
-        invoke(peierls_current, Tuple{Any,VectorPotential{1,Float64}}, a -> a[1]^2, A1)
+        invoke(peierls_current, Tuple{Any,VectorPotential}, a -> a[1]^2, A1)
         ""
     catch e
         sprint(showerror, e)
