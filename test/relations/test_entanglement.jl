@@ -3,13 +3,9 @@
 # the EXACT free-fermion critical Ising chain, and Page's formula against exact
 # small cases and a Haar-random-state average.
 #
-# The free-fermion arm is here rather than a synthetic `S(ℓ) = (c/3) ln ℓ`
-# because a fixture built from the relation cannot test the relation: it
-# differentiates the coefficient it was handed and gets it back, so it reads the
-# same whether the coefficient is `c/3`, `c/6` or `ncuts·c/6`, and it cannot see
-# the geometry at all.  The chain below is quadratic in Majoranas, so `S(ℓ)` is
-# exact at any size, and the END block and the CENTRED block are measured on the
-# SAME ground state — leaving the cut count as the only difference between them.
+# The Ising chain is quadratic in Majoranas, so `S(ℓ)` is exact at any size, and
+# the END block and the CENTRED block are measured on the SAME ground state —
+# leaving the cut count as the only difference between them.
 
 using AbstractQAtlas
 using AbstractQAtlas: residual, check, solve
@@ -31,13 +27,10 @@ end
 
 @testset "CFT entanglement slope counts cuts: exact critical Ising chain" begin
     # Fixture: the CLEAN critical transverse-field Ising chain with OPEN ends,
-    # H = -Σ Z_j Z_{j+1} - Σ X_j, which is c = 1/2 and quadratic in Majoranas
-    # a_{2j-1}, a_{2j}:  H = (i/4) Σ A_{mn} a_m a_n  with  A[2j-1,2j] = -2h_j,
-    # A[2j,2j+1] = -2J_j.  The ground-state covariance is the orthogonal polar
-    # factor of A (each ε_k in the canonical form replaced by 1, orientation
-    # kept), and the entropy of a region is Peschel's function of the restricted
-    # covariance spectrum — i.e. the package's own
-    # `free_fermion_entanglement_entropy`.
+    # H = -Σ Z_j Z_{j+1} - Σ X_j, c = 1/2, quadratic in Majoranas a_{2j-1}, a_{2j}
+    # as H = (i/4) Σ A_{mn} a_m a_n with A[2j-1,2j] = -2h_j, A[2j,2j+1] = -2J_j.
+    # Ground-state covariance = the orthogonal polar factor of A; the entropy of a
+    # region is Peschel's function of its restricted spectrum.
     c = 1 / 2
 
     function covariance(N)
@@ -100,8 +93,7 @@ end
         @test check(CFTEntanglementSlope(); dS_dlogℓ=m.a2, c=c, ncuts=2, atol=0.015)
 
         # ...and it can DISAGREE: each geometry is nearer its own cut count than
-        # the other's.  Without this the two `check`s above would both pass a
-        # relation that ignored `ncuts` entirely.
+        # the other's, which a relation ignoring `ncuts` could not satisfy.
         @test abs(m.a1 - 1 * c / 6) < abs(m.a1 - 2 * c / 6)
         @test abs(m.a2 - 2 * c / 6) < abs(m.a2 - 1 * c / 6)
 
@@ -112,7 +104,7 @@ end
         @test m.a2 / m.a1 ≈ 2 atol = 0.18
 
         # The same measured slope yields a DIFFERENT central charge under a
-        # different cut count — which is why `ncuts` is required, not defaulted.
+        # different cut count.
         @test solve(CFTEntanglementSlope(), Val(:c); dS_dlogℓ=m.a2, ncuts=2) ≈ c rtol = 0.08
         @test solve(CFTEntanglementSlope(), Val(:c); dS_dlogℓ=m.a2, ncuts=1) ≈ 2c rtol =
             0.08
@@ -127,10 +119,8 @@ end
     @test check(CFTEntanglementSlope(); dS_dlogℓ=1 / 3, c=1.0, ncuts=2, atol=1e-14)
     @test check(CFTEntanglementSlope(); dS_dlogℓ=1 / 6, c=1.0, ncuts=1, atol=1e-14)
 
-    # Auto-discovery consequence, and the reason `ncuts` is a declared variable
-    # rather than a default: data that does not say which geometry the slope was
-    # measured on yields NO central-charge row, instead of one that assumed a
-    # geometry on the caller's behalf.
+    # Data that does not say which geometry the slope was measured on yields NO
+    # central-charge row, rather than one that assumed a geometry for the caller.
     @test isempty(relation_report((; dS_dlogℓ=1 / 3, c=1.0)))
     discovered = relation_report((; dS_dlogℓ=1 / 3, c=1.0, ncuts=2))
     @test only(discovered).relation isa CFTEntanglementSlope
@@ -145,9 +135,8 @@ end
     @test CentralCharge in quantities(rel)
     @test rel in relations_constraining(CentralCharge)
 
-    # ...and the entropy is not lost by typing `c`: it enters through the SUPPLIED
-    # derivative, so it has no slot of its own and is declared via `also_constrains`
-    # — the hook that exists for exactly this shape.
+    # The entropy is not lost by typing `c`: it enters through the SUPPLIED
+    # derivative, so it has no slot and is declared via `also_constrains`.
     @test also_constrains(rel) == (VonNeumannEntropy,)
     @test VonNeumannEntropy in quantities(rel)
     @test rel in relations_constraining(VonNeumannEntropy)
