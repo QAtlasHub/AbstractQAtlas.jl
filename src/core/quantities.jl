@@ -1537,8 +1537,7 @@ export FermionicEntanglementEntropy
 #
 # Shaped like `ThermalAverage` (core/distributions.jl) — a marker holding the
 # quantity it reduces, with the tensor traits passing through — so a reduction
-# composes with `fetch` and keeps the wrapped quantity's index structure, rather
-# than being a second wrapper idiom alongside that one.
+# composes with `fetch` and keeps the wrapped quantity's index structure.
 #
 # Both carry `Global` support: the region a reduction was taken over is not in
 # the marker, and there is no `typical_entanglement_entropy(region)` key builder

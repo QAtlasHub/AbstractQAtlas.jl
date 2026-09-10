@@ -101,10 +101,11 @@ never the answer.
 
 That `⟨ln Z⟩` and `ln⟨Z⟩` are different objects is the reason the replica trick
 exists.  The slack is zero exactly when `Z` does not fluctuate across
-realisations, and the ± J Nishimori line is the locus where the two are related
-exactly rather than only by this inequality — that identity is model-specific and
-lives in the implementing atlas, whereas this bound holds for every disordered
-system.
+realisations; nothing stronger than this inequality relates the two free
+energies in general.  The ± J Nishimori line is where a DIFFERENT exact identity
+appears — the internal energy per bond, `U = −J tanh(βJ)`, from gauge symmetry —
+which is an energy, not a relation between these two, and is model-specific, so
+it lives in the implementing atlas.
 
 Variables: `F_quenched` (the bounded one), `F_annealed`.
 """
