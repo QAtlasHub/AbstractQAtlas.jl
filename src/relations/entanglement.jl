@@ -28,10 +28,9 @@ conformal field theory reads off the central charge (Calabrese & Cardy,
 
 `S(ℓ) = (ncuts · c/6) ln ℓ + const`   ⟹   `dS/d(ln ℓ) = ncuts · c/6`.
 
-`ncuts` is the number of ENTANGLEMENT CUTS bounding the region — each
-one contributes `c/6`, which is the whole content of the formula.  It is
-a property of the region's placement, not of the chain's boundary
-condition, and the two axes disagree:
+`ncuts` counts the entanglement cuts bounding the region, each contributing
+`c/6`.  It follows from where the region sits, NOT from the boundary
+condition:
 
 | chain | region | `ncuts` | coefficient |
 |---|---|---|---|
@@ -39,21 +38,15 @@ condition, and the two axes disagree:
 | open | block at an end | 1 | `c/6` |
 | open | block in the bulk | 2 | `c/3` |
 
-Reading `c/6` off "open boundary conditions" therefore halves the
-coefficient for every open-chain region that is not at an end.  Take
-`ncuts` from the region, not from the boundary condition.
+So `c/6` read off "open boundary conditions" is wrong for any open-chain
+region away from an end.
 
-Supplied-derivative convention: `dS_dlogℓ` is the caller-computed slope
-of `S` against `ln ℓ`.  Variables: `dS_dlogℓ`, `c`, `ncuts`.
-
+Variables: `dS_dlogℓ` (caller-computed slope against `ln ℓ`), `c`, `ncuts`.
 `c` is the typed subject; [`VonNeumannEntropy`](@ref) enters through the
-supplied derivative and so is declared via [`also_constrains`](@ref).
-
-`ncuts` is supplied, not read from a bag: the same [`Region`](@ref) has one
-cut at the end of an open chain and two in its bulk or on a ring, so
-answering it needs adjacency and a boundary condition, which the set layer
-does not carry.  It has no default — `solve(…, Val(:c))` cannot return a
-central charge without it.
+supplied derivative, hence [`also_constrains`](@ref).  `ncuts` is supplied
+and has no default: [`Region`](@ref) is a set of sites carrying no adjacency
+or boundary, so nothing can compute it, and `solve(…, Val(:c))` is
+meaningless without it.
 """
 @relation :entanglement CFTEntanglementSlope(dS_dlogℓ, c::CentralCharge, ncuts) =
     dS_dlogℓ - ncuts * c / 6

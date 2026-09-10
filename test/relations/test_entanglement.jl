@@ -1,11 +1,9 @@
-# Entanglement-entropy relations vs INDEPENDENT constructions:
-# purity from an explicit density matrix, the cut-counting coefficient read off
-# the EXACT free-fermion critical Ising chain, and Page's formula against exact
-# small cases and a Haar-random-state average.
-#
-# The Ising chain is quadratic in Majoranas, so `S(ℓ)` is exact at any size, and
-# the END block and the CENTRED block are measured on the SAME ground state —
-# leaving the cut count as the only difference between them.
+# Entanglement-entropy relations vs INDEPENDENT constructions: purity from an
+# explicit density matrix, the cut-counting coefficient from the EXACT
+# free-fermion critical Ising chain, and Page's formula against exact small cases
+# and a Haar-random-state average.  The chain is quadratic in Majoranas, so END
+# and CENTRED blocks come from the SAME exact ground state — the cut count is the
+# only difference between them.
 
 using AbstractQAtlas
 using AbstractQAtlas: residual, check, solve
@@ -26,11 +24,10 @@ using LinearAlgebra, Random
 end
 
 @testset "CFT entanglement slope counts cuts: exact critical Ising chain" begin
-    # Fixture: the CLEAN critical transverse-field Ising chain with OPEN ends,
-    # H = -Σ Z_j Z_{j+1} - Σ X_j, c = 1/2, quadratic in Majoranas a_{2j-1}, a_{2j}
-    # as H = (i/4) Σ A_{mn} a_m a_n with A[2j-1,2j] = -2h_j, A[2j,2j+1] = -2J_j.
-    # Ground-state covariance = the orthogonal polar factor of A; the entropy of a
-    # region is Peschel's function of its restricted spectrum.
+    # CLEAN critical TFIM, open ends, c = 1/2: H = -Σ Z_j Z_{j+1} - Σ X_j is
+    # (i/4) Σ A_{mn} a_m a_n with A[2j-1,2j] = -2h_j, A[2j,2j+1] = -2J_j.  The
+    # ground-state covariance is A's orthogonal polar factor; a region's entropy
+    # is Peschel's function of its restricted spectrum.
     c = 1 / 2
 
     function covariance(N)
@@ -76,19 +73,14 @@ end
     end
 
     for m in measured
-        # The relation, on exact data, at both cut counts.  `check` takes an
-        # ABSOLUTE tolerance, and each budget is the MEASURED deviation rounded up,
-        # so a regression well below the finite-size floor still fails:
+        # Budgets are the MEASURED deviation rounded up; the fixture is
+        # deterministic to ~1e-14, so they are not noise budgets:
         #
-        #   ncuts = 1:  0.000166 (N = 48), 0.000179 (N = 128)  — 0.20-0.21 % of c/6
-        #               → atol 0.0005, a 2.8× round-up on the binding case
-        #   ncuts = 2:  0.011596 (N = 48), 0.007269 (N = 128)  — 6.96 → 4.36 % of c/3
-        #               → atol 0.015, a 1.3× round-up on the binding case
+        #   ncuts=1:  0.000166 (N=48), 0.000179 (N=128)  →  atol 0.0005  (2.8×)
+        #   ncuts=2:  0.011596 (N=48), 0.007269 (N=128)  →  atol 0.015   (1.3×)
         #
-        # The two-cut region carries the larger correction because BOTH of its
-        # edges sit a finite distance from the ends of the chain, and it shrinks
-        # with N, as it must.  The fixture is deterministic to ~1e-14, so these
-        # are not noise budgets.
+        # Two cuts carries the larger correction — both edges sit a finite
+        # distance from the chain's ends — and it shrinks with N, as it must.
         @test check(CFTEntanglementSlope(); dS_dlogℓ=m.a1, c=c, ncuts=1, atol=0.0005)
         @test check(CFTEntanglementSlope(); dS_dlogℓ=m.a2, c=c, ncuts=2, atol=0.015)
 
@@ -97,10 +89,8 @@ end
         @test abs(m.a1 - 1 * c / 6) < abs(m.a1 - 2 * c / 6)
         @test abs(m.a2 - 2 * c / 6) < abs(m.a2 - 1 * c / 6)
 
-        # `c` cancels in the ratio, so this is `ncuts` and nothing else.  Measured
-        # |ratio − 2| = 0.143 (N = 48), 0.091 (N = 128); the budget is the same
-        # ~1.3× round-up as the two-cut line.  Discriminating power is against
-        # ONE cut, which would put the ratio at 1, a whole unit away.
+        # `c` cancels, so the ratio is `ncuts` alone.  Measured |ratio−2| = 0.143
+        # (N=48), 0.091 (N=128), same ~1.3× round-up; one cut would put it at 1.
         @test m.a2 / m.a1 ≈ 2 atol = 0.18
 
         # The same measured slope yields a DIFFERENT central charge under a
@@ -110,8 +100,8 @@ end
             0.08
     end
 
-    # Vary an axis that must not matter: the coefficient is a property of the
-    # fixed point, so a larger chain moves the ratio TOWARDS 2, never away.
+    # An axis that must not matter: the coefficient belongs to the fixed point,
+    # so a larger chain moves the ratio TOWARDS 2, never away.
     @test abs(measured[2].a2 / measured[2].a1 - 2) <
         abs(measured[1].a2 / measured[1].a1 - 2)
 
@@ -135,14 +125,14 @@ end
     @test CentralCharge in quantities(rel)
     @test rel in relations_constraining(CentralCharge)
 
-    # The entropy is not lost by typing `c`: it enters through the SUPPLIED
+    # Typing `c` does not lose the entropy: it enters through the SUPPLIED
     # derivative, so it has no slot and is declared via `also_constrains`.
     @test also_constrains(rel) == (VonNeumannEntropy,)
     @test VonNeumannEntropy in quantities(rel)
     @test rel in relations_constraining(VonNeumannEntropy)
 
-    # `ncuts` names no quantity, so it stays a supplied coordinate like `L` in
-    # CasimirCentralCharge; it must not have become a bag-visible subject.
+    # `ncuts` names no quantity, so it stays a supplied coordinate like `L` —
+    # it must not have become a bag-visible subject.
     @test :ncuts in variables(rel)
     @test length(variable_types(rel)) == 1
 end
