@@ -10,6 +10,10 @@
 #
 # References (doiget-verified, docs/references.bib): Jarzynski, Phys. Rev. Lett. 78,
 # 2690 (1997); Crooks, [Crooks1999](@cite).
+#
+# …and the same question asked of a QUENCHED ensemble: over realisations of the
+# disorder, "the" value of a quantity is two numbers, and the inequality between
+# them is the same Jensen step in both settings.
 
 """
     JarzynskiEquality <: AbstractRelation
@@ -80,3 +84,28 @@ wrong space, or swapped the two.
 Variables: `X_typ` = `exp⟨ln X⟩` (the bounded one), `X_avg` = `⟨X⟩`.
 """
 @bound :fluctuation TypicalBelowAverage(X_typ <= X_avg)
+
+"""
+    AnnealedFreeEnergyBound <: AbstractInequality
+
+The quenched free energy of a disordered system is never below its annealed
+counterpart,
+
+`F_quenched = −(1/β)⟨ln Z⟩  ≥  −(1/β) ln⟨Z⟩ = F_annealed`
+
+(slack `F_quenched − F_annealed`), the disordered-systems statement of
+[`TypicalBelowAverage`](@ref): the same Jensen step on `Z`, with the direction
+reversed by the minus sign in `F = −(1/β) ln Z`.  So the annealed calculation —
+the easy one, which averages `Z` before taking the log — is a LOWER bound and
+never the answer.
+
+That `⟨ln Z⟩` and `ln⟨Z⟩` are different objects is the reason the replica trick
+exists.  The slack is zero exactly when `Z` does not fluctuate across
+realisations, and the ± J Nishimori line is the locus where the two are related
+exactly rather than only by this inequality — that identity is model-specific and
+lives in the implementing atlas, whereas this bound holds for every disordered
+system.
+
+Variables: `F_quenched` (the bounded one), `F_annealed`.
+"""
+@bound :fluctuation AnnealedFreeEnergyBound(F_quenched >= F_annealed)

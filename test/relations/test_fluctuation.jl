@@ -90,3 +90,37 @@ end
     @test VariableKey(Typical{MassGap}) != VariableKey(DisorderAveraged{MassGap})
     @test VariableKey(Typical{MassGap}) != VariableKey(MassGap)
 end
+
+@testset "quenched ≥ annealed is the free-energy face of the same Jensen step" begin
+    # Log-normal Z across realisations: ln Z ~ N(μ, σ²).  Then
+    #   ⟨ln Z⟩ = μ                 → F_q = −μ/β
+    #   ln⟨Z⟩  = μ + σ²/2          → F_a = −(μ + σ²/2)/β
+    # so the slack is σ²/(2β) exactly — zero iff Z does not fluctuate, and growing
+    # without bound with the width, which is the whole reason the annealed
+    # calculation is not the answer.
+    β, μ = 2.0, 1.5
+    for σ in (0.0, 0.5, 1.0, 3.0)
+        F_q = -μ / β
+        F_a = -(μ + σ^2 / 2) / β
+        @test check(AnnealedFreeEnergyBound(); F_quenched=F_q, F_annealed=F_a)
+        @test slack(AnnealedFreeEnergyBound(); F_quenched=F_q, F_annealed=F_a) ≈ σ^2 / (2β)
+    end
+
+    # The DIRECTION is the content: a sign slip in F = −(1/β) ln Z reverses it,
+    # and reversing the two arguments must fail.
+    F_q, F_a = -μ / β, -(μ + 4.0 / 2) / β
+    @test !check(AnnealedFreeEnergyBound(); F_quenched=F_a, F_annealed=F_q)
+
+    # Same samples, both routes, no closed form: reduce an explicit ensemble of
+    # partition functions and check the pair against BOTH bounds — they are one
+    # inequality seen through `F = −(1/β) ln Z`.
+    rng = MersenneTwister(99)
+    Z = exp.(randn(rng, 500) .* 1.2 .+ 1.0)
+    Z_typ, Z_avg = exp(sum(log, Z) / length(Z)), sum(Z) / length(Z)
+    @test check(TypicalBelowAverage(); X_typ=Z_typ, X_avg=Z_avg)
+    @test check(
+        AnnealedFreeEnergyBound();
+        F_quenched=(-log(Z_typ) / β),
+        F_annealed=(-log(Z_avg) / β),
+    )
+end
