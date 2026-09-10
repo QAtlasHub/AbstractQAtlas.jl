@@ -430,3 +430,28 @@ end
     )
     @test region_check_all(respecting)
 end
+
+@testset "local_dim: validated at the boundary, and what a pass without it means" begin
+    # Validated in `region_report` itself, so an invalid value is rejected even
+    # when the bag holds no entropy family to sweep — otherwise a typo'd
+    # `local_dim` would look exactly like "no data yet".
+    @test_throws ArgumentError region_report(bag(); local_dim=1)
+    @test_throws ArgumentError region_report(
+        bag(entanglement_entropy(1) => 0.5); local_dim=1
+    )
+    # Non-integer and non-finite dimensions cannot reach the bound at all: `2.5`
+    # would loosen it silently and `Inf` would make `ln d` infinite, passing ANY
+    # entropy.  The `Int` annotation refuses both at the call boundary.
+    @test_throws TypeError region_report(bag(); local_dim=2.5)
+    @test_throws TypeError region_report(bag(); local_dim=Inf)
+
+    # A pass WITHOUT `local_dim` does not include the maximum-entropy bound: the
+    # inequalities that were checked can all hold on data the omitted one refuses.
+    impossible = bag(
+        entanglement_entropy(1) => 5.0,       # 5 nats on one qubit
+        entanglement_entropy(2) => 5.0,
+        entanglement_entropy(1, 2) => 8.0,
+    )
+    @test region_check_all(impossible)                     # subadditive, Araki–Lieb: true
+    @test !region_check_all(impossible; local_dim=2)       # ...and impossible
+end

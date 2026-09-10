@@ -97,7 +97,11 @@ hand-labeling — the region twin of [`relation_report`](@ref):
   `S(A) ≤ |A| · ln(local_dim)`.  This one is opt-in because a [`Region`](@ref) is
   a set of site labels with no Hilbert space attached, so the sweep cannot know
   `d`; omit it and an impossible entropy (5 nats on one qubit) produces no row.
-  A uniform local dimension is assumed.
+
+  One uniform `d` for every site.  On a mixed lattice the bound is then only as
+  tight as the value passed, and too generous a `d` MASKS a real violation —
+  `S = 1.75` on two qubits fails at `local_dim = 2` and passes at `3`.  Verify
+  uniformity before relying on a pass; a per-site mapping is not supported yet.
 
 A negative (conditional) mutual information — a broken MPS/ED entanglement
 calculation — is caught for whichever regions expose it.
@@ -118,7 +122,13 @@ b = bag(entanglement_entropy(1) => 0.7, entanglement_entropy(2) => 0.7,
 all(row -> row.pass, region_report(b))          # true — S is subadditive here
 ```
 """
-function region_report(b::Bag; atol=0, local_dim=nothing)
+function region_report(b::Bag; atol=0, local_dim::Union{Nothing,Int}=nothing)
+    # Checked here rather than in the per-family helper: a bag with no entropy
+    # family never reaches that helper, and an invalid `local_dim` would then be
+    # indistinguishable from "no data yet".
+    local_dim === nothing ||
+        local_dim > 1 ||
+        throw(ArgumentError("local_dim must be > 1; got $local_dim"))
     out = RegionReportRow[]
     for Q in _region_entropy_families(b)
         _region_report_family!(out, _region_entropies(b, Q); atol=atol, local_dim=local_dim)
@@ -131,15 +141,14 @@ export region_report
 # entropy family cannot accidentally let regions from one family match unions
 # from the other: the matcher only ever sees a single family's Dict.
 function _region_report_family!(
-    out::Vector{RegionReportRow}, ents::AbstractDict; atol=0, local_dim=nothing
+    out::Vector{RegionReportRow},
+    ents::AbstractDict;
+    atol=0,
+    local_dim::Union{Nothing,Int}=nothing,
 )
     regions = sort!(collect(keys(ents)); by=r -> (length(r.sites), string(r)))
-    # `S(A) ≤ |A| ln d`, once the caller says what `d` is.  A Region is a set of
-    # site labels and carries no Hilbert space, so this is the one entropy bound
-    # the sweep cannot instantiate on its own — and without it a bag holding a
-    # flatly impossible entropy (5 nats on one qubit) yields no rows at all.
+    # Maximum entropy `S(A) ≤ |A| ln d` — opt-in; see the docstring above for why.
     if local_dim !== nothing
-        local_dim > 1 || throw(ArgumentError("local_dim must be > 1; got $local_dim"))
         meb = MaxEntropyBound()
         for A in regions
             s = residual(meb; S=ents[A], log_d=length(A) * log(local_dim))
@@ -188,8 +197,14 @@ end
 `true` iff every entropy inequality (bipartite + strong subadditivity) auto-discovered
 by [`region_report`](@ref) holds on the bag `b` — and at least one instance was found
 (an empty match is `false`, never a silent green).
+
+`true` answers over the rows that were DISCOVERED, which for the maximum-entropy
+family means the ones `local_dim` enabled.  Omitting it does not make that bound
+pass — it makes it absent, and a bag that violates it can still answer `true` on
+the strength of the inequalities that were checked.  Pass `local_dim` to include
+it.
 """
-function region_check_all(b::Bag; atol=0, local_dim=nothing)
+function region_check_all(b::Bag; atol=0, local_dim::Union{Nothing,Int}=nothing)
     # reuse the shared "≥1 match, all pass" rule (interface.jl) so it can't drift
     return _all_passed(region_report(b; atol=atol, local_dim=local_dim))
 end

@@ -3,8 +3,12 @@
 
 using AbstractQAtlas
 using Test
+using Random
 using AbstractQAtlas:
     check, slack, solve, quantities, domain, AbstractInequality, AbstractRelation
+
+# Geometric mean (typical) and arithmetic mean (average) of the SAME samples.
+typical_and_average(x) = exp(sum(log, x) / length(x)), sum(x) / length(x)
 
 @testset "Jarzynski equality + second law (dissipated work ≥ 0)" begin
     # a two-outcome work distribution W ∈ {0, 2} at p = ½, β = 1: compute ⟨e^{−βW}⟩ and
@@ -73,15 +77,14 @@ end
     rng = MersenneTwister(4242)
     for _ in 1:20
         x = exp.(randn(rng, 200) .* 1.5 .- 2)          # positive, broadly spread
-        typ = exp(sum(log, x) / length(x))
-        avg = sum(x) / length(x)
+        typ, avg = typical_and_average(x)
         @test check(TypicalBelowAverage(); X_typ=typ, X_avg=avg)
     end
 
     # ...and it CAN fail: swapping the two reductions is exactly the bug this
     # catches, and a bound nothing can violate would be worth nothing.
     x = exp.(randn(MersenneTwister(7), 200) .* 1.5)
-    typ, avg = exp(sum(log, x) / length(x)), sum(x) / length(x)
+    typ, avg = typical_and_average(x)
     @test !check(TypicalBelowAverage(); X_typ=avg, X_avg=typ)
 
     # The two quantities are DIFFERENT bag keys, which is the point of adding
@@ -93,8 +96,19 @@ end
     # traits pass through, so a reduced component keeps its index structure.
     χ = Susceptibility(:x, :y)
     @test Typical(χ).quantity === χ
-    @test tensor_rank(Typical{typeof(χ)}) == tensor_rank(typeof(χ))
-    @test indices(DisorderAveraged{typeof(χ)}) == indices(typeof(χ))
+    # All SIX forwards, against a rank-2 quantity: with a rank-0 payload every one
+    # of them equals the `AbstractQuantity` default, so a missing forward would
+    # pass unnoticed.
+    for W in (Typical, DisorderAveraged)
+        @test tensor_rank(W{typeof(χ)}) == tensor_rank(typeof(χ)) == 2
+        @test indices(W{typeof(χ)}) == indices(typeof(χ))
+        @test index_spaces(W{typeof(χ)}) == index_spaces(typeof(χ))
+    end
+
+    # A reduction of a reduction names no quantity.
+    @test_throws ArgumentError Typical(Typical(MassGap()))
+    @test_throws ArgumentError Typical(DisorderAveraged(MassGap()))
+    @test_throws ArgumentError DisorderAveraged(Typical(MassGap()))
 end
 
 @testset "quenched ≥ annealed is the free-energy face of the same Jensen step" begin
@@ -122,7 +136,7 @@ end
     # inequality seen through `F = −(1/β) ln Z`.
     rng = MersenneTwister(99)
     Z = exp.(randn(rng, 500) .* 1.2 .+ 1.0)
-    Z_typ, Z_avg = exp(sum(log, Z) / length(Z)), sum(Z) / length(Z)
+    Z_typ, Z_avg = typical_and_average(Z)
     @test check(TypicalBelowAverage(); X_typ=Z_typ, X_avg=Z_avg)
     @test check(
         AnnealedFreeEnergyBound();

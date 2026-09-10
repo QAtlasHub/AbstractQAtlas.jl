@@ -1539,9 +1539,28 @@ export FermionicEntanglementEntropy
 # quantity it reduces, with the tensor traits passing through — so a reduction
 # composes with `fetch` and keeps the wrapped quantity's index structure, rather
 # than being a second wrapper idiom alongside that one.
+#
+# Both carry `Global` support: the region a reduction was taken over is not in
+# the marker, and there is no `typical_entanglement_entropy(region)` key builder
+# yet, so two regions' typical entropies collide on one `VariableKey` and `bag`
+# refuses them.  Loud, but a real gap — region-keyed reductions need their own
+# key constructors, as `entanglement_entropy` has.
+
+# A reduction of a reduction is not a quantity — refused rather than left to
+# compose into a key nothing can mean.  (`ThermalAverage` admits the same
+# nesting and does not refuse it; this is the narrower fix, not the general one.)
+function _refuse_nested_reduction(W, q)
+    q isa Union{Typical,DisorderAveraged} && throw(
+        ArgumentError(
+            "$W: `$(typeof(q))` is already a reduction over an ensemble; " *
+            "reducing it again names no quantity.",
+        ),
+    )
+    return nothing
+end
 
 """
-    Typical{Q}() <: AbstractQuantity
+    Typical(quantity::Q) <: AbstractQuantity
 
 The TYPICAL value of quantity `Q` over an ensemble of disorder realisations —
 the log-average `exp⟨ln Q⟩`, i.e. the value a single sample is most likely to
@@ -1552,6 +1571,10 @@ when the distribution is narrow.  Never above the average, by Jensen — see
 """
 struct Typical{Q<:AbstractQuantity} <: AbstractQuantity
     quantity::Q
+    function Typical(q::Q) where {Q<:AbstractQuantity}
+        _refuse_nested_reduction(Typical, q)
+        return new{Q}(q)
+    end
 end
 indices(::Type{Typical{Q}}) where {Q} = indices(Q)
 tensor_rank(::Type{Typical{Q}}) where {Q} = tensor_rank(Q)
@@ -1559,7 +1582,7 @@ index_spaces(::Type{Typical{Q}}) where {Q} = index_spaces(Q)
 export Typical
 
 """
-    DisorderAveraged{Q}() <: AbstractQuantity
+    DisorderAveraged(quantity::Q) <: AbstractQuantity
 
 The arithmetic mean `⟨Q⟩` of quantity `Q` over an ensemble of disorder
 realisations.  Where the distribution is broad it is set by the rare tail rather
@@ -1568,6 +1591,10 @@ than by a representative sample, which is what separates it from
 """
 struct DisorderAveraged{Q<:AbstractQuantity} <: AbstractQuantity
     quantity::Q
+    function DisorderAveraged(q::Q) where {Q<:AbstractQuantity}
+        _refuse_nested_reduction(DisorderAveraged, q)
+        return new{Q}(q)
+    end
 end
 indices(::Type{DisorderAveraged{Q}}) where {Q} = indices(Q)
 tensor_rank(::Type{DisorderAveraged{Q}}) where {Q} = tensor_rank(Q)

@@ -74,8 +74,7 @@ closes exponentially in a power of the length rather than as a power of it,
 
 This is not [`DynamicalScaling`](@ref) with some other `z`: no finite `z`
 describes such a point at all, since `−d(ln Δ)/d(ln ξ) = ψ·ln(1/Δ)` grows
-without bound.  `ψ = 1/2` for the 1D random transverse-field Ising chain
-(Fisher, [FisherDS1995](@cite)).
+without bound.
 
 Supplied-derivative convention: `dloglogΔ_dlogξ` is the caller-computed slope of
 `ln[ln(1/Δ)]` against `ln ξ`; `Δ < 1` is required for the inner log.
