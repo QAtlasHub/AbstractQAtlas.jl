@@ -59,3 +59,24 @@ Variables: `ratio` = `P_F(W)/P_R(−W)`, `W`, `ΔF`, `β` (or `T`).
 """
 @relation :fluctuation CrooksFluctuationTheorem(ratio, W, ΔF, β::InverseTemperature) =
     ratio - exp(β * (W - ΔF))
+
+"""
+    TypicalBelowAverage <: AbstractInequality
+
+The typical value of a positive quantity never exceeds its average,
+
+`exp⟨ln X⟩ ≤ ⟨X⟩`
+
+(slack `⟨X⟩ − exp⟨ln X⟩`), which is Jensen's inequality for the concave `ln`,
+equivalently AM ≥ GM.  Saturated exactly when the distribution is degenerate, so
+the slack measures how broad the ensemble is — and it is unbounded at an
+infinite-randomness fixed point, which is why [`Typical`](@ref) and
+[`DisorderAveraged`](@ref) are separate quantities there.
+
+Holds for any positive random variable, so it needs no model and no fixed point:
+a calculation reporting a typical value above its own average has averaged in the
+wrong space, or swapped the two.
+
+Variables: `X_typ` = `exp⟨ln X⟩` (the bounded one), `X_avg` = `⟨X⟩`.
+"""
+@bound :fluctuation TypicalBelowAverage(X_typ <= X_avg)

@@ -51,3 +51,42 @@ end
         (JarzynskiEquality(), JarzynskiSecondLaw(), CrooksFluctuationTheorem()),
     )
 end
+
+@testset "typical ≤ average, and the gap is how broad the ensemble is" begin
+    # Closed-form oracle: for ln X ~ N(μ, σ²) the typical value is exp(μ) and the
+    # average is exp(μ + σ²/2), so the RATIO is exp(σ²/2) exactly — known without
+    # sampling, and growing without bound in σ.  A broad-distribution fixed point
+    # is the σ → ∞ end of this, which is why the two need separate keys.
+    μ = -3.0
+    for σ in (0.0, 0.5, 1.0, 2.0, 4.0)
+        X_typ, X_avg = exp(μ), exp(μ + σ^2 / 2)
+        @test check(TypicalBelowAverage(); X_typ=X_typ, X_avg=X_avg)
+        @test X_avg / X_typ ≈ exp(σ^2 / 2)
+        @test slack(TypicalBelowAverage(); X_typ=X_typ, X_avg=X_avg) ≈ X_avg - X_typ
+    end
+    # Degenerate distribution (σ = 0) is the saturating case, and only that one.
+    @test slack(TypicalBelowAverage(); X_typ=exp(μ), X_avg=exp(μ)) == 0.0
+    @test slack(TypicalBelowAverage(); X_typ=exp(μ), X_avg=exp(μ + 0.5)) > 0
+
+    # Independent construction: both reduced from the SAME explicit samples, so
+    # the inequality is Jensen on real data rather than on the closed form above.
+    rng = MersenneTwister(4242)
+    for _ in 1:20
+        x = exp.(randn(rng, 200) .* 1.5 .- 2)          # positive, broadly spread
+        typ = exp(sum(log, x) / length(x))
+        avg = sum(x) / length(x)
+        @test check(TypicalBelowAverage(); X_typ=typ, X_avg=avg)
+    end
+
+    # ...and it CAN fail: swapping the two reductions is exactly the bug this
+    # catches, and a bound nothing can violate would be worth nothing.
+    x = exp.(randn(MersenneTwister(7), 200) .* 1.5)
+    typ, avg = exp(sum(log, x) / length(x)), sum(x) / length(x)
+    @test !check(TypicalBelowAverage(); X_typ=avg, X_avg=typ)
+
+    # The two quantities are DIFFERENT bag keys, which is the point of adding
+    # them — a shared key would let one stand in for the other silently.
+    @test Typical{MassGap} !== DisorderAveraged{MassGap}
+    @test VariableKey(Typical{MassGap}) != VariableKey(DisorderAveraged{MassGap})
+    @test VariableKey(Typical{MassGap}) != VariableKey(MassGap)
+end

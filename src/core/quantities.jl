@@ -1517,6 +1517,44 @@ pairs, and the object it reproduces is `S_f`, not the spin entropy.
 struct FermionicEntanglementEntropy <: AbstractEntanglementMeasure end
 export FermionicEntanglementEntropy
 
+# ─── Disorder statistics ─────────────────────────────────────────────────
+#
+# Over an ensemble of disorder realisations, "the" value of a quantity is two
+# different numbers, and at a broad-distribution fixed point they obey two
+# different LAWS — not one law with a different prefactor.  In the random
+# transverse-field Ising chain the typical gap closes as `exp(-c√N)` while the
+# average is dominated by rare weakly-disordered regions and closes far more
+# slowly; the typical correlation decays as a stretched exponential where the
+# average decays as a power.
+#
+# So these are separate quantities rather than a keyword, for the same reason
+# `FermionicEntanglementEntropy` is: a shared `VariableKey` would let the two mix
+# inside one bag, and the report machinery keys its auto-discovery on that.
+
+"""
+    Typical{Q}() <: AbstractQuantity
+
+The TYPICAL value of quantity `Q` over an ensemble of disorder realisations —
+the log-average `exp⟨ln Q⟩`, i.e. the value a single sample is most likely to
+show.  Distinguished from [`DisorderAveraged`](@ref)`{Q}` because at a
+broad-distribution fixed point the two follow different laws; they coincide only
+when the distribution is narrow.  Never above the average, by Jensen — see
+[`TypicalBelowAverage`](@ref).
+"""
+struct Typical{Q<:AbstractQuantity} <: AbstractQuantity end
+export Typical
+
+"""
+    DisorderAveraged{Q}() <: AbstractQuantity
+
+The arithmetic mean `⟨Q⟩` of quantity `Q` over an ensemble of disorder
+realisations.  Where the distribution is broad it is set by the rare tail rather
+than by a representative sample, which is what separates it from
+[`Typical`](@ref)`{Q}`.
+"""
+struct DisorderAveraged{Q<:AbstractQuantity} <: AbstractQuantity end
+export DisorderAveraged
+
 """
     RenyiEntropy(α::Real) <: AbstractEntanglementMeasure
 
