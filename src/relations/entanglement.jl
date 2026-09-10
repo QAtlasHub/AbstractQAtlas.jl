@@ -22,31 +22,26 @@ Variables: `S2`, `purity`.
 """
     CFTEntanglementSlope <: AbstractRelation
 
-The logarithmic growth of the entanglement entropy of a region in a 1D
-conformal field theory reads off the central charge (Calabrese & Cardy,
-[CalabreseCardy2004](@cite)): for a region of size `ℓ`,
+Logarithmic growth of a region's entanglement entropy in a 1D CFT, reading off
+the central charge (Calabrese & Cardy, [CalabreseCardy2004](@cite)):
 
-`S(ℓ) = (ncuts · c/6) ln ℓ + const`   ⟹   `dS/d(ln ℓ) = ncuts · c/6`.
+`dS/d(ln ℓ) = ncuts · c/6`.
 
-`ncuts` counts the entanglement cuts bounding the region, each contributing
-`c/6`.  It follows from where the region sits, NOT from the boundary
-condition:
+`ncuts` counts the cuts bounding the region — set by where it sits, not by the
+chain's boundary condition:
 
-| chain | region | `ncuts` | coefficient |
-|---|---|---|---|
-| periodic | one interval | 2 | `c/3` |
-| open | block at an end | 1 | `c/6` |
-| open | block in the bulk | 2 | `c/3` |
+| region | `ncuts` | |
+|---|---|---|
+| one interval on a ring | 2 | `c/3` |
+| block at an open end | 1 | `c/6` |
+| block in the bulk of an open chain | 2 | `c/3` |
 
-So `c/6` read off "open boundary conditions" is wrong for any open-chain
-region away from an end.
+The last row is the one "OBC ⇒ `c/6`" gets wrong.
 
 Variables: `dS_dlogℓ` (caller-computed slope against `ln ℓ`), `c`, `ncuts`.
-`c` is the typed subject; [`VonNeumannEntropy`](@ref) enters through the
-supplied derivative, hence [`also_constrains`](@ref).  `ncuts` is supplied
-and has no default: [`Region`](@ref) is a set of sites carrying no adjacency
-or boundary, so nothing can compute it, and `solve(…, Val(:c))` is
-meaningless without it.
+`c` is the typed subject; [`VonNeumannEntropy`](@ref) arrives via the supplied
+derivative, hence [`also_constrains`](@ref).  `ncuts` has no default:
+[`Region`](@ref) carries no adjacency or boundary, so nothing can compute it.
 """
 @relation :entanglement CFTEntanglementSlope(dS_dlogℓ, c::CentralCharge, ncuts) =
     dS_dlogℓ - ncuts * c / 6
