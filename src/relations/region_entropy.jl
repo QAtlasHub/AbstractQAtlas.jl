@@ -93,8 +93,18 @@ hand-labeling — the region twin of [`relation_report`](@ref):
   `S(A)`, `S(C)`, `S(A∪B)`, `S(B∪C)` are present — no full-system `S(A∪B∪C)`, so it is
   found strictly more often than strong subadditivity: `S(A∪B) + S(B∪C) ≥ S(A) + S(C)`.
 
+- **Maximum entropy**, for every region, when `local_dim` is given:
+  `S(A) ≤ |A| · ln(local_dim)`.  This one is opt-in because a [`Region`](@ref) is
+  a set of site labels with no Hilbert space attached, so the sweep cannot know
+  `d`; omit it and an impossible entropy (5 nats on one qubit) produces no row.
+  A uniform local dimension is assumed.
+
 A negative (conditional) mutual information — a broken MPS/ED entanglement
 calculation — is caught for whichever regions expose it.
+
+Complementarity needs no relation of its own: for a bag in which `S(A∪B) = 0`,
+Araki–Lieb already reads `0 ≥ |S(A) − S(B)|`, so a pure global state with
+`S(A) ≠ S(B)` fails on the row that is already there.
 
 Every entropy family in the bag that declares
 [`obeys_entropy_inequalities`](@ref) is swept **separately**: a bag holding both
@@ -108,10 +118,10 @@ b = bag(entanglement_entropy(1) => 0.7, entanglement_entropy(2) => 0.7,
 all(row -> row.pass, region_report(b))          # true — S is subadditive here
 ```
 """
-function region_report(b::Bag; atol=0)
+function region_report(b::Bag; atol=0, local_dim=nothing)
     out = RegionReportRow[]
     for Q in _region_entropy_families(b)
-        _region_report_family!(out, _region_entropies(b, Q); atol=atol)
+        _region_report_family!(out, _region_entropies(b, Q); atol=atol, local_dim=local_dim)
     end
     return out
 end
@@ -120,8 +130,22 @@ export region_report
 # one family's sweep.  Split out of `region_report` so that adding a second
 # entropy family cannot accidentally let regions from one family match unions
 # from the other: the matcher only ever sees a single family's Dict.
-function _region_report_family!(out::Vector{RegionReportRow}, ents::AbstractDict; atol=0)
+function _region_report_family!(
+    out::Vector{RegionReportRow}, ents::AbstractDict; atol=0, local_dim=nothing
+)
     regions = sort!(collect(keys(ents)); by=r -> (length(r.sites), string(r)))
+    # `S(A) ≤ |A| ln d`, once the caller says what `d` is.  A Region is a set of
+    # site labels and carries no Hilbert space, so this is the one entropy bound
+    # the sweep cannot instantiate on its own — and without it a bag holding a
+    # flatly impossible entropy (5 nats on one qubit) yields no rows at all.
+    if local_dim !== nothing
+        local_dim > 1 || throw(ArgumentError("local_dim must be > 1; got $local_dim"))
+        meb = MaxEntropyBound()
+        for A in regions
+            s = residual(meb; S=ents[A], log_d=length(A) * log(local_dim))
+            push!(out, RegionReportRow(meb, (A,), s, _passes(meb, s, atol)))
+        end
+    end
     for i in eachindex(regions), j in (i + 1):lastindex(regions)
         A, B = regions[i], regions[j]
         disjoint(A, B) || continue
@@ -165,9 +189,9 @@ end
 by [`region_report`](@ref) holds on the bag `b` — and at least one instance was found
 (an empty match is `false`, never a silent green).
 """
-function region_check_all(b::Bag; atol=0)
+function region_check_all(b::Bag; atol=0, local_dim=nothing)
     # reuse the shared "≥1 match, all pass" rule (interface.jl) so it can't drift
-    return _all_passed(region_report(b; atol=atol))
+    return _all_passed(region_report(b; atol=atol, local_dim=local_dim))
 end
 export region_check_all
 

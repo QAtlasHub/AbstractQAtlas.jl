@@ -366,3 +366,67 @@ end
     # row order is deterministic (regions come out of a Dict)
     @test [(typeof(r.relation), r.regions) for r in region_report(both)] == [(typeof(r.relation), r.regions) for r in region_report(both)]
 end
+
+@testset "MaxEntropyBound is discovered once the local dimension is supplied" begin
+    # Without `local_dim` nothing knows the Hilbert space, so a flatly impossible
+    # entropy produces NO row — the gap this opt-in closes.
+    impossible = bag(entanglement_entropy(1) => 5.0)     # 5 nats on one qubit
+    @test isempty(region_report(impossible))
+    @test !region_check_all(impossible; local_dim=2)
+
+    rows = region_report(impossible; local_dim=2)
+    @test length(rows) == 1
+    @test only(rows).relation isa MaxEntropyBound
+    @test only(rows).regions == (Region(1),)
+    @test !only(rows).pass
+    @test only(rows).slack ≈ log(2) - 5.0                # ln d − S, the deficit
+
+    # A legal bag passes, and the bound is per-region: two sites allow 2 ln 2.
+    ok = bag(entanglement_entropy(1) => 0.4, entanglement_entropy(1, 2) => 1.2)
+    @test all(r -> r.pass, region_report(ok; local_dim=2))
+    @test region_check_all(ok; local_dim=2)
+    # ...and it CAN disagree at that size: 1.2 < 2ln2 = 1.386 passes, 1.5 does not.
+    @test !region_check_all(
+        bag(entanglement_entropy(1) => 0.4, entanglement_entropy(1, 2) => 1.5); local_dim=2
+    )
+
+    # Qutrits give a strictly looser bound on the same data, so the dimension is
+    # doing work rather than being decoration.
+    tight = bag(entanglement_entropy(1) => 1.0)          # ln2 = 0.693 < 1 < ln3 = 1.099
+    @test !region_check_all(tight; local_dim=2)
+    @test region_check_all(tight; local_dim=3)
+
+    @test_throws ArgumentError region_report(impossible; local_dim=1)
+
+    # Opt-in only: the existing inequality rows are unchanged when it is omitted.
+    b = bag(
+        entanglement_entropy(1) => 0.7,
+        entanglement_entropy(2) => 0.7,
+        entanglement_entropy(1, 2) => 1.0,
+    )
+    @test length(region_report(b; local_dim=2)) == length(region_report(b)) + 3
+end
+
+@testset "a pure global state needs no complementarity relation" begin
+    # S(A∪B) = 0 makes A∪B pure, so S(A) must equal S(B).  Araki–Lieb already
+    # says so — `S_AB ≥ |S_A − S_B|` collapses to equality at S_AB = 0 — which is
+    # why there is no separate relation for it.
+    violating = bag(
+        entanglement_entropy(1) => 0.7,
+        entanglement_entropy(2) => 0.3,
+        entanglement_entropy(1, 2) => 0.0,
+    )
+    rows = region_report(violating)
+    al = only(filter(r -> r.relation isa ArakiLieb, rows))
+    @test !al.pass
+    @test al.slack ≈ -0.4                                 # 0 − |0.7 − 0.3|
+    @test !region_check_all(violating)
+
+    # The same bag with complementarity RESPECTED passes every row.
+    respecting = bag(
+        entanglement_entropy(1) => 0.5,
+        entanglement_entropy(2) => 0.5,
+        entanglement_entropy(1, 2) => 0.0,
+    )
+    @test region_check_all(respecting)
+end
