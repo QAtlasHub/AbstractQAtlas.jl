@@ -28,6 +28,9 @@ end
 # wrapped quantity).
 function _representative(T)
     T === ThermalAverage && return ThermalAverage(Susceptibility(:x, :y), Canonical(1.0))
+    # the disorder reductions wrap a quantity too, like ThermalAverage above
+    T === Typical && return Typical(MassGap())
+    T === DisorderAveraged && return DisorderAveraged(MassGap())
     # `(2,)` last: a numeric shape would otherwise shadow a symbol-taking constructor
     # that happens to accept an Int, and the first success wins. It is here for the
     # quantities whose ORDER is data rather than a type parameter — `RenyiEntropy(α)`

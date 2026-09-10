@@ -89,6 +89,12 @@ end
     @test Typical{MassGap} !== DisorderAveraged{MassGap}
     @test VariableKey(Typical{MassGap}) != VariableKey(DisorderAveraged{MassGap})
     @test VariableKey(Typical{MassGap}) != VariableKey(MassGap)
+    # Shaped like `ThermalAverage`: holds the quantity it reduces, and the tensor
+    # traits pass through, so a reduced component keeps its index structure.
+    χ = Susceptibility(:x, :y)
+    @test Typical(χ).quantity === χ
+    @test tensor_rank(Typical{typeof(χ)}) == tensor_rank(typeof(χ))
+    @test indices(DisorderAveraged{typeof(χ)}) == indices(typeof(χ))
 end
 
 @testset "quenched ≥ annealed is the free-energy face of the same Jensen step" begin
@@ -123,4 +129,18 @@ end
         F_quenched=(-log(Z_typ) / β),
         F_annealed=(-log(Z_avg) / β),
     )
+end
+
+@testset "the disorder-statistics bounds are reachable from the graph" begin
+    # Both are fully symbol-keyed — a reduction over an ensemble is named by no
+    # quantity — so without a hand link they answer `quantities() == ()` and
+    # nothing can find them.  These four edges are the whole point of adding the
+    # `Typical`/`DisorderAveraged` pair rather than two loose names.
+    @test quantities(TypicalBelowAverage()) == (Typical, DisorderAveraged)
+    @test quantities(AnnealedFreeEnergyBound()) == (FreeEnergy,)
+    @test TypicalBelowAverage() in relations_constraining(Typical)
+    @test TypicalBelowAverage() in relations_constraining(DisorderAveraged)
+    @test AnnealedFreeEnergyBound() in relations_constraining(FreeEnergy)
+    # ...alongside the free-energy relations that were already there, not instead.
+    @test length(relations_constraining(FreeEnergy)) > 1
 end

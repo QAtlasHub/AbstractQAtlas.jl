@@ -129,3 +129,15 @@ end
     @test ActivatedDynamicalScaling() in relations_constraining(ActivatedExponent)
     @test DynamicalScaling() in relations_constraining(DynamicalExponent)
 end
+
+@testset "both dynamical laws are reachable from the gap they are about" begin
+    # `Δ` enters each through the SUPPLIED derivative and so has no slot; without
+    # the `also_constrains` link, asking what constrains a gap would not mention
+    # how it closes — and would not offer the activated alternative at all.
+    for rel in (DynamicalScaling(), ActivatedDynamicalScaling())
+        @test MassGap in quantities(rel)
+        @test rel in relations_constraining(MassGap)
+    end
+    @test DynamicalExponent in quantities(DynamicalScaling())
+    @test ActivatedExponent in quantities(ActivatedDynamicalScaling())
+end

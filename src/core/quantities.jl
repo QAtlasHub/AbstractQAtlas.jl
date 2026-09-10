@@ -1430,6 +1430,10 @@ than as a power of it.  No finite `z` describes such a point: the effective
 
 `ψ = 1/2` for the 1D random transverse-field Ising chain (Fisher,
 [FisherDS1995](@cite)).
+
+Read off the [`Typical`](@ref) gap, not the [`DisorderAveraged`](@ref) one: at
+such a fixed point the average is set by rare weakly-disordered regions and
+follows a different law, so the two reductions give different exponents.
 """
 struct ActivatedExponent <: AbstractQuantity end
 export ActivatedExponent
@@ -1530,6 +1534,11 @@ export FermionicEntanglementEntropy
 # So these are separate quantities rather than a keyword, for the same reason
 # `FermionicEntanglementEntropy` is: a shared `VariableKey` would let the two mix
 # inside one bag, and the report machinery keys its auto-discovery on that.
+#
+# Shaped like `ThermalAverage` (core/distributions.jl) — a marker holding the
+# quantity it reduces, with the tensor traits passing through — so a reduction
+# composes with `fetch` and keeps the wrapped quantity's index structure, rather
+# than being a second wrapper idiom alongside that one.
 
 """
     Typical{Q}() <: AbstractQuantity
@@ -1541,7 +1550,12 @@ broad-distribution fixed point the two follow different laws; they coincide only
 when the distribution is narrow.  Never above the average, by Jensen — see
 [`TypicalBelowAverage`](@ref).
 """
-struct Typical{Q<:AbstractQuantity} <: AbstractQuantity end
+struct Typical{Q<:AbstractQuantity} <: AbstractQuantity
+    quantity::Q
+end
+indices(::Type{Typical{Q}}) where {Q} = indices(Q)
+tensor_rank(::Type{Typical{Q}}) where {Q} = tensor_rank(Q)
+index_spaces(::Type{Typical{Q}}) where {Q} = index_spaces(Q)
 export Typical
 
 """
@@ -1552,7 +1566,12 @@ realisations.  Where the distribution is broad it is set by the rare tail rather
 than by a representative sample, which is what separates it from
 [`Typical`](@ref)`{Q}`.
 """
-struct DisorderAveraged{Q<:AbstractQuantity} <: AbstractQuantity end
+struct DisorderAveraged{Q<:AbstractQuantity} <: AbstractQuantity
+    quantity::Q
+end
+indices(::Type{DisorderAveraged{Q}}) where {Q} = indices(Q)
+tensor_rank(::Type{DisorderAveraged{Q}}) where {Q} = tensor_rank(Q)
+index_spaces(::Type{DisorderAveraged{Q}}) where {Q} = index_spaces(Q)
 export DisorderAveraged
 
 """
