@@ -1420,6 +1420,21 @@ struct DynamicalExponent <: AbstractQuantity end
 export DynamicalExponent
 
 """
+    ActivatedExponent() <: AbstractQuantity
+
+The exponent `ψ` of ACTIVATED dynamic scaling, `ln(1/Δ) ∼ ξ^ψ` — the law that
+replaces [`DynamicalExponent`](@ref)'s `Δ ∼ ξ^{−z}` at an infinite-randomness
+fixed point, where the gap closes exponentially in a power of the length rather
+than as a power of it.  No finite `z` describes such a point: the effective
+`−d(ln Δ)/d(ln ξ)` grows without bound.
+
+`ψ = 1/2` for the 1D random transverse-field Ising chain (Fisher,
+[FisherDS1995](@cite)).
+"""
+struct ActivatedExponent <: AbstractQuantity end
+export ActivatedExponent
+
+"""
     UniversalityClass() <: AbstractQuantity
 
 The universality class a model's transition belongs to (returned as a

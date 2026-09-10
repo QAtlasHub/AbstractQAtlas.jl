@@ -7,6 +7,7 @@
 
 using AbstractQAtlas
 using AbstractQAtlas: residual, check, solve
+using LinearAlgebra
 
 const ISING2D = (α=0//1, β=1//8, γ=7//4, δ=15//1, ν=1//1, η=1//4)
 const MEANFIELD = (α=0//1, β=1//2, γ=1//1, δ=3//1, ν=1//2, η=0//1)
@@ -64,4 +65,67 @@ end
     bad = (α=0//1, β=1//8, γ=3//2, δ=15//1, ν=1//1, η=1//4)   # γ ≠ 7/4
     @test !exponents_consistent(bad; d=2)
     @test !check(Widom(); β=bad.β, γ=bad.γ, δ=bad.δ)
+end
+
+@testset "activated scaling is a different law, not another value of z" begin
+    # The gap of the CLEAN critical Ising chain, exactly: the Majorana matrix
+    # A of H = -Σ Z_j Z_{j+1} - Σ X_j has smallest singular value E₁ - E₀.
+    # Deterministic — no sampling anywhere in this testset.
+    function gap(N)
+        A = zeros(2N, 2N)
+        for j in 1:N
+            A[2j - 1, 2j] = -2.0
+        end
+        for j in 1:(N - 1)
+            A[2j, 2j + 1] = -2.0
+        end
+        return minimum(svdvals(A - transpose(A)))
+    end
+    localslope(y, x, k) = (y[k + 1] - y[k]) / (x[k + 1] - x[k])
+
+    Ns = (16, 32, 64, 128, 256)
+    lnN = log.(collect(Float64, Ns))
+    Δ = [gap(N) for N in Ns]
+    z_eff = [-localslope(log.(Δ), lnN, k) for k in 1:4]
+    ψ_eff = [localslope(log.(-log.(Δ)), lnN, k) for k in 1:4]
+
+    # At a conventional critical point a constant `z` EXISTS and a constant `ψ`
+    # does not.  Measured, deterministic:
+    #
+    #   z_eff  0.9776  0.9888  0.9944  0.9972   → spread 1.020, tending to 1
+    #   ψ_eff  0.4941  0.3711  0.2964  0.2464   → spread 2.005, still falling
+    #
+    # This is the whole reason the two relations cannot be interchanged, and it
+    # needs no disorder average to see.
+    @test maximum(z_eff) / minimum(z_eff) < 1.05
+    @test maximum(ψ_eff) / minimum(ψ_eff) > 1.8
+    @test check(DynamicalScaling(); dlogΔ_dlogξ=(-z_eff[end]), z=1.0, atol=0.005)
+
+    # The converse direction, on a family that IS activated by construction:
+    # Δ = exp(-a ξ^ψ).  Here the activated slope is flat and `z_eff` is the one
+    # that runs away, so neither law can stand in for the other.
+    a, ψtrue = 0.7, 0.5
+    ξ = collect(Float64, Ns)
+    Δa = exp.(-a .* ξ .^ ψtrue)
+    ψa = [localslope(log.(-log.(Δa)), lnN, k) for k in 1:4]
+    za = [-localslope(log.(Δa), lnN, k) for k in 1:4]
+    @test all(x -> isapprox(x, ψtrue; atol=1e-12), ψa)      # exact: ψ is the slope
+    # No constant z exists, and the way it runs away is derived rather than
+    # eyeballed: `−d(ln Δ)/d(ln ξ) = ψ ln(1/Δ) = ψ a ξ^ψ`, so each DOUBLING of
+    # the size multiplies the effective z by exactly `2^ψ`.
+    @test all(k -> za[k + 1] / za[k] ≈ 2^ψtrue, 1:3)
+    @test check(ActivatedDynamicalScaling(); dloglogΔ_dlogξ=ψa[end], ψ=ψtrue, atol=1e-12)
+    @test solve(ActivatedDynamicalScaling(), Val(:ψ); dloglogΔ_dlogξ=ψa[end]) ≈ ψtrue
+
+    # And each law REJECTS the other's data at the far end of the range.
+    @test !check(DynamicalScaling(); dlogΔ_dlogξ=(-za[end]), z=za[1], atol=0.5)
+    @test !check(
+        ActivatedDynamicalScaling(); dloglogΔ_dlogξ=ψ_eff[end], ψ=ψ_eff[1], atol=0.05
+    )
+
+    # Both exponents are typed subjects, so the registry can find the relations.
+    @test variable_types(ActivatedDynamicalScaling()) == (ActivatedExponent,)
+    @test variable_types(DynamicalScaling()) == (DynamicalExponent,)
+    @test ActivatedDynamicalScaling() in relations_constraining(ActivatedExponent)
+    @test DynamicalScaling() in relations_constraining(DynamicalExponent)
 end
