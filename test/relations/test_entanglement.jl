@@ -84,12 +84,13 @@ end
 
     for m in measured
         # The relation, on exact data, at both cut counts.  `check` takes an
-        # ABSOLUTE tolerance, and each is the MEASURED deviation rounded up by a
-        # factor of about three, so a regression well below the finite-size floor
-        # still fails:
+        # ABSOLUTE tolerance, and each budget is the MEASURED deviation rounded up,
+        # so a regression well below the finite-size floor still fails:
         #
         #   ncuts = 1:  0.000166 (N = 48), 0.000179 (N = 128)  — 0.20-0.21 % of c/6
+        #               → atol 0.0005, a 2.8× round-up on the binding case
         #   ncuts = 2:  0.011596 (N = 48), 0.007269 (N = 128)  — 6.96 → 4.36 % of c/3
+        #               → atol 0.015, a 1.3× round-up on the binding case
         #
         # The two-cut region carries the larger correction because BOTH of its
         # edges sit a finite distance from the ends of the chain, and it shrinks
@@ -106,7 +107,7 @@ end
 
         # `c` cancels in the ratio, so this is `ncuts` and nothing else.  Measured
         # |ratio − 2| = 0.143 (N = 48), 0.091 (N = 128); the budget is the same
-        # ~1.3× round-up as the two-cut line above.  Discriminating power is against
+        # ~1.3× round-up as the two-cut line.  Discriminating power is against
         # ONE cut, which would put the ratio at 1, a whole unit away.
         @test m.a2 / m.a1 ≈ 2 atol = 0.18
 
