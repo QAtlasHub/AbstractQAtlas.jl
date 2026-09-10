@@ -40,22 +40,21 @@ end
     # `free_fermion_entanglement_entropy`.
     c = 1 / 2
 
-    covariance = function (N)
+    function covariance(N)
         A = zeros(2N, 2N)
         for j in 1:N
             A[2j - 1, 2j] = -2.0        # -2 h_j, h_j = 1
-            A[2j, 2j - 1] = 2.0
         end
         for j in 1:(N - 1)
             A[2j, 2j + 1] = -2.0        # -2 J_j, J_j = 1
-            A[2j + 1, 2j] = 2.0
         end
+        A = A - transpose(A)            # antisymmetry as structure, not as bookkeeping
         F = svd(A)
         Γ = F.U * F.Vt
         return (Γ .- transpose(Γ)) ./ 2   # antisymmetry drifts at a zero singular value
     end
 
-    entropy = function (Γ, sites)
+    function entropy(Γ, sites)
         idx = vcat(([2j - 1, 2j] for j in sites)...)
         ν = eigvals(Hermitian(im .* Γ[idx, idx]))
         return free_fermion_entanglement_entropy([
@@ -64,7 +63,7 @@ end
     end
 
     # OLS slope of S against ln ℓ; the additive constant drops out of the weights
-    log_slope = function (ℓs, S)
+    function log_slope(ℓs, S)
         x = log.(float.(ℓs))
         x .-= sum(x) / length(x)
         return sum(x .* S) / sum(abs2, x)
@@ -85,12 +84,18 @@ end
 
     for m in measured
         # The relation, on exact data, at both cut counts.  `check` takes an
-        # ABSOLUTE tolerance, so these are the measured deviations rounded up:
-        # one cut 0.0002-0.0004 (0.2-0.4 % of c/6), two cuts 0.0116 at N = 48
-        # falling to 0.0073 at N = 128 (7.0 → 4.4 % of c/3).  The two-cut region
-        # carries the larger finite-size correction because BOTH of its edges sit
-        # a finite distance from the ends of the chain.
-        @test check(CFTEntanglementSlope(); dS_dlogℓ=m.a1, c=c, ncuts=1, atol=0.002)
+        # ABSOLUTE tolerance, and each is the MEASURED deviation rounded up by a
+        # factor of about three, so a regression well below the finite-size floor
+        # still fails:
+        #
+        #   ncuts = 1:  0.000166 (N = 48), 0.000179 (N = 128)  — 0.20-0.21 % of c/6
+        #   ncuts = 2:  0.011596 (N = 48), 0.007269 (N = 128)  — 6.96 → 4.36 % of c/3
+        #
+        # The two-cut region carries the larger correction because BOTH of its
+        # edges sit a finite distance from the ends of the chain, and it shrinks
+        # with N, as it must.  The fixture is deterministic to ~1e-14, so these
+        # are not noise budgets.
+        @test check(CFTEntanglementSlope(); dS_dlogℓ=m.a1, c=c, ncuts=1, atol=0.0005)
         @test check(CFTEntanglementSlope(); dS_dlogℓ=m.a2, c=c, ncuts=2, atol=0.015)
 
         # ...and it can DISAGREE: each geometry is nearer its own cut count than
@@ -99,8 +104,11 @@ end
         @test abs(m.a1 - 1 * c / 6) < abs(m.a1 - 2 * c / 6)
         @test abs(m.a2 - 2 * c / 6) < abs(m.a2 - 1 * c / 6)
 
-        # `c` cancels in the ratio, so this is `ncuts` and nothing else.
-        @test m.a2 / m.a1 ≈ 2 atol = 0.15
+        # `c` cancels in the ratio, so this is `ncuts` and nothing else.  Measured
+        # |ratio − 2| = 0.143 (N = 48), 0.091 (N = 128); the budget is the same
+        # ~1.3× round-up as the two-cut line above.  Discriminating power is against
+        # ONE cut, which would put the ratio at 1, a whole unit away.
+        @test m.a2 / m.a1 ≈ 2 atol = 0.18
 
         # The same measured slope yields a DIFFERENT central charge under a
         # different cut count — which is why `ncuts` is required, not defaulted.
