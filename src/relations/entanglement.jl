@@ -46,13 +46,29 @@ coefficient for every open-chain region that is not at an end.  Take
 Supplied-derivative convention: `dS_dlogℓ` is the caller-computed slope
 of `S` against `ln ℓ`.  Variables: `dS_dlogℓ`, `c`, `ncuts`.
 
+`c` is the typed subject, as in the sibling [`CasimirCentralCharge`](@ref)
+and [`CardyDensityOfStates`](@ref).  [`VonNeumannEntropy`](@ref) is what
+the relation constrains, but it enters only through the supplied
+derivative and so has no slot of its own — it is declared through
+[`also_constrains`](@ref), which is what that hook is for.
+
+`ncuts` is a supplied coordinate, like `L` in the finite-size relations,
+and deliberately not typed: it names no quantity.  It is a property of
+the region's SUPPORT, but not one [`RegionSupport`](@ref) can currently
+compute — `Region` is a set of sites, and the same set has one cut at the
+end of an open chain and two in its bulk or on a ring.  Answering it needs
+adjacency and a boundary condition, i.e. the geometric layer `region.jl`
+defers.  Until that exists the caller supplies it, and cannot read it out
+of a bag.
+
 `ncuts` is required rather than defaulted: the coefficient is not
 determined by `c` alone, and a default would restore exactly the
 ambiguity this variable exists to remove — including in
 `solve(CFTEntanglementSlope(), Val(:c); …)`, which cannot return a
 central charge without knowing the geometry the slope was measured on.
 """
-@relation :entanglement CFTEntanglementSlope(dS_dlogℓ, c, ncuts) = dS_dlogℓ - ncuts * c / 6
+@relation :entanglement CFTEntanglementSlope(dS_dlogℓ, c::CentralCharge, ncuts) =
+    dS_dlogℓ - ncuts * c / 6
 
 """
     page_average_entropy(dA, dB) -> Float64

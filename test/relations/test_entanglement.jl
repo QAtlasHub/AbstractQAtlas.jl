@@ -128,6 +128,27 @@ end
     @test only(discovered).pass
 end
 
+@testset "CFTEntanglementSlope is type-keyed like its cft.jl siblings" begin
+    rel = CFTEntanglementSlope()
+
+    # `c` is the typed subject, as in CasimirCentralCharge / CardyDensityOfStates.
+    @test variable_types(rel) == (CentralCharge,)
+    @test CentralCharge in quantities(rel)
+    @test rel in relations_constraining(CentralCharge)
+
+    # ...and the entropy is not lost by typing `c`: it enters through the SUPPLIED
+    # derivative, so it has no slot of its own and is declared via `also_constrains`
+    # — the hook that exists for exactly this shape.
+    @test also_constrains(rel) == (VonNeumannEntropy,)
+    @test VonNeumannEntropy in quantities(rel)
+    @test rel in relations_constraining(VonNeumannEntropy)
+
+    # `ncuts` names no quantity, so it stays a supplied coordinate like `L` in
+    # CasimirCentralCharge; it must not have become a bag-visible subject.
+    @test :ncuts in variables(rel)
+    @test length(variable_types(rel)) == 1
+end
+
 @testset "Page average entropy: exact small cases + symmetry" begin
     # two qubits (dA=dB=2): ⟨S⟩ = 1/3 + 1/4 − 1/4 = 1/3, exactly known
     @test page_average_entropy(2, 2) ≈ 1 / 3
