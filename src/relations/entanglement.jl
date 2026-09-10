@@ -22,17 +22,37 @@ Variables: `S2`, `purity`.
 """
     CFTEntanglementSlope <: AbstractRelation
 
-The logarithmic growth of the entanglement entropy of an interval in a
-1D conformal field theory reads off the central charge (Calabrese &
-Cardy, [CalabreseCardy2004](@cite)): for a subsystem of size `ℓ`,
+The logarithmic growth of the entanglement entropy of a region in a 1D
+conformal field theory reads off the central charge (Calabrese & Cardy,
+[CalabreseCardy2004](@cite)): for a region of size `ℓ`,
 
-`S(ℓ) = (c/3) ln ℓ + const`   ⟹   `dS/d(ln ℓ) = c/3`   (periodic BC;
-the open-boundary coefficient is `c/6`).
+`S(ℓ) = (ncuts · c/6) ln ℓ + const`   ⟹   `dS/d(ln ℓ) = ncuts · c/6`.
+
+`ncuts` is the number of ENTANGLEMENT CUTS bounding the region — each
+one contributes `c/6`, which is the whole content of the formula.  It is
+a property of the region's placement, not of the chain's boundary
+condition, and the two axes disagree:
+
+| chain | region | `ncuts` | coefficient |
+|---|---|---|---|
+| periodic | one interval | 2 | `c/3` |
+| open | block at an end | 1 | `c/6` |
+| open | block in the bulk | 2 | `c/3` |
+
+Reading `c/6` off "open boundary conditions" therefore halves the
+coefficient for every open-chain region that is not at an end.  Take
+`ncuts` from the region, not from the boundary condition.
 
 Supplied-derivative convention: `dS_dlogℓ` is the caller-computed slope
-of `S` against `ln ℓ`.  Variables: `dS_dlogℓ`, `c`.
+of `S` against `ln ℓ`.  Variables: `dS_dlogℓ`, `c`, `ncuts`.
+
+`ncuts` is required rather than defaulted: the coefficient is not
+determined by `c` alone, and a default would restore exactly the
+ambiguity this variable exists to remove — including in
+`solve(CFTEntanglementSlope(), Val(:c); …)`, which cannot return a
+central charge without knowing the geometry the slope was measured on.
 """
-@relation :entanglement CFTEntanglementSlope(dS_dlogℓ, c) = dS_dlogℓ - c / 3
+@relation :entanglement CFTEntanglementSlope(dS_dlogℓ, c, ncuts) = dS_dlogℓ - ncuts * c / 6
 
 """
     page_average_entropy(dA, dB) -> Float64
