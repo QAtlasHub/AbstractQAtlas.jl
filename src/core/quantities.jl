@@ -1458,8 +1458,10 @@ export TopologicalInvariant
 The von Neumann entanglement entropy `S = −Tr(ρ_A ln ρ_A)` of a
 subsystem — the `n → 1` limit of the [`RenyiEntropy`](@ref).  In a gapped
 phase it obeys an area law (Eisert, Cramer & Plenio, [EisertCramerPlenio2010](@cite)); at a 1D critical point it grows logarithmically with the
-subsystem size, `S = (c/3) ln ℓ` (Calabrese & Cardy, J. Stat. Mech.
-(2004) P06002).
+subsystem size, `S = (ncuts · c/6) ln ℓ` (Calabrese & Cardy, J. Stat. Mech.
+(2004) P06002) — `c/3` for the two-cut geometries and `c/6` for a region
+with a single cut.  Which one applies is set by the region's cut count,
+not by the chain's boundary condition; see [`CFTEntanglementSlope`](@ref).
 """
 struct VonNeumannEntropy <: AbstractEntanglementMeasure end
 export VonNeumannEntropy

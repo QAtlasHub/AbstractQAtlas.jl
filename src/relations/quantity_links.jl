@@ -26,6 +26,7 @@ also_constrains(::SusceptibilityResponse) = (Magnetization,)  # fundamental: χ 
 also_constrains(::ParticleNumberResponse) = (GrandPotential,)  # grand-canonical: N = −∂Ω/∂μ
 also_constrains(::StaticFromDynamicalStructureFactor) = (DynamicalStructureFactor,)  # Sq = ∫S(q,ω)dω/2π (supplied)
 also_constrains(::ChernFromBerryCurvature) = (BerryCurvature,)  # topology: C = ∫Ω d²k/2π (supplied integral)
+also_constrains(::CFTEntanglementSlope) = (VonNeumannEntropy,)  # entanglement: dS/d(ln ℓ) (supplied derivative)
 # HeatCapacityDifference GAINS ThermalExpansionCoefficient + IsothermalCompressibility
 # (α, κT are now typed subjects → auto).  LinearResponseFDT now types `β::InverseTemperature`
 # (bag-visible, like Jarzynski/Crooks) but has no quantity subject; the 4 Maxwell relations
@@ -84,7 +85,6 @@ quantities(::EntropyMixingConcavity) = (VonNeumannEntropy,)
 quantities(::HolevoMixingBound) = (VonNeumannEntropy,)
 quantities(::RenyiMonotonicity) = (RenyiEntropy,)
 quantities(::RelativeEntropyNonNegativity) = (RelativeEntropy,)
-quantities(::CFTEntanglementSlope) = (VonNeumannEntropy,)
 
 # ── Quantum-mechanical foundations ──
 # VirialTheorem is type-keyed (quantum.jl), `quantities` auto-derived. The Ehrenfest /

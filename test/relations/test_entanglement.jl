@@ -1,7 +1,9 @@
-# Entanglement-entropy relations vs INDEPENDENT constructions:
-# purity from an explicit density matrix, the central charge read off a
-# synthetic CFT log-growth, and Page's formula against exact small cases
-# and a Haar-random-state average.
+# Entanglement-entropy relations vs INDEPENDENT constructions: purity from an
+# explicit density matrix, the cut-counting coefficient from the EXACT
+# free-fermion critical Ising chain, and Page's formula against exact small cases
+# and a Haar-random-state average.  The chain is quadratic in Majoranas, so END
+# and CENTRED blocks come from the SAME exact ground state — the cut count is the
+# only difference between them.
 
 using AbstractQAtlas
 using AbstractQAtlas: residual, check, solve
@@ -21,18 +23,118 @@ using LinearAlgebra, Random
     @test check(RenyiTwoPurity(); S2=(-log(tr(ρ^2))), purity=tr(ρ^2), atol=1e-13)
 end
 
-@testset "CFT entanglement slope reads off the central charge" begin
-    # synthetic S(ℓ) = (c/3) ln ℓ + const with c = 1/2 (Ising); the slope
-    # in ln ℓ must return c/3, independent of the (dropped) constant.
+@testset "CFT entanglement slope counts cuts: exact critical Ising chain" begin
+    # CLEAN critical TFIM, open ends, c = 1/2: H = -Σ Z_j Z_{j+1} - Σ X_j is
+    # (i/4) Σ A_{mn} a_m a_n with A[2j-1,2j] = -2h_j, A[2j,2j+1] = -2J_j.  The
+    # ground-state covariance is A's orthogonal polar factor; a region's entropy
+    # is Peschel's function of its restricted spectrum.
     c = 1 / 2
-    S(ℓ) = (c / 3) * log(ℓ) + 0.77
-    ℓ = 40.0
-    h = 1e-4
-    dS_dlogℓ = (S(ℓ * exp(h)) - S(ℓ * exp(-h))) / (2h)   # d/d(ln ℓ)
-    @test check(CFTEntanglementSlope(); dS_dlogℓ=dS_dlogℓ, c=c, atol=1e-6)
-    @test solve(CFTEntanglementSlope(), Val(:c); dS_dlogℓ=dS_dlogℓ) ≈ c atol = 1e-6
-    # c = 1 free boson: slope 1/3
-    @test check(CFTEntanglementSlope(); dS_dlogℓ=1 / 3, c=1.0, atol=1e-14)
+
+    function covariance(N)
+        A = zeros(2N, 2N)
+        for j in 1:N
+            A[2j - 1, 2j] = -2.0        # -2 h_j, h_j = 1
+        end
+        for j in 1:(N - 1)
+            A[2j, 2j + 1] = -2.0        # -2 J_j, J_j = 1
+        end
+        A = A - transpose(A)            # antisymmetry as structure, not as bookkeeping
+        F = svd(A)
+        Γ = F.U * F.Vt
+        return (Γ .- transpose(Γ)) ./ 2   # antisymmetry drifts at a zero singular value
+    end
+
+    function entropy(Γ, sites)
+        idx = vcat(([2j - 1, 2j] for j in sites)...)
+        ν = eigvals(Hermitian(im .* Γ[idx, idx]))
+        return free_fermion_entanglement_entropy([
+            (1 + real(x)) / 2 for x in ν if real(x) > 0
+        ])
+    end
+
+    # OLS slope of S against ln ℓ; the additive constant drops out of the weights
+    function log_slope(ℓs, S)
+        x = log.(float.(ℓs))
+        x .-= sum(x) / length(x)
+        return sum(x .* S) / sum(abs2, x)
+    end
+
+    # ONE cut: the block sits at an open end, so only its inner edge is a cut.
+    # TWO cuts: the block sits in the bulk, both edges away from the boundary.
+    end_block(N, ℓ) = 1:ℓ
+    centred_block(N, ℓ) = (div(N - ℓ, 2) + 1):(div(N - ℓ, 2) + ℓ)
+
+    measured = map((48, 128)) do N
+        Γ = covariance(N)
+        ℓs = 3:div(N, 4)          # short of ℓ ≈ N, where a centred block fills the chain
+        a1 = log_slope(ℓs, [entropy(Γ, end_block(N, ℓ)) for ℓ in ℓs])
+        a2 = log_slope(ℓs, [entropy(Γ, centred_block(N, ℓ)) for ℓ in ℓs])
+        (; N, a1, a2)
+    end
+
+    for m in measured
+        # Budgets are the MEASURED deviation rounded up; the fixture is
+        # deterministic to ~1e-14, so they are not noise budgets:
+        #
+        #   ncuts=1:  0.000166 (N=48), 0.000179 (N=128)  →  atol 0.0005  (2.8×)
+        #   ncuts=2:  0.011596 (N=48), 0.007269 (N=128)  →  atol 0.015   (1.3×)
+        #
+        # Two cuts carries the larger correction — both edges sit a finite
+        # distance from the chain's ends — and it shrinks with N, as it must.
+        @test check(CFTEntanglementSlope(); dS_dlogℓ=m.a1, c=c, ncuts=1, atol=0.0005)
+        @test check(CFTEntanglementSlope(); dS_dlogℓ=m.a2, c=c, ncuts=2, atol=0.015)
+
+        # ...and it can DISAGREE: each geometry is nearer its own cut count than
+        # the other's, which a relation ignoring `ncuts` could not satisfy.
+        @test abs(m.a1 - 1 * c / 6) < abs(m.a1 - 2 * c / 6)
+        @test abs(m.a2 - 2 * c / 6) < abs(m.a2 - 1 * c / 6)
+
+        # `c` cancels, so the ratio is `ncuts` alone.  Measured |ratio−2| = 0.143
+        # (N=48), 0.091 (N=128), same ~1.3× round-up; one cut would put it at 1.
+        @test m.a2 / m.a1 ≈ 2 atol = 0.18
+
+        # The same measured slope yields a DIFFERENT central charge under a
+        # different cut count.
+        @test solve(CFTEntanglementSlope(), Val(:c); dS_dlogℓ=m.a2, ncuts=2) ≈ c rtol = 0.08
+        @test solve(CFTEntanglementSlope(), Val(:c); dS_dlogℓ=m.a2, ncuts=1) ≈ 2c rtol =
+            0.08
+    end
+
+    # An axis that must not matter: the coefficient belongs to the fixed point,
+    # so a larger chain moves the ratio TOWARDS 2, never away.
+    @test abs(measured[2].a2 / measured[2].a1 - 2) <
+        abs(measured[1].a2 / measured[1].a1 - 2)
+
+    # Pure arithmetic on the declared form, with no fixture in the way.
+    @test check(CFTEntanglementSlope(); dS_dlogℓ=1 / 3, c=1.0, ncuts=2, atol=1e-14)
+    @test check(CFTEntanglementSlope(); dS_dlogℓ=1 / 6, c=1.0, ncuts=1, atol=1e-14)
+
+    # Data that does not say which geometry the slope was measured on yields NO
+    # central-charge row, rather than one that assumed a geometry for the caller.
+    @test isempty(relation_report((; dS_dlogℓ=1 / 3, c=1.0)))
+    discovered = relation_report((; dS_dlogℓ=1 / 3, c=1.0, ncuts=2))
+    @test only(discovered).relation isa CFTEntanglementSlope
+    @test only(discovered).pass
+end
+
+@testset "CFTEntanglementSlope is type-keyed like its cft.jl siblings" begin
+    rel = CFTEntanglementSlope()
+
+    # `c` is the typed subject, as in CasimirCentralCharge / CardyDensityOfStates.
+    @test variable_types(rel) == (CentralCharge,)
+    @test CentralCharge in quantities(rel)
+    @test rel in relations_constraining(CentralCharge)
+
+    # Typing `c` does not lose the entropy: it enters through the SUPPLIED
+    # derivative, so it has no slot and is declared via `also_constrains`.
+    @test also_constrains(rel) == (VonNeumannEntropy,)
+    @test VonNeumannEntropy in quantities(rel)
+    @test rel in relations_constraining(VonNeumannEntropy)
+
+    # `ncuts` names no quantity, so it stays a supplied coordinate like `L` —
+    # it must not have become a bag-visible subject.
+    @test :ncuts in variables(rel)
+    @test length(variable_types(rel)) == 1
 end
 
 @testset "Page average entropy: exact small cases + symmetry" begin

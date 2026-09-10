@@ -22,17 +22,29 @@ Variables: `S2`, `purity`.
 """
     CFTEntanglementSlope <: AbstractRelation
 
-The logarithmic growth of the entanglement entropy of an interval in a
-1D conformal field theory reads off the central charge (Calabrese &
-Cardy, [CalabreseCardy2004](@cite)): for a subsystem of size `ℓ`,
+Logarithmic growth of a region's entanglement entropy in a 1D CFT, reading off
+the central charge (Calabrese & Cardy, [CalabreseCardy2004](@cite)):
 
-`S(ℓ) = (c/3) ln ℓ + const`   ⟹   `dS/d(ln ℓ) = c/3`   (periodic BC;
-the open-boundary coefficient is `c/6`).
+`dS/d(ln ℓ) = ncuts · c/6`.
 
-Supplied-derivative convention: `dS_dlogℓ` is the caller-computed slope
-of `S` against `ln ℓ`.  Variables: `dS_dlogℓ`, `c`.
+`ncuts` counts the cuts bounding the region — set by where it sits, not by the
+chain's boundary condition:
+
+| region | `ncuts` | |
+|---|---|---|
+| one interval on a ring | 2 | `c/3` |
+| block at an open end | 1 | `c/6` |
+| block in the bulk of an open chain | 2 | `c/3` |
+
+The last row is the one "OBC ⇒ `c/6`" gets wrong.
+
+Variables: `dS_dlogℓ` (caller-computed slope against `ln ℓ`), `c`, `ncuts`.
+`c` is the typed subject; [`VonNeumannEntropy`](@ref) arrives via the supplied
+derivative, hence [`also_constrains`](@ref).  `ncuts` has no default:
+[`Region`](@ref) carries no adjacency or boundary, so nothing can compute it.
 """
-@relation :entanglement CFTEntanglementSlope(dS_dlogℓ, c) = dS_dlogℓ - c / 3
+@relation :entanglement CFTEntanglementSlope(dS_dlogℓ, c::CentralCharge, ncuts) =
+    dS_dlogℓ - ncuts * c / 6
 
 """
     page_average_entropy(dA, dB) -> Float64
