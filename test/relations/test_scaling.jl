@@ -141,3 +141,116 @@ end
     @test DynamicalExponent in quantities(DynamicalScaling())
     @test ActivatedExponent in quantities(ActivatedDynamicalScaling())
 end
+
+# ─────────────────────────────────────────────────────────────────────────────
+# The infinite-randomness exponent network, checked against the ONE exact
+# exponent set that pins it: the 1D random transverse-field Ising chain,
+# Iglói–Monthus Table 1d (ν = 2, ψ = 1/2, ν_typ = 1, x_m = (3−√5)/4).  Each
+# relation below is stated in the review for general `d`; the table is 1D.  So
+# these are not restatements — each is the general law evaluated at a point it
+# did not come from.
+# ─────────────────────────────────────────────────────────────────────────────
+
+const RTFIC_ν = 2//1
+const RTFIC_ψ = 1//2
+const RTFIC_ν_typ = 1//1                 # Table 1d, independently listed
+const RTFIC_x_m = (3 - sqrt(5)) / 4
+
+@testset "the typical correlation length is the table's ν_typ, not ν" begin
+    # Exact arithmetic: ν(1−ψ) = 2·(1/2) = 1, and the table lists ν_typ = 1
+    # from a separate calculation.
+    @test residual(TypicalCorrelationLength(); ν_typ=RTFIC_ν_typ, ν=RTFIC_ν, ψ=RTFIC_ψ) ==
+        0//1
+    @test solve(TypicalCorrelationLength(), Val(:ν_typ); ν=RTFIC_ν, ψ=RTFIC_ψ) ==
+        RTFIC_ν_typ
+    @test solve(TypicalCorrelationLength(), Val(:ψ); ν_typ=RTFIC_ν_typ, ν=RTFIC_ν) ==
+        RTFIC_ψ
+
+    # ν_typ < ν whenever ψ > 0, and they coincide only at ψ = 0 — i.e. only
+    # where the fixed point is not infinite-randomness.
+    @test solve(TypicalCorrelationLength(), Val(:ν_typ); ν=RTFIC_ν, ψ=0//1) == RTFIC_ν
+    @test solve(TypicalCorrelationLength(), Val(:ν_typ); ν=RTFIC_ν, ψ=RTFIC_ψ) < RTFIC_ν
+
+    # A fixture that CAN disagree: ν_typ = ν is the clean-system answer and is
+    # wrong here.
+    @test !check(TypicalCorrelationLength(); ν_typ=RTFIC_ν, ν=RTFIC_ν, ψ=RTFIC_ψ)
+end
+
+@testset "the Griffiths exponent's divergence rate reproduces the exact 1D law" begin
+    # 1D RTFIM has the exact Griffiths result 1/z = 2|δ| (Iglói–Monthus, with
+    # Eq. entropy_d), so z = 1/(2|δ|) and d(ln z)/d(ln|δ|) = −1 identically.
+    # The general law says the rate is −νψ; with the table's ν, ψ that is −1.
+    # Two independent routes to the same number.
+    @test solve(GriffithsExponentDivergence(), Val(:dlogz_dlogδ); ν=RTFIC_ν, ψ=RTFIC_ψ) ==
+        -1//1
+
+    # ...and measure that slope numerically off z = 1/(2|δ|) rather than
+    # asserting the algebra twice.
+    δs = 10.0 .^ range(-4, -2; length=25)
+    zs = 1 ./ (2 .* δs)
+    lx, ly = log.(δs), log.(zs)
+    slope =
+        ((lx .- sum(lx) / length(lx))' * (ly .- sum(ly) / length(ly))) /
+        sum(abs2, lx .- sum(lx) / length(lx))
+    @test check(GriffithsExponentDivergence(); dlogz_dlogδ=slope, ν=2.0, ψ=0.5, atol=1e-10)
+
+    # The clean case is a different law, not this one with ψ = 0: at ψ = 0 the
+    # rate is zero, i.e. z does not drift — which is exactly what a conventional
+    # critical point does and what this relation must NOT claim for the random one.
+    @test !check(GriffithsExponentDivergence(); dlogz_dlogδ=slope, ν=2.0, ψ=0.0, atol=1e-6)
+end
+
+@testset "the moment-growth exponent returns the golden mean" begin
+    # φ = (d − x_m)/ψ with d = 1, x_m = (3−√5)/4, ψ = 1/2 must give (1+√5)/2 —
+    # the RTFIC's signature irrational, arrived at from the OTHER two entries of
+    # the same table rather than quoted.
+    φ = solve(ActivatedMomentGrowth(), Val(:φ); d=1.0, x_m=RTFIC_x_m, ψ=0.5)
+    @test φ ≈ (1 + sqrt(5)) / 2 rtol = 1e-14
+    # It is not 2 and not 1.5 — pin that the check discriminates.
+    @test !check(ActivatedMomentGrowth(); φ=2.0, d=1.0, x_m=RTFIC_x_m, ψ=0.5, atol=1e-6)
+end
+
+@testset "the two Griffiths observables read the same z" begin
+    # χ ∼ T^{−1+d/z} and c_V ∼ T^{d/z} are different measurements; a z fitted
+    # from one alone is a fit, the pair is a check.  d = 1, z = 4.
+    d, z = 1//1, 4//1
+    dlogχ, dlogc = -1 + d // z, d // z
+    @test residual(GriffithsSusceptibility(); dlogχ_dlogT=dlogχ, d=d, z=z) == 0//1
+    @test residual(GriffithsSpecificHeat(); dlogc_dlogT=dlogc, d=d, z=z) == 0//1
+    @test solve(GriffithsSusceptibility(), Val(:z); dlogχ_dlogT=dlogχ, d=d) == z
+    @test solve(GriffithsSpecificHeat(), Val(:z); dlogc_dlogT=dlogc, d=d) == z
+
+    # z = d is the line inside the Griffiths phase where χ stops diverging.
+    @test solve(GriffithsSusceptibility(), Val(:dlogχ_dlogT); d=1//1, z=1//1) == 0//1
+    @test solve(GriffithsSusceptibility(), Val(:dlogχ_dlogT); d=1//1, z=4//1) < 0
+
+    # The two observables disagree if fed the same slope — they must not be
+    # the same relation wearing two names.
+    @test !check(GriffithsSpecificHeat(); dlogc_dlogT=dlogχ, d=d, z=z)
+end
+
+@testset "the infinite-randomness relations are reachable from their subjects" begin
+    for (rel, q) in (
+        (GriffithsExponentDivergence(), DynamicalExponent),
+        (GriffithsSusceptibility(), Susceptibility),
+        (GriffithsSpecificHeat(), SpecificHeat),
+        (TypicalCorrelationLength(), CorrelationLength),
+    )
+        @test q in quantities(rel)
+        @test rel in relations_constraining(q)
+    end
+    @test ActivatedExponent in quantities(TypicalCorrelationLength())
+    @test ActivatedExponent in quantities(GriffithsExponentDivergence())
+    @test ActivatedExponent in quantities(ActivatedMomentGrowth())
+end
+
+@testset "a plain exponent set does not silently pick up the disorder laws" begin
+    # `exponents_consistent` sweeps every :scaling relation.  The five added
+    # here need ψ / z / ν_typ / φ / x_m, none of which a clean (α,β,γ,δ,ν,η) set
+    # carries — so the gate must be unchanged for the sets it already served.
+    @test exponents_consistent(ISING2D; d=2)
+    names = keys(exponent_residuals(ISING2D; d=2))
+    for n in (:typicalcorrelationlength, :griffithssusceptibility, :activatedmomentgrowth)
+        @test !(n in names)
+    end
+end
