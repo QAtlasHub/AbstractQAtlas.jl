@@ -101,7 +101,12 @@ end
     for (rel, bd, bg, dir, _) in _EIGHT
         violating = dir === :upper ? (2.0, 1.0) : (0.5, 1.0)
         satisfying = dir === :upper ? (0.5, 1.0) : (2.0, 1.0)
-        @test !check(rel; NamedTuple{(bd, bg)}(violating)...)
-        @test check(rel; NamedTuple{(bd, bg)}(satisfying)...)
+        # Called OUTSIDE `@test`: Julia 1.13's macro mishandles a keyword NamedTuple
+        # splatted inside it (`@test f(x; nt...)`), which reaches the call as a plain
+        # tuple.  See the same treatment in test_bound_macro.jl.
+        fails_when_violated = !check(rel; NamedTuple{(bd, bg)}(violating)...)
+        holds_when_satisfied = check(rel; NamedTuple{(bd, bg)}(satisfying)...)
+        @test fails_when_violated
+        @test holds_when_satisfied
     end
 end

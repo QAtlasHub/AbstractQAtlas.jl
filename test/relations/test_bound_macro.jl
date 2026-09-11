@@ -249,7 +249,14 @@ end
         base = NamedTuple(v => 1.0 for v in variables(r))
         violating = d === :upper ? merge(base, (; bd => 2.0)) : merge(base, (; bd => 0.5))
         satisfying = d === :upper ? merge(base, (; bd => 0.5)) : merge(base, (; bd => 2.0))
-        @test !check(r; violating...)
-        @test check(r; satisfying...)
+        # Evaluated OUTSIDE `@test`: on Julia 1.13 a keyword NamedTuple splatted
+        # inside the macro (`@test f(x; nt...)`) reaches the call as a plain tuple
+        # and throws `BoundsError`. Measured — the same call outside the macro, and
+        # literal keywords inside it, are both fine on 1.13, and every spelling is
+        # fine on 1.10 and 1.12.
+        fails_when_violated = !check(r; violating...)
+        holds_when_satisfied = check(r; satisfying...)
+        @test fails_when_violated
+        @test holds_when_satisfied
     end
 end
