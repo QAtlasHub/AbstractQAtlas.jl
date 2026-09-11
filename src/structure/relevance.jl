@@ -1,22 +1,13 @@
-# structure/relevance.jl — does a perturbation change the fixed point?
+# structure/relevance.jl: does a perturbation change the fixed point?
 #
-# A criterion is neither a relation nor a bound.  A relation's residual must
-# vanish; a bound's must keep a sign.  Here BOTH signs are answers, and the
-# zero is a third one — so these deliberately do not enter the relation
-# registry, where `check_all` would report "failed" for every system that is
-# simply not marginal.  Measured: as a `@bound`, `check(...; ν₀=1, d=1)` — the
-# clean Ising chain, a textbook RELEVANT case — comes back `false`, and
-# `check_all` with it.
-#
-# The cost, which is real: staying outside `AbstractRelation` also forfeits
-# `domain`, the `Bag`/`VariableKey` front door and load-time validation.  The
-# type-keyed bag is this package's structural answer to "two exponents that look
-# alike", and these criteria carry exactly such a pair — hence `ν_dis` below.
+# Not a relation and not a bound. A relation's residual must vanish, a bound's
+# must keep a sign; here both signs are answers and zero is a third, so these
+# stay out of the relation registry, where `check_all` would call every
+# non-marginal system failed.
 #
 # References: Harris, [Harris1974](@cite); Luck, [Luck1993](@cite);
-# Weinrib–Halperin, [WeinribHalperin1983](@cite).  The three are collected,
-# with the equation numbers cited below, in Iglói–Monthus,
-# [IgloiMonthus2005](@cite) (arXiv `cond-mat/0502448`).
+# Weinrib-Halperin, [WeinribHalperin1983](@cite). Collected, with the equation
+# numbers cited below, in Iglói-Monthus, [IgloiMonthus2005](@cite).
 
 """
     RelevanceCriterion
@@ -39,12 +30,12 @@ function margin end
 export margin
 
 # Without this a criterion missing its `margin` surfaces as a bare MethodError at
-# first use — possibly downstream, far from where it was declared. Same shape as
+# first use, possibly downstream and far from where it was declared. Same shape as
 # `critical_scaling`'s default-then-named-check next door in `criticality.jl`.
 function margin(c::RelevanceCriterion; kwargs...)
     return error(
         "margin: $(nameof(typeof(c))) is a `RelevanceCriterion` with no `margin` " *
-        "method. Define one returning the signed distance from marginality — " *
+        "method. Define one returning the signed distance from marginality: " *
         "positive irrelevant, zero marginal, negative relevant.",
     )
 end
@@ -68,7 +59,7 @@ function relevance(c::RelevanceCriterion; atol::Real=0, kwargs...)
     # becomes a confident physical claim. No `atol` rescues it, not even `Inf`.
     isfinite(m) ||
         error("relevance: $(nameof(typeof(c))) gave a non-finite margin ($m). That is \
-               an unusable input reaching a criterion, not a verdict — check the \
+               an unusable input reaching a criterion, not a verdict. Check the \
                exponents rather than reading a relevance from it.")
     abs(m) <= atol && return :marginal
     return m > 0 ? :irrelevant : :relevant
@@ -116,8 +107,8 @@ when
 so `margin = ν₀ − 1/(1 − ω)`.  `ω = 1/2` is a random sequence and `ω = −1` the
 Fibonacci one, whose bounded fluctuations make it irrelevant wherever `ν₀ > 1/2`.
 
-At `ω = 1/2` this IS [`HarrisCriterion`](@ref) in one dimension — `1/(1−1/2) = 2
-= 2/d` — which is the consistency the two must have and a way to check either.
+At `ω = 1/2` this IS [`HarrisCriterion`](@ref) in one dimension, since
+`1/(1−1/2) = 2 = 2/d`. The two must agree there, which is a way to check either.
 
 Reference: [Luck1993](@cite); stated as Eq. (10.9) of [IgloiMonthus2005](@cite),
 with the wandering exponent defined in its Eq. (10.8).
@@ -127,7 +118,7 @@ export LuckCriterion
 
 function margin(::LuckCriterion; ν₀, ω, _extra...)
     # ω = 1 divides by zero, and ω > 1 means fluctuations outgrowing the system,
-    # which the criterion is not derived for — random is 1/2 and Fibonacci is −1.
+    # which the criterion is not derived for. Random is 1/2, Fibonacci is −1.
     ω < 1 || throw(
         ArgumentError(
             "LuckCriterion: the wandering exponent must be < 1; got $ω. At ω = 1 the " *
@@ -142,8 +133,8 @@ end
     WeinribHalperinCriterion() <: RelevanceCriterion
 
 Disorder whose correlator decays as a power, `G(r) ∼ r^{−ρ}`, rather than being
-uncorrelated.  Correlations are irrelevant — the uncorrelated universality class
-survives — when
+uncorrelated.  Correlations are irrelevant, so the uncorrelated universality
+class survives, when
 
 `ρ > 2/ν`,
 
