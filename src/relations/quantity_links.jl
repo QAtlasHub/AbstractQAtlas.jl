@@ -28,11 +28,19 @@ also_constrains(::StaticFromDynamicalStructureFactor) = (DynamicalStructureFacto
 also_constrains(::ChernFromBerryCurvature) = (BerryCurvature,)  # topology: C = ∫Ω d²k/2π (supplied integral)
 also_constrains(::CFTEntanglementSlope) = (VonNeumannEntropy,)  # entanglement: dS/d(ln ℓ) (supplied derivative)
 also_constrains(::DynamicalScaling) = (MassGap,)            # scaling: d(lnΔ)/d(lnξ) (supplied)
-also_constrains(::ActivatedDynamicalScaling) = (MassGap,)   # scaling: d(ln[ln(1/Δ)])/d(lnξ) (supplied)
-also_constrains(::GriffithsExponentDivergence) = (DynamicalExponent,)  # scaling: d(ln z)/d(ln|δ|) (supplied)
-also_constrains(::GriffithsSusceptibility) = (Susceptibility,)  # scaling: d(ln χ)/d(ln T) (supplied)
-also_constrains(::GriffithsSpecificHeat) = (SpecificHeat,)  # scaling: d(ln c_V)/d(ln T) (supplied)
-also_constrains(::TypicalCorrelationLength) = (CorrelationLength,)  # scaling: ν_typ vs ν, both lengths
+# The infinite-randomness block keys on the REDUCTIONS, not the clean quantity.
+# `Typical` and `DisorderAveraged` are separate quantities here precisely so a bag
+# cannot mix them (core/quantities.jl), and every relation below is a statement
+# about one of them — a bare key would put the clean value in the same slot.
+# `TypicalCorrelationLength` is the sharp case: it exists to say the two lengths
+# differ, so keying it on `CorrelationLength` names the thing it denies.
+also_constrains(::ActivatedDynamicalScaling) = (MassGap, Typical{MassGap})  # ψ is the TYPICAL gap's
+also_constrains(::GriffithsExponentDivergence) = (DynamicalExponent,)  # an ensemble exponent, not a reduction
+also_constrains(::GriffithsSusceptibility) = (DisorderAveraged{Susceptibility},)  # rare regions ⇒ the average
+also_constrains(::GriffithsSpecificHeat) = (DisorderAveraged{SpecificHeat},)      # same
+function also_constrains(::TypicalCorrelationLength)
+    return (Typical{CorrelationLength}, DisorderAveraged{CorrelationLength})
+end
 # HeatCapacityDifference GAINS ThermalExpansionCoefficient + IsothermalCompressibility
 # (α, κT are now typed subjects → auto).  LinearResponseFDT now types `β::InverseTemperature`
 # (bag-visible, like Jarzynski/Crooks) but has no quantity subject; the 4 Maxwell relations

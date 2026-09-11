@@ -228,16 +228,35 @@ end
     @test !check(GriffithsSpecificHeat(); dlogc_dlogT=dlogχ, d=d, z=z)
 end
 
-@testset "the infinite-randomness relations are reachable from their subjects" begin
-    for (rel, q) in (
-        (GriffithsExponentDivergence(), DynamicalExponent),
-        (GriffithsSusceptibility(), Susceptibility),
+@testset "the infinite-randomness relations key on the reductions" begin
+    # `Typical` and `DisorderAveraged` are separate quantities so a bag cannot mix
+    # them, and each relation here is about one of them. `also_constrains` is
+    # family-erased by design, so the graph carries "a disorder reduction" and not
+    # which observable was reduced — coarser than the key, and the same coarseness
+    # `TypicalBelowAverage` already has. Lookup is `Q <: T`, so the wrapped type
+    # still finds it.
+    for (rel, wrapped) in (
+        (GriffithsSusceptibility(), DisorderAveraged{Susceptibility}),
+        (GriffithsSpecificHeat(), DisorderAveraged{SpecificHeat}),
+        (TypicalCorrelationLength(), Typical{CorrelationLength}),
+        (TypicalCorrelationLength(), DisorderAveraged{CorrelationLength}),
+        (ActivatedDynamicalScaling(), Typical{MassGap}),
+    )
+        @test rel in relations_constraining(wrapped)
+    end
+    @test GriffithsExponentDivergence() in relations_constraining(DynamicalExponent)
+
+    # The clean quantity must NOT reach them: a clean susceptibility has no
+    # Griffiths singularity, and there is only one correlation length in a clean
+    # system — which is exactly what `TypicalCorrelationLength` exists to deny.
+    for (rel, clean) in (
+        (GriffithsSusceptibility(), Susceptibility{(:z, :z)}),
         (GriffithsSpecificHeat(), SpecificHeat),
         (TypicalCorrelationLength(), CorrelationLength),
     )
-        @test q in quantities(rel)
-        @test rel in relations_constraining(q)
+        @test !(rel in relations_constraining(clean))
     end
+
     @test ActivatedExponent in quantities(TypicalCorrelationLength())
     @test ActivatedExponent in quantities(GriffithsExponentDivergence())
     @test ActivatedExponent in quantities(ActivatedMomentGrowth())
