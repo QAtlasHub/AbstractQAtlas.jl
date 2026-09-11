@@ -14,6 +14,10 @@ Parametric dispatch tag for universality classes. `C` is a `Symbol`
 identifying the class (`:Ising`, `:XY`, `:Heisenberg`, `:Potts3`,
 `:Potts4`, `:Percolation`, `:KPZ`, etc.).
 
+Which symbols are legal is deliberately open — an atlas adds a class by
+adding methods, and this package cannot see them. That `C` is a `Symbol`
+at all is not open, and is checked here.
+
 Use with [`CriticalExponents`](@ref) (equilibrium) or
 [`GrowthExponents`](@ref) (KPZ-type) and a `d` keyword to select the
 spatial dimension:
@@ -23,7 +27,13 @@ fetch(Universality(:Ising), CriticalExponents(); d=2)   # exact Rational
 fetch(Universality(:Ising), CriticalExponents(); d=3)   # numerical + _err
 ```
 """
-struct Universality{C} <: AbstractQAtlasModel end
+struct Universality{C} <: AbstractQAtlasModel
+    function Universality{C}() where {C}
+        C isa Symbol ||
+            error("universality class must be a Symbol (e.g. :Ising), got $(repr(C))")
+        return new{C}()
+    end
+end
 Universality(name::Symbol) = Universality{name}()
 export Universality
 
