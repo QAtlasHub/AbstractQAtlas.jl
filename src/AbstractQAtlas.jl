@@ -69,6 +69,7 @@ include("core/region.jl")                # the Region set layer (entanglement su
 # response-function derivative genealogy rooted at the free energy.
 include("structure/transitions.jl")
 include("structure/criticality.jl")
+include("structure/relevance.jl")   # Harris / Luck / Weinrib-Halperin relevance criteria
 include("structure/potentials.jl")        # thermodynamic potentials → the Maxwell relations
 include("structure/scaling_dimensions.jl")
 include("structure/response.jl")
