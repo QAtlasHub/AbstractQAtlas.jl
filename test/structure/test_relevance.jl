@@ -62,6 +62,28 @@ end
     @test issorted(ms) && ms[1] < 0 < ms[end]
 end
 
+@testset "relevance :: a non-finite margin is not a verdict" begin
+    # IEEE makes both `abs(NaN) <= atol` and `NaN > 0` false, so the ternary's
+    # else-branch would report `:relevant` — a confident physical claim built from
+    # an upstream failure. No atol rescues it, not even Inf.
+    for kw in ((; ν₀=NaN, d=1.0), (; ν₀=Inf, d=Inf))
+        @test_throws ErrorException relevance(HarrisCriterion(); kw...)
+        @test_throws ErrorException relevance(HarrisCriterion(); atol=Inf, kw...)
+    end
+
+    # The domain boundaries that produced those non-finite margins are refused at
+    # the source, with the reason.
+    @test_throws ArgumentError margin(HarrisCriterion(); ν₀=1, d=0)
+    @test_throws ArgumentError margin(HarrisCriterion(); ν₀=1, d=-2)
+    # -0.0 and +0.0 are both "zero dimensions" but gave OPPOSITE verdicts, because
+    # 2/(-0.0) is -Inf. Now neither is an answer.
+    @test_throws ArgumentError margin(HarrisCriterion(); ν₀=1.0, d=-0.0)
+    @test_throws ArgumentError margin(LuckCriterion(); ν₀=1, ω=1)       # divides by zero
+    @test_throws ArgumentError margin(LuckCriterion(); ν₀=1, ω=2)       # outgrows L
+    @test_throws ArgumentError margin(WeinribHalperinCriterion(); ν_dis=0, ρ=1)
+    @test_throws ArgumentError margin(WeinribHalperinCriterion(); ν_dis=1, ρ=0)
+end
+
 @testset "relevance :: every criterion answers the interface" begin
     # Mirrors test/core/test_invariants.jl's sweep over subtypes: a criterion added
     # later without a `margin` must fail HERE, not as a MethodError in whatever

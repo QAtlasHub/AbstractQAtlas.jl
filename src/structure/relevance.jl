@@ -63,6 +63,13 @@ criterion may not name a physics variable `atol`.
 """
 function relevance(c::RelevanceCriterion; atol::Real=0, kwargs...)
     m = margin(c; kwargs...)
+    # NaN would otherwise be reported as `:relevant`: IEEE makes BOTH `abs(m) <= atol`
+    # and `m > 0` false, so the ternary's else-branch wins and an upstream failure
+    # becomes a confident physical claim. No `atol` rescues it, not even `Inf`.
+    isfinite(m) ||
+        error("relevance: $(nameof(typeof(c))) gave a non-finite margin ($m). That is \
+               an unusable input reaching a criterion, not a verdict — check the \
+               exponents rather than reading a relevance from it.")
     abs(m) <= atol && return :marginal
     return m > 0 ? :irrelevant : :relevant
 end
@@ -89,7 +96,13 @@ Reference: [Harris1974](@cite); stated as Eq. (5.9) of [IgloiMonthus2005](@cite)
 struct HarrisCriterion <: RelevanceCriterion end
 export HarrisCriterion
 
-margin(::HarrisCriterion; ν₀, d, _extra...) = ν₀ - 2 / d
+function margin(::HarrisCriterion; ν₀, d, _extra...)
+    # `d > 0` is not pedantry: at d = 0 the margin is ±Inf, and IEEE signed zero
+    # makes `d = -0.0` and `d = +0.0` give OPPOSITE verdicts for the same
+    # "zero dimensions".
+    d > 0 || throw(ArgumentError("HarrisCriterion: d must be > 0; got $d"))
+    return ν₀ - 2 / d
+end
 
 """
     LuckCriterion() <: RelevanceCriterion
@@ -112,7 +125,18 @@ with the wandering exponent defined in its Eq. (10.8).
 struct LuckCriterion <: RelevanceCriterion end
 export LuckCriterion
 
-margin(::LuckCriterion; ν₀, ω, _extra...) = ν₀ - 1 / (1 - ω)
+function margin(::LuckCriterion; ν₀, ω, _extra...)
+    # ω = 1 divides by zero, and ω > 1 means fluctuations outgrowing the system,
+    # which the criterion is not derived for — random is 1/2 and Fibonacci is −1.
+    ω < 1 || throw(
+        ArgumentError(
+            "LuckCriterion: the wandering exponent must be < 1; got $ω. At ω = 1 the " *
+            "bound diverges and above it the fluctuations outgrow L, which this " *
+            "criterion does not describe.",
+        ),
+    )
+    return ν₀ - 1 / (1 - ω)
+end
 
 """
     WeinribHalperinCriterion() <: RelevanceCriterion
@@ -139,4 +163,11 @@ Reference: [WeinribHalperin1983](@cite); stated as Eq. (10.2) of
 struct WeinribHalperinCriterion <: RelevanceCriterion end
 export WeinribHalperinCriterion
 
-margin(::WeinribHalperinCriterion; ν_dis, ρ, _extra...) = ρ - 2 / ν_dis
+function margin(::WeinribHalperinCriterion; ν_dis, ρ, _extra...)
+    ν_dis > 0 ||
+        throw(ArgumentError("WeinribHalperinCriterion: ν_dis must be > 0; got $ν_dis"))
+    ρ > 0 || throw(
+        ArgumentError("WeinribHalperinCriterion: the decay exponent ρ must be > 0; got $ρ"),
+    )
+    return ρ - 2 / ν_dis
+end
