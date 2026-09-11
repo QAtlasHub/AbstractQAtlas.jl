@@ -101,7 +101,11 @@ end
     for (rel, bd, bg, dir, _) in _EIGHT
         violating = dir === :upper ? (2.0, 1.0) : (0.5, 1.0)
         satisfying = dir === :upper ? (0.5, 1.0) : (2.0, 1.0)
-        @test !check(rel; NamedTuple{(bd, bg)}(violating)...)
-        @test check(rel; NamedTuple{(bd, bg)}(satisfying)...)
+        # Hoisted out of `@test`: 1.13.0 mishandles a keyword NamedTuple splatted
+        # inside the macro (JuliaLang/julia#62478, fixed upstream).
+        fails_when_violated = !check(rel; NamedTuple{(bd, bg)}(violating)...)
+        holds_when_satisfied = check(rel; NamedTuple{(bd, bg)}(satisfying)...)
+        @test fails_when_violated
+        @test holds_when_satisfied
     end
 end

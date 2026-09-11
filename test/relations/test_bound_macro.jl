@@ -249,7 +249,11 @@ end
         base = NamedTuple(v => 1.0 for v in variables(r))
         violating = d === :upper ? merge(base, (; bd => 2.0)) : merge(base, (; bd => 0.5))
         satisfying = d === :upper ? merge(base, (; bd => 0.5)) : merge(base, (; bd => 2.0))
-        @test !check(r; violating...)
-        @test check(r; satisfying...)
+        # Hoisted out of `@test`: 1.13.0 mishandles a keyword NamedTuple splatted
+        # inside the macro (JuliaLang/julia#62478, fixed upstream).
+        fails_when_violated = !check(r; violating...)
+        holds_when_satisfied = check(r; satisfying...)
+        @test fails_when_violated
+        @test holds_when_satisfied
     end
 end
