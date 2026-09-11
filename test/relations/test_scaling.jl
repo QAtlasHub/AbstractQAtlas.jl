@@ -145,7 +145,7 @@ end
 # ─────────────────────────────────────────────────────────────────────────────
 # The infinite-randomness exponent network, checked against the ONE exact
 # exponent set that pins it: the 1D random transverse-field Ising chain,
-# Iglói–Monthus Table 1d (ν = 2, ψ = 1/2, ν_typ = 1, x_m = (3−√5)/4).  Each
+# Iglói–Monthus Table 1, §4.1.2 (ν = 2, ψ = 1/2, ν_typ = 1, x_m = (3−√5)/4).  Each
 # relation below is stated in the review for general `d`; the table is 1D.  So
 # these are not restatements — each is the general law evaluated at a point it
 # did not come from.
@@ -153,12 +153,12 @@ end
 
 const RTFIC_ν = 2//1
 const RTFIC_ψ = 1//2
-const RTFIC_ν_typ = 1//1                 # Table 1d, independently listed
+const RTFIC_ν_typ = 1 // 1               # Table 1 and Eq. (4.10), obtained separately
 const RTFIC_x_m = (3 - sqrt(5)) / 4
 
 @testset "the typical correlation length is the table's ν_typ, not ν" begin
-    # Exact arithmetic: ν(1−ψ) = 2·(1/2) = 1, and the table lists ν_typ = 1
-    # from a separate calculation.
+    # ν(1−ψ) = 2·(1/2) = 1 exactly, and Eq. (4.10) reaches ν_typ = 1 from the
+    # finite-size dependence instead — two routes, one number.
     @test residual(TypicalCorrelationLength(); ν_typ=RTFIC_ν_typ, ν=RTFIC_ν, ψ=RTFIC_ψ) ==
         0//1
     @test solve(TypicalCorrelationLength(), Val(:ν_typ); ν=RTFIC_ν, ψ=RTFIC_ψ) ==
@@ -177,8 +177,8 @@ const RTFIC_x_m = (3 - sqrt(5)) / 4
 end
 
 @testset "the Griffiths exponent's divergence rate reproduces the exact 1D law" begin
-    # 1D RTFIM has the exact Griffiths result 1/z = 2|δ| (Iglói–Monthus, with
-    # Eq. entropy_d), so z = 1/(2|δ|) and d(ln z)/d(ln|δ|) = −1 identically.
+    # 1D has the closed-form Griffiths result 1/z = 2|δ| (stated with Eq. (4.51),
+    # §4.4.2), so z = 1/(2|δ|) and d(ln z)/d(ln|δ|) = −1 identically.
     # The general law says the rate is −νψ; with the table's ν, ψ that is −1.
     # Two independent routes to the same number.
     @test solve(GriffithsExponentDivergence(), Val(:dlogz_dlogδ); ν=RTFIC_ν, ψ=RTFIC_ψ) ==
@@ -201,9 +201,8 @@ end
 end
 
 @testset "the moment-growth exponent returns the golden mean" begin
-    # φ = (d − x_m)/ψ with d = 1, x_m = (3−√5)/4, ψ = 1/2 must give (1+√5)/2 —
-    # the RTFIC's signature irrational, arrived at from the OTHER two entries of
-    # the same table rather than quoted.
+    # Eq. (A.21) at d = 1, x_m = (3−√5)/4, ψ = 1/2 must give (1+√5)/2 — the value
+    # Eq. (3.18) reaches by a different route, here from two other Table 1 entries.
     φ = solve(ActivatedMomentGrowth(), Val(:φ); d=1.0, x_m=RTFIC_x_m, ψ=0.5)
     @test φ ≈ (1 + sqrt(5)) / 2 rtol = 1e-14
     # It is not 2 and not 1.5 — pin that the check discriminates.
