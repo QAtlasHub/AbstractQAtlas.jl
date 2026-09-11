@@ -3,8 +3,12 @@
 
 using AbstractQAtlas
 using Test
+using Random
 using AbstractQAtlas:
     check, slack, solve, quantities, domain, AbstractInequality, AbstractRelation
+
+# Geometric mean (typical) and arithmetic mean (average) of the SAME samples.
+typical_and_average(x) = exp(sum(log, x) / length(x)), sum(x) / length(x)
 
 @testset "Jarzynski equality + second law (dissipated work ≥ 0)" begin
     # a two-outcome work distribution W ∈ {0, 2} at p = ½, β = 1: compute ⟨e^{−βW}⟩ and
@@ -50,4 +54,107 @@ end
         r -> isempty(quantities(r)),
         (JarzynskiEquality(), JarzynskiSecondLaw(), CrooksFluctuationTheorem()),
     )
+end
+
+@testset "typical ≤ average, and the gap is how broad the ensemble is" begin
+    # Closed-form oracle: for ln X ~ N(μ, σ²) the typical value is exp(μ) and the
+    # average is exp(μ + σ²/2), so the RATIO is exp(σ²/2) exactly — known without
+    # sampling, and growing without bound in σ.  A broad-distribution fixed point
+    # is the σ → ∞ end of this, which is why the two need separate keys.
+    μ = -3.0
+    for σ in (0.0, 0.5, 1.0, 2.0, 4.0)
+        X_typ, X_avg = exp(μ), exp(μ + σ^2 / 2)
+        @test check(TypicalBelowAverage(); X_typ=X_typ, X_avg=X_avg)
+        @test X_avg / X_typ ≈ exp(σ^2 / 2)
+        @test slack(TypicalBelowAverage(); X_typ=X_typ, X_avg=X_avg) ≈ X_avg - X_typ
+    end
+    # Degenerate distribution (σ = 0) is the saturating case, and only that one.
+    @test slack(TypicalBelowAverage(); X_typ=exp(μ), X_avg=exp(μ)) == 0.0
+    @test slack(TypicalBelowAverage(); X_typ=exp(μ), X_avg=exp(μ + 0.5)) > 0
+
+    # Independent construction: both reduced from the SAME explicit samples, so
+    # the inequality is Jensen on real data rather than on the closed form above.
+    rng = MersenneTwister(4242)
+    for _ in 1:20
+        x = exp.(randn(rng, 200) .* 1.5 .- 2)          # positive, broadly spread
+        typ, avg = typical_and_average(x)
+        @test check(TypicalBelowAverage(); X_typ=typ, X_avg=avg)
+    end
+
+    # ...and it CAN fail: swapping the two reductions is exactly the bug this
+    # catches, and a bound nothing can violate would be worth nothing.
+    x = exp.(randn(MersenneTwister(7), 200) .* 1.5)
+    typ, avg = typical_and_average(x)
+    @test !check(TypicalBelowAverage(); X_typ=avg, X_avg=typ)
+
+    # The two quantities are DIFFERENT bag keys, which is the point of adding
+    # them — a shared key would let one stand in for the other silently.
+    @test Typical{MassGap} !== DisorderAveraged{MassGap}
+    @test VariableKey(Typical{MassGap}) != VariableKey(DisorderAveraged{MassGap})
+    @test VariableKey(Typical{MassGap}) != VariableKey(MassGap)
+    # Shaped like `ThermalAverage`: holds the quantity it reduces, and the tensor
+    # traits pass through, so a reduced component keeps its index structure.
+    χ = Susceptibility(:x, :y)
+    @test Typical(χ).quantity === χ
+    # All SIX forwards, against a rank-2 quantity: with a rank-0 payload every one
+    # of them equals the `AbstractQuantity` default, so a missing forward would
+    # pass unnoticed.
+    for W in (Typical, DisorderAveraged)
+        @test tensor_rank(W{typeof(χ)}) == tensor_rank(typeof(χ)) == 2
+        @test indices(W{typeof(χ)}) == indices(typeof(χ))
+        @test index_spaces(W{typeof(χ)}) == index_spaces(typeof(χ))
+    end
+
+    # A reduction of a reduction names no quantity.
+    @test_throws ArgumentError Typical(Typical(MassGap()))
+    @test_throws ArgumentError Typical(DisorderAveraged(MassGap()))
+    @test_throws ArgumentError DisorderAveraged(Typical(MassGap()))
+end
+
+@testset "quenched ≥ annealed is the free-energy face of the same Jensen step" begin
+    # Log-normal Z across realisations: ln Z ~ N(μ, σ²).  Then
+    #   ⟨ln Z⟩ = μ                 → F_q = −μ/β
+    #   ln⟨Z⟩  = μ + σ²/2          → F_a = −(μ + σ²/2)/β
+    # so the slack is σ²/(2β) exactly — zero iff Z does not fluctuate, and growing
+    # without bound with the width, which is the whole reason the annealed
+    # calculation is not the answer.
+    β, μ = 2.0, 1.5
+    for σ in (0.0, 0.5, 1.0, 3.0)
+        F_q = -μ / β
+        F_a = -(μ + σ^2 / 2) / β
+        @test check(AnnealedFreeEnergyBound(); F_quenched=F_q, F_annealed=F_a)
+        @test slack(AnnealedFreeEnergyBound(); F_quenched=F_q, F_annealed=F_a) ≈ σ^2 / (2β)
+    end
+
+    # The DIRECTION is the content: a sign slip in F = −(1/β) ln Z reverses it,
+    # and reversing the two arguments must fail.
+    F_q, F_a = -μ / β, -(μ + 4.0 / 2) / β
+    @test !check(AnnealedFreeEnergyBound(); F_quenched=F_a, F_annealed=F_q)
+
+    # Same samples, both routes, no closed form: reduce an explicit ensemble of
+    # partition functions and check the pair against BOTH bounds — they are one
+    # inequality seen through `F = −(1/β) ln Z`.
+    rng = MersenneTwister(99)
+    Z = exp.(randn(rng, 500) .* 1.2 .+ 1.0)
+    Z_typ, Z_avg = typical_and_average(Z)
+    @test check(TypicalBelowAverage(); X_typ=Z_typ, X_avg=Z_avg)
+    @test check(
+        AnnealedFreeEnergyBound();
+        F_quenched=(-log(Z_typ) / β),
+        F_annealed=(-log(Z_avg) / β),
+    )
+end
+
+@testset "the disorder-statistics bounds are reachable from the graph" begin
+    # Both are fully symbol-keyed — a reduction over an ensemble is named by no
+    # quantity — so without a hand link they answer `quantities() == ()` and
+    # nothing can find them.  These four edges are the whole point of adding the
+    # `Typical`/`DisorderAveraged` pair rather than two loose names.
+    @test quantities(TypicalBelowAverage()) == (Typical, DisorderAveraged)
+    @test quantities(AnnealedFreeEnergyBound()) == (FreeEnergy,)
+    @test TypicalBelowAverage() in relations_constraining(Typical)
+    @test TypicalBelowAverage() in relations_constraining(DisorderAveraged)
+    @test AnnealedFreeEnergyBound() in relations_constraining(FreeEnergy)
+    # ...alongside the free-energy relations that were already there, not instead.
+    @test length(relations_constraining(FreeEnergy)) > 1
 end

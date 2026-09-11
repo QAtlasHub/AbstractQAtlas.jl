@@ -1420,6 +1420,25 @@ struct DynamicalExponent <: AbstractQuantity end
 export DynamicalExponent
 
 """
+    ActivatedExponent() <: AbstractQuantity
+
+The exponent `ψ` of ACTIVATED dynamic scaling, `ln(1/Δ) ∼ ξ^ψ` — the law that
+replaces [`DynamicalExponent`](@ref)'s `Δ ∼ ξ^{−z}` at an infinite-randomness
+fixed point, where the gap closes exponentially in a power of the length rather
+than as a power of it.  No finite `z` describes such a point: the effective
+`−d(ln Δ)/d(ln ξ)` grows without bound.
+
+`ψ = 1/2` for the 1D random transverse-field Ising chain (Fisher,
+[FisherDS1995](@cite)).
+
+Read off the [`Typical`](@ref) gap, not the [`DisorderAveraged`](@ref) one: at
+such a fixed point the average is set by rare weakly-disordered regions and
+follows a different law, so the two reductions give different exponents.
+"""
+struct ActivatedExponent <: AbstractQuantity end
+export ActivatedExponent
+
+"""
     UniversalityClass() <: AbstractQuantity
 
 The universality class a model's transition belongs to (returned as a
@@ -1501,6 +1520,85 @@ pairs, and the object it reproduces is `S_f`, not the spin entropy.
 """
 struct FermionicEntanglementEntropy <: AbstractEntanglementMeasure end
 export FermionicEntanglementEntropy
+
+# ─── Disorder statistics ─────────────────────────────────────────────────
+#
+# Over an ensemble of disorder realisations, "the" value of a quantity is two
+# different numbers, and at a broad-distribution fixed point they obey two
+# different LAWS — not one law with a different prefactor.  In the random
+# transverse-field Ising chain the typical gap closes as `exp(-c√N)` while the
+# average is dominated by rare weakly-disordered regions and closes far more
+# slowly; the typical correlation decays as a stretched exponential where the
+# average decays as a power.
+#
+# So these are separate quantities rather than a keyword, for the same reason
+# `FermionicEntanglementEntropy` is: a shared `VariableKey` would let the two mix
+# inside one bag, and the report machinery keys its auto-discovery on that.
+#
+# Shaped like `ThermalAverage` (core/distributions.jl) — a marker holding the
+# quantity it reduces, with the tensor traits passing through — so a reduction
+# composes with `fetch` and keeps the wrapped quantity's index structure.
+#
+# Both carry `Global` support: the region a reduction was taken over is not in
+# the marker, and there is no `typical_entanglement_entropy(region)` key builder
+# yet, so two regions' typical entropies collide on one `VariableKey` and `bag`
+# refuses them.  Loud, but a real gap — region-keyed reductions need their own
+# key constructors, as `entanglement_entropy` has.
+
+# A reduction of a reduction is not a quantity — refused rather than left to
+# compose into a key nothing can mean.  (`ThermalAverage` admits the same
+# nesting and does not refuse it; this is the narrower fix, not the general one.)
+function _refuse_nested_reduction(W, q)
+    q isa Union{Typical,DisorderAveraged} && throw(
+        ArgumentError(
+            "$W: `$(typeof(q))` is already a reduction over an ensemble; " *
+            "reducing it again names no quantity.",
+        ),
+    )
+    return nothing
+end
+
+"""
+    Typical(quantity::Q) <: AbstractQuantity
+
+The TYPICAL value of quantity `Q` over an ensemble of disorder realisations —
+the log-average `exp⟨ln Q⟩`, i.e. the value a single sample is most likely to
+show.  Distinguished from [`DisorderAveraged`](@ref)`{Q}` because at a
+broad-distribution fixed point the two follow different laws; they coincide only
+when the distribution is narrow.  Never above the average, by Jensen — see
+[`TypicalBelowAverage`](@ref).
+"""
+struct Typical{Q<:AbstractQuantity} <: AbstractQuantity
+    quantity::Q
+    function Typical(q::Q) where {Q<:AbstractQuantity}
+        _refuse_nested_reduction(Typical, q)
+        return new{Q}(q)
+    end
+end
+indices(::Type{Typical{Q}}) where {Q} = indices(Q)
+tensor_rank(::Type{Typical{Q}}) where {Q} = tensor_rank(Q)
+index_spaces(::Type{Typical{Q}}) where {Q} = index_spaces(Q)
+export Typical
+
+"""
+    DisorderAveraged(quantity::Q) <: AbstractQuantity
+
+The arithmetic mean `⟨Q⟩` of quantity `Q` over an ensemble of disorder
+realisations.  Where the distribution is broad it is set by the rare tail rather
+than by a representative sample, which is what separates it from
+[`Typical`](@ref)`{Q}`.
+"""
+struct DisorderAveraged{Q<:AbstractQuantity} <: AbstractQuantity
+    quantity::Q
+    function DisorderAveraged(q::Q) where {Q<:AbstractQuantity}
+        _refuse_nested_reduction(DisorderAveraged, q)
+        return new{Q}(q)
+    end
+end
+indices(::Type{DisorderAveraged{Q}}) where {Q} = indices(Q)
+tensor_rank(::Type{DisorderAveraged{Q}}) where {Q} = tensor_rank(Q)
+index_spaces(::Type{DisorderAveraged{Q}}) where {Q} = index_spaces(Q)
+export DisorderAveraged
 
 """
     RenyiEntropy(α::Real) <: AbstractEntanglementMeasure

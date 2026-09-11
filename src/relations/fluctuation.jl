@@ -10,6 +10,10 @@
 #
 # References (doiget-verified, docs/references.bib): Jarzynski, Phys. Rev. Lett. 78,
 # 2690 (1997); Crooks, [Crooks1999](@cite).
+#
+# …and the same question asked of a QUENCHED ensemble: over realisations of the
+# disorder, "the" value of a quantity is two numbers, and the inequality between
+# them is the same Jensen step in both settings.
 
 """
     JarzynskiEquality <: AbstractRelation
@@ -59,3 +63,50 @@ Variables: `ratio` = `P_F(W)/P_R(−W)`, `W`, `ΔF`, `β` (or `T`).
 """
 @relation :fluctuation CrooksFluctuationTheorem(ratio, W, ΔF, β::InverseTemperature) =
     ratio - exp(β * (W - ΔF))
+
+"""
+    TypicalBelowAverage <: AbstractInequality
+
+The typical value of a positive quantity never exceeds its average,
+
+`exp⟨ln X⟩ ≤ ⟨X⟩`
+
+(slack `⟨X⟩ − exp⟨ln X⟩`), which is Jensen's inequality for the concave `ln`,
+equivalently AM ≥ GM.  Saturated exactly when the distribution is degenerate, so
+the slack measures how broad the ensemble is — and it is unbounded at an
+infinite-randomness fixed point, which is why [`Typical`](@ref) and
+[`DisorderAveraged`](@ref) are separate quantities there.
+
+Holds for any positive random variable, so it needs no model and no fixed point:
+a calculation reporting a typical value above its own average has averaged in the
+wrong space, or swapped the two.
+
+Variables: `X_typ` = `exp⟨ln X⟩` (the bounded one), `X_avg` = `⟨X⟩`.
+"""
+@bound :fluctuation TypicalBelowAverage(X_typ <= X_avg)
+
+"""
+    AnnealedFreeEnergyBound <: AbstractInequality
+
+The quenched free energy of a disordered system is never below its annealed
+counterpart,
+
+`F_quenched = −(1/β)⟨ln Z⟩  ≥  −(1/β) ln⟨Z⟩ = F_annealed`
+
+(slack `F_quenched − F_annealed`), the disordered-systems statement of
+[`TypicalBelowAverage`](@ref): the same Jensen step on `Z`, with the direction
+reversed by the minus sign in `F = −(1/β) ln Z`.  So the annealed calculation —
+the easy one, which averages `Z` before taking the log — is a LOWER bound and
+never the answer.
+
+That `⟨ln Z⟩` and `ln⟨Z⟩` are different objects is the reason the replica trick
+exists.  The slack is zero exactly when `Z` does not fluctuate across
+realisations; nothing stronger than this inequality relates the two free
+energies in general.  The ± J Nishimori line is where a DIFFERENT exact identity
+appears — the internal energy per bond, `U = −J tanh(βJ)`, from gauge symmetry —
+which is an energy, not a relation between these two, and is model-specific, so
+it lives in the implementing atlas.
+
+Variables: `F_quenched` (the bounded one), `F_annealed`.
+"""
+@bound :fluctuation AnnealedFreeEnergyBound(F_quenched >= F_annealed)

@@ -27,6 +27,8 @@ also_constrains(::ParticleNumberResponse) = (GrandPotential,)  # grand-canonical
 also_constrains(::StaticFromDynamicalStructureFactor) = (DynamicalStructureFactor,)  # Sq = ∫S(q,ω)dω/2π (supplied)
 also_constrains(::ChernFromBerryCurvature) = (BerryCurvature,)  # topology: C = ∫Ω d²k/2π (supplied integral)
 also_constrains(::CFTEntanglementSlope) = (VonNeumannEntropy,)  # entanglement: dS/d(ln ℓ) (supplied derivative)
+also_constrains(::DynamicalScaling) = (MassGap,)            # scaling: d(lnΔ)/d(lnξ) (supplied)
+also_constrains(::ActivatedDynamicalScaling) = (MassGap,)   # scaling: d(ln[ln(1/Δ)])/d(lnξ) (supplied)
 # HeatCapacityDifference GAINS ThermalExpansionCoefficient + IsothermalCompressibility
 # (α, κT are now typed subjects → auto).  LinearResponseFDT now types `β::InverseTemperature`
 # (bag-visible, like Jarzynski/Crooks) but has no quantity subject; the 4 Maxwell relations
@@ -85,6 +87,16 @@ quantities(::EntropyMixingConcavity) = (VonNeumannEntropy,)
 quantities(::HolevoMixingBound) = (VonNeumannEntropy,)
 quantities(::RenyiMonotonicity) = (RenyiEntropy,)
 quantities(::RelativeEntropyNonNegativity) = (RelativeEntropy,)
+
+# ── Disorder statistics ──
+# Both are fully symbol-keyed: `X_typ`/`X_avg` and `F_quenched`/`F_annealed` are
+# REDUCTIONS over an ensemble, and no single quantity names a reduction, so there
+# is no slot to type.  Linked by hand for the same reason the entropy
+# inequalities above are — otherwise `relations_constraining(FreeEnergy)` cannot
+# find the annealed bound, and `Typical`/`DisorderAveraged` are orphans of the
+# one relation that is about them.
+quantities(::TypicalBelowAverage) = (Typical, DisorderAveraged)
+quantities(::AnnealedFreeEnergyBound) = (FreeEnergy,)
 
 # ── Quantum-mechanical foundations ──
 # VirialTheorem is type-keyed (quantum.jl), `quantities` auto-derived. The Ehrenfest /

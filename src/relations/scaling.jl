@@ -57,9 +57,32 @@ Supplied-derivative convention: `dlogΔ_dlogξ` is the caller-computed
 log–log slope of the gap against the correlation length.  Reads the
 dynamical critical exponent `z` off measured `(Δ, ξ)` pairs.
 
+Holds only where a finite `z` exists; see [`ActivatedDynamicalScaling`](@ref)
+for the infinite-randomness case, where none does.
+
 Variables: `dlogΔ_dlogξ`, `z`.
 """
-@relation :scaling DynamicalScaling(dlogΔ_dlogξ, z) = dlogΔ_dlogξ + z
+@relation :scaling DynamicalScaling(dlogΔ_dlogξ, z::DynamicalExponent) = dlogΔ_dlogξ + z
+
+"""
+    ActivatedDynamicalScaling <: AbstractRelation
+
+Activated dynamic scaling at an infinite-randomness fixed point, where the gap
+closes exponentially in a power of the length rather than as a power of it,
+
+`ln(1/Δ) ∼ ξ^ψ`   ⟹   `d(ln[ln(1/Δ)])/d(ln ξ) = ψ`.
+
+This is not [`DynamicalScaling`](@ref) with some other `z`: no finite `z`
+describes such a point at all, since `−d(ln Δ)/d(ln ξ) = ψ·ln(1/Δ)` grows
+without bound.
+
+Supplied-derivative convention: `dloglogΔ_dlogξ` is the caller-computed slope of
+`ln[ln(1/Δ)]` against `ln ξ`; `Δ < 1` is required for the inner log.
+
+Variables: `dloglogΔ_dlogξ`, `ψ`.
+"""
+@relation :scaling ActivatedDynamicalScaling(dloglogΔ_dlogξ, ψ::ActivatedExponent) =
+    dloglogΔ_dlogξ - ψ
 
 """
     exponents_consistent(nt::NamedTuple; d, atol=0) -> Bool
