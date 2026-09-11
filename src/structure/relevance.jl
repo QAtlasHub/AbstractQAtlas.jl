@@ -4,7 +4,14 @@
 # vanish; a bound's must keep a sign.  Here BOTH signs are answers, and the
 # zero is a third one — so these deliberately do not enter the relation
 # registry, where `check_all` would report "failed" for every system that is
-# simply not marginal.
+# simply not marginal.  Measured: as a `@bound`, `check(...; ν₀=1, d=1)` — the
+# clean Ising chain, a textbook RELEVANT case — comes back `false`, and
+# `check_all` with it.
+#
+# The cost, which is real: staying outside `AbstractRelation` also forfeits
+# `domain`, the `Bag`/`VariableKey` front door and load-time validation.  The
+# type-keyed bag is this package's structural answer to "two exponents that look
+# alike", and these criteria carry exactly such a pair — hence `ν_dis` below.
 #
 # References: Harris, [Harris1974](@cite); Luck, [Luck1993](@cite);
 # Weinrib–Halperin, [WeinribHalperin1983](@cite).  The three are collected,
@@ -31,6 +38,17 @@ The signed distance from marginality, in the convention `> 0` irrelevant,
 function margin end
 export margin
 
+# Without this a criterion missing its `margin` surfaces as a bare MethodError at
+# first use — possibly downstream, far from where it was declared. Same shape as
+# `critical_scaling`'s default-then-named-check next door in `criticality.jl`.
+function margin(c::RelevanceCriterion; kwargs...)
+    return error(
+        "margin: $(nameof(typeof(c))) is a `RelevanceCriterion` with no `margin` " *
+        "method. Define one returning the signed distance from marginality — " *
+        "positive irrelevant, zero marginal, negative relevant.",
+    )
+end
+
 """
     relevance(c::RelevanceCriterion; atol=0, kwargs...) -> Symbol
 
@@ -39,6 +57,9 @@ export margin
 `atol` widens the marginal band; it defaults to `0`, so an exponent set that is
 marginal in exact arithmetic reports `:marginal` and a floating-point one very
 likely will not.  Pass a tolerance when the exponents are estimates.
+
+`atol` is reserved: it is consumed here and never reaches [`margin`](@ref), so a
+criterion may not name a physics variable `atol`.
 """
 function relevance(c::RelevanceCriterion; atol::Real=0, kwargs...)
     m = margin(c; kwargs...)
@@ -102,10 +123,15 @@ survives — when
 
 `ρ > 2/ν`,
 
-so `margin = ρ − 2/ν`.  Here `ν` is the correlation-length exponent of the
-UNCORRELATED disordered fixed point, not the clean one that
-[`HarrisCriterion`](@ref) takes: this criterion asks a later question, whether
-correlations move a fixed point disorder has already changed.
+so `margin = ρ − 2/ν_dis`.  The keyword is `ν_dis`, not `ν`, on purpose: this is
+the correlation-length exponent of the UNCORRELATED DISORDERED fixed point, one
+subscript away from [`HarrisCriterion`](@ref)'s clean `ν₀` and a different
+number.  Passing a clean exponent here is syntactically fine and physically
+wrong, so the two are not allowed to look alike.
+
+The criteria ask different questions in sequence: Harris, whether disorder
+matters at all; this one, whether correlations move a fixed point disorder has
+already changed.
 
 Reference: [WeinribHalperin1983](@cite); stated as Eq. (10.2) of
 [IgloiMonthus2005](@cite).
@@ -113,4 +139,4 @@ Reference: [WeinribHalperin1983](@cite); stated as Eq. (10.2) of
 struct WeinribHalperinCriterion <: RelevanceCriterion end
 export WeinribHalperinCriterion
 
-margin(::WeinribHalperinCriterion; ν, ρ, _extra...) = ρ - 2 / ν
+margin(::WeinribHalperinCriterion; ν_dis, ρ, _extra...) = ρ - 2 / ν_dis

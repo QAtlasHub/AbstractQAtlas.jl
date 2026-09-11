@@ -6,6 +6,10 @@
 
 using AbstractQAtlas
 using AbstractQAtlas: margin
+using InteractiveUtils: subtypes
+
+# Declared here, not in src: a criterion that forgot its `margin`.
+struct _NoMargin <: RelevanceCriterion end
 
 @testset "relevance :: Harris" begin
     # The clean transverse-field Ising chain, ν₀ = 1 at d = 1 (Iglói–Monthus,
@@ -50,12 +54,32 @@ end
     # ρ > 2/ν leaves the uncorrelated class intact. Note the ν here is the
     # uncorrelated disordered fixed point's, not the clean one Harris reads —
     # the two criteria ask different questions of different exponents.
-    @test relevance(WeinribHalperinCriterion(); ν=1, ρ=3) === :irrelevant
-    @test relevance(WeinribHalperinCriterion(); ν=1, ρ=1) === :relevant
-    @test relevance(WeinribHalperinCriterion(); ν=1 // 1, ρ=2 // 1) === :marginal
+    @test relevance(WeinribHalperinCriterion(); ν_dis=1, ρ=3) === :irrelevant
+    @test relevance(WeinribHalperinCriterion(); ν_dis=1, ρ=1) === :relevant
+    @test relevance(WeinribHalperinCriterion(); ν_dis=1 // 1, ρ=2 // 1) === :marginal
     # Slower decay is more correlated, hence more relevant — monotone in ρ.
-    ms = [margin(WeinribHalperinCriterion(); ν=2, ρ=r) for r in (0.5, 1.0, 2.0, 4.0)]
+    ms = [margin(WeinribHalperinCriterion(); ν_dis=2, ρ=r) for r in (0.5, 1.0, 2.0, 4.0)]
     @test issorted(ms) && ms[1] < 0 < ms[end]
+end
+
+@testset "relevance :: every criterion answers the interface" begin
+    # Mirrors test/core/test_invariants.jl's sweep over subtypes: a criterion added
+    # later without a `margin` must fail HERE, not as a MethodError in whatever
+    # downstream call first reaches it.
+    subs = subtypes(RelevanceCriterion)
+    @test length(subs) >= 3
+    for T in subs
+        @test hasmethod(margin, Tuple{T})            # ...and not just the fallback
+    end
+
+    # The fallback says what is missing rather than letting dispatch report it.
+    msg = try
+        margin(_NoMargin(); ν₀=1, d=1)
+        ""
+    catch err
+        err isa ErrorException ? sprint(showerror, err) : rethrow()
+    end
+    @test occursin("RelevanceCriterion", msg) && occursin("no `margin` method", msg)
 end
 
 @testset "relevance :: criteria stay out of the relation registry" begin
