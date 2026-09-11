@@ -108,6 +108,18 @@ end
     @test_throws ErrorException CurrentCorrelation(:x)
 end
 
+# The parameter is a Symbol, checked. Which symbols are legal is not checked and is
+# not meant to be — an atlas adds a class by adding methods this package cannot see.
+@testset "a universality class parameter must be a Symbol" begin
+    @test_throws ErrorException Universality{3}()
+    @test_throws ErrorException Universality{Int}()
+    @test_throws ErrorException Universality{(:a, :b)}()
+    @test Universality{:NotAClassAnyoneImplements}() isa AbstractQAtlasModel
+    # The guard the quantity types already carry; pinned nowhere else.
+    @test_throws ErrorException Magnetization{3}()
+    @test_throws ErrorException Energy{3}()
+end
+
 @testset "Energy granularity" begin
     @test Energy() === Energy{:natural}()
     @test Energy(:total) === Energy{:total}()
