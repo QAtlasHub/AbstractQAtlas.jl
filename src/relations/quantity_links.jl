@@ -29,6 +29,10 @@ also_constrains(::ChernFromBerryCurvature) = (BerryCurvature,)  # topology: C = 
 also_constrains(::CFTEntanglementSlope) = (VonNeumannEntropy,)  # entanglement: dS/d(ln ℓ) (supplied derivative)
 also_constrains(::DynamicalScaling) = (MassGap,)            # scaling: d(lnΔ)/d(lnξ) (supplied)
 also_constrains(::ActivatedDynamicalScaling) = (MassGap,)   # scaling: d(ln[ln(1/Δ)])/d(lnξ) (supplied)
+also_constrains(::GriffithsExponentDivergence) = (DynamicalExponent,)  # scaling: d(ln z)/d(ln|δ|) (supplied)
+also_constrains(::GriffithsSusceptibility) = (Susceptibility,)  # scaling: d(ln χ)/d(ln T) (supplied)
+also_constrains(::GriffithsSpecificHeat) = (SpecificHeat,)  # scaling: d(ln c_V)/d(ln T) (supplied)
+also_constrains(::TypicalCorrelationLength) = (CorrelationLength,)  # scaling: ν_typ vs ν, both lengths
 # HeatCapacityDifference GAINS ThermalExpansionCoefficient + IsothermalCompressibility
 # (α, κT are now typed subjects → auto).  LinearResponseFDT now types `β::InverseTemperature`
 # (bag-visible, like Jarzynski/Crooks) but has no quantity subject; the 4 Maxwell relations
