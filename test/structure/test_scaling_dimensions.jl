@@ -193,3 +193,23 @@ end
     # ψ = 1 is allowed: ν_typ collapses to 0, which is a statement, not an error
     @test critical_exponents(InfiniteRandomness(1 // 1, 2 // 1, 1 // 4, 1)).ν_typ == 0 // 1
 end
+
+@testset "a fixed point that carries `d` needs no second statement of it" begin
+    # Both structs answer the registry gate from their own field, which is the
+    # only door that cannot be given the wrong dimension.
+    for (yt, yh, dd) in _RG_SETS
+        s = ScalingDimensions(yt, yh, dd)
+        @test exponents_consistent(s)
+        @test exponents_consistent(s) == exponents_consistent(critical_exponents(s); d=dd)
+        @test exponent_residuals(s) == exponent_residuals(critical_exponents(s); d=dd)
+        @test all(iszero, values(exponent_residuals(s)))
+    end
+    # A wrong dimension is a thing the struct door has no place to accept: the
+    # same eigenvalues at another d are a different fixed point, and fail.
+    @test !exponents_consistent(
+        (critical_exponents(ScalingDimensions(1 // 1, 15 // 8, 2))); d=3
+    )
+    # and the same for the activated side
+    s = InfiniteRandomness(1 // 2, 2 // 1, 1 // 4, 1)
+    @test exponent_residuals(s) == exponent_residuals(critical_exponents(s); d=1)
+end

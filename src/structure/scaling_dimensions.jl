@@ -47,7 +47,11 @@
 
 The renormalization-group data of a continuous transition: the thermal and
 magnetic relevant eigenvalues `y_t`, `y_h` (the RG-flow exponents of the
-reduced temperature and the ordering field) and the spatial dimension `d`.
+reduced temperature and the ordering field) and the spatial dimension `d` of
+the system this describes ([`SpatialDimension`](@ref)).  For a quantum critical
+point that system is the classical image, so a chain is described here by its
+2D image and `d = 2`; the chain's own `d = 1` is what
+[`InfiniteRandomness`](@ref) and [`HarrisCriterion`](@ref) take.
 These are the two-and-a-bit numbers the whole equilibrium exponent set is a
 function of, via the homogeneity of the singular free energy
 `f_s(t,h) = b^{-d} f_s(b^{y_t}t, b^{y_h}h)` — see
@@ -159,15 +163,16 @@ counterpart of [`ScalingDimensions`](@ref) for a fixed point that has no finite
 dynamical exponent, and the same contract: these are the inputs, every other
 exponent is derived by [`critical_exponents`](@ref).
 
-!!! warning "`d` is the SPATIAL dimension"
-    Not the Euclidean one.  A 1D quantum chain has `d = 1` here, though its
-    classical image is 2D and atlases that carry a `d` kwarg for a central
-    charge or a conformal weight often mean 2.  Every infinite-randomness
-    relation in this package reads the spatial `d`, and passing the Euclidean
-    one gives an answer that does not look wrong: for the random
-    transverse-field Ising chain `φ` comes out 3.618 instead of the golden
-    mean 1.618.  Holding `d` in the struct is what makes that a single
-    decision at construction rather than one per call.
+!!! warning "`d` is the chain's own dimension, not its classical image's"
+    A random transverse-field Ising chain is `d = 1` here.  Its clean critical
+    point maps to the 2D classical Ising model, and atlases hand out `d = 2`
+    for that table, so 2 is the number nearest to hand and it is the wrong one:
+    `φ` comes out 3.618 instead of the golden mean 1.618, and nothing flags it.
+    Quenched disorder is constant along imaginary time, so it lives in the
+    chain's `d`, not the image's `d + z` (see [`SpatialDimension`](@ref)).
+    Holding it in the struct makes that one decision at construction rather
+    than one per call.  There is no `d + z` to confuse it with anyway: `z` is
+    infinite at an infinite-randomness fixed point.
 
 Arguments are promoted to a common type; pass `Rational`s where the values are
 rational.  `ψ ≤ 0` is refused rather than accepted: it names a conventional

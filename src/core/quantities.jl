@@ -1256,6 +1256,33 @@ exponent `θ_NMR = 2Δ_op − 1`.
 struct ScalingDimension <: AbstractQuantity end
 export ScalingDimension
 
+"""
+    SpatialDimension() <: AbstractQuantity
+
+The number of spatial directions `d` of the system a law is about.  A COUNT,
+not an exponent, and not [`ScalingDimension`](@ref), which is an operator's
+`x` and happens to sit next to it here so the two are read together.
+
+Every `d` in this package is this one: the spatial dimension of the system the
+relation describes.  What varies is WHICH system, and for a quantum critical
+point that is the trap:
+
+- Quenched disorder is constant along imaginary time, so it lives in the
+  quantum system's own `d`.  [`HarrisCriterion`](@ref) and every
+  infinite-randomness relation read that: a chain is `d = 1`.
+- Hyperscaling counts the directions of the critical theory.  The classical
+  image of a `d`-dimensional quantum critical point has `d + z` of them, so
+  [`Josephson`](@ref) applied to that image's exponent table takes ITS `d`
+  (a chain's image is 2D Ising, `d = 2`), and
+  [`QuantumHyperscaling`](@ref) is the form that takes the chain's own `d`
+  and `z` and adds them itself.
+
+For a classical system the two systems are the same one and the distinction
+does not arise.
+"""
+struct SpatialDimension <: AbstractQuantity end
+export SpatialDimension
+
 # ─── Criticality ────────────────────────────────────────────────────────
 
 """

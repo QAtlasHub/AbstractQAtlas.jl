@@ -56,10 +56,45 @@ The Josephson (hyperscaling) identity `2 − α = d·ν`.  Valid below the
 upper critical dimension; at and above it, mean-field exponents satisfy
 it only at `d = d_upper` (e.g. `d = 4` for Ising).
 
+Written for a CLASSICAL critical point, where `d` counts the directions of the
+system itself.  Applied to a quantum critical point it is still the right law
+for that point's classical image, so the `d` it wants is the image's: a chain
+maps to 2D Ising and takes `d = 2`, not 1.  Give it the chain's own `d` and it
+reports a violation, correctly, because classical hyperscaling is not what a
+quantum critical point obeys.  [`QuantumHyperscaling`](@ref) is that law.
+
 Reference: [Josephson1967](@cite) (Proc. Phys. Soc. **92**, 269, "Inequality for
-the specific heat: I. Derivation") — again an inequality first, `2 − α ≥ dν`.
+the specific heat: I. Derivation"), again an inequality first, `2 − α ≥ dν`.
 """
-@relation :scaling Josephson(α, ν, d) = 2 - α - d * ν
+@relation :scaling Josephson(α, ν, d::SpatialDimension) = 2 - α - d * ν
+
+"""
+    QuantumHyperscaling <: AbstractRelation
+
+Hyperscaling at a QUANTUM critical point, where imaginary time is a direction
+of the critical theory and scales with its own exponent:
+
+`2 − α = (d + z)·ν`.
+
+The same statement as [`Josephson`](@ref) about the same physics, differing in
+that it takes the quantum system's OWN `d` and its `z` and adds them, instead of
+taking the classical image's dimension already summed.  That is what makes the
+two safe to hold together: one exponent table plus `(d, z)` answers both, and
+neither has to be handed a number that means the other's system.
+
+`z = 0` recovers [`Josephson`](@ref) exactly, which is the classical limit in the
+only sense the formula has.  No finite `z` exists at an infinite-randomness fixed
+point ([`ActivatedExponent`](@ref)), so neither hyperscaling form applies there.
+
+Variables: `α`, `ν`, `d`, `z`.
+
+Reference: standard at a quantum critical point (Sachdev, *Quantum Phase
+Transitions*); the `d + z` counting is the statement that the Euclidean action of
+a `d`-dimensional quantum system at `T = 0` lives in `d + z` effective
+directions.
+"""
+@relation :scaling QuantumHyperscaling(α, ν, d::SpatialDimension, z::DynamicalExponent) =
+    2 - α - (d + z) * ν
 
 """
     DynamicalScaling <: AbstractRelation
@@ -211,8 +246,9 @@ Reference: [IgloiMonthus2005](@cite) Eq. (4.56), §4.4.2, written there for the
 
 Variables: `dlogχ_dlogT`, `d`, `z`.
 """
-@relation :scaling GriffithsSusceptibility(dlogχ_dlogT, d, z::DynamicalExponent) =
-    (dlogχ_dlogT + 1) * z - d
+@relation :scaling GriffithsSusceptibility(
+    dlogχ_dlogT, d::SpatialDimension, z::DynamicalExponent
+) = (dlogχ_dlogT + 1) * z - d
 
 """
     GriffithsSpecificHeat <: AbstractRelation
@@ -230,8 +266,9 @@ this reads the entropy too), under the same `z → z/d` of §9.1.2.
 
 Variables: `dlogc_dlogT`, `d`, `z`.
 """
-@relation :scaling GriffithsSpecificHeat(dlogc_dlogT, d, z::DynamicalExponent) =
-    dlogc_dlogT * z - d
+@relation :scaling GriffithsSpecificHeat(
+    dlogc_dlogT, d::SpatialDimension, z::DynamicalExponent
+) = dlogc_dlogT * z - d
 
 """
     ActivatedMomentGrowth <: AbstractRelation
@@ -254,8 +291,9 @@ for the RTFIC is that review's Eq. (3.18), §3.5, reached by a different route.
 
 Variables: `φ`, `d`, `x_m`, `ψ`.
 """
-@relation :scaling ActivatedMomentGrowth(φ, d, x_m, ψ::ActivatedExponent) =
-    φ * ψ - (d - x_m)
+@relation :scaling ActivatedMomentGrowth(
+    φ, d::SpatialDimension, x_m, ψ::ActivatedExponent
+) = φ * ψ - (d - x_m)
 
 # ─── Appendix A: the four scaling types of a random system ───────────────
 #
@@ -324,7 +362,7 @@ critical scaling) and restated below Eq. (A.29), §A.4.1, for the Griffiths
 phase. The contrast is Eq. (A.18), §A.3.
 """
 @relation :scaling FixedPointDisorderStrength(
-    D::DisorderStrength, z::DynamicalExponent, d
+    D::DisorderStrength, z::DynamicalExponent, d::SpatialDimension
 ) = D * d - z
 
 """
@@ -454,7 +492,7 @@ Variables: `dlogχT_dloglnT`, `d`, `x_m`, `ψ`.
 Reference: [IgloiMonthus2005](@cite) Eq. (A.25), §A.3.
 """
 @relation :scaling ActivatedSusceptibility(
-    dlogχT_dloglnT, d, x_m::ScalingDimension, ψ::ActivatedExponent
+    dlogχT_dloglnT, d::SpatialDimension, x_m::ScalingDimension, ψ::ActivatedExponent
 ) = dlogχT_dloglnT * ψ - (d - 2 * x_m)
 
 """
@@ -475,8 +513,9 @@ Variables: `dlogc_dloglnT`, `d`, `ψ`.
 
 Reference: [IgloiMonthus2005](@cite) Eq. (A.25), §A.3.
 """
-@relation :scaling ActivatedSpecificHeat(dlogc_dloglnT, d, ψ::ActivatedExponent) =
-    dlogc_dloglnT * ψ + d
+@relation :scaling ActivatedSpecificHeat(
+    dlogc_dloglnT, d::SpatialDimension, ψ::ActivatedExponent
+) = dlogc_dloglnT * ψ + d
 
 """
     GriffithsAutocorrelation <: AbstractRelation
@@ -500,8 +539,9 @@ Reference: [IgloiMonthus2005](@cite) Eq. (A.27), §A.4.1. In the ORDERED
 Griffiths phase of a chain the same argument gives `2/z` instead of `d/z`,
 because isolating a domain costs two weak bonds rather than a surface.
 """
-@relation :scaling GriffithsAutocorrelation(dlogG_dlogt, d, z::DynamicalExponent) =
-    dlogG_dlogt * z + d
+@relation :scaling GriffithsAutocorrelation(
+    dlogG_dlogt, d::SpatialDimension, z::DynamicalExponent
+) = dlogG_dlogt * z + d
 
 """
     LargeSpinMoment <: AbstractRelation
@@ -522,7 +562,8 @@ Reference: [IgloiMonthus2005](@cite) Eqs. (A.37) and (A.38), §A.5; the 1D
 instance is Eqs. (8.6)-(8.8), §8.2, where `ζ = 1/2` and `κ = 0.22(1)` is
 measured, giving `z = 1/(2κ)`.
 """
-@relation :scaling LargeSpinMoment(κ, d, ζ, z::DynamicalExponent) = κ * z - d * ζ
+@relation :scaling LargeSpinMoment(κ, d::SpatialDimension, ζ, z::DynamicalExponent) =
+    κ * z - d * ζ
 
 """
     ConventionalFieldSusceptibility <: AbstractRelation
@@ -543,7 +584,7 @@ Variables: `dlogχ_dlogH`, `γ`, `ν`, `d`, `z`, `x_m`.
 Reference: [IgloiMonthus2005](@cite) Eq. (A.15), §A.2.
 """
 @relation :scaling ConventionalFieldSusceptibility(
-    dlogχ_dlogH, γ, ν, d, z::DynamicalExponent, x_m::ScalingDimension
+    dlogχ_dlogH, γ, ν, d::SpatialDimension, z::DynamicalExponent, x_m::ScalingDimension
 ) = dlogχ_dlogH * ν * (d + z - x_m) + γ
 
 """
@@ -564,7 +605,7 @@ Variables: `dlogc_dlogH`, `α`, `ν`, `d`, `z`, `x_m`.
 Reference: [IgloiMonthus2005](@cite) Eq. (A.15), §A.2.
 """
 @relation :scaling ConventionalFieldSpecificHeat(
-    dlogc_dlogH, α, ν, d, z::DynamicalExponent, x_m::ScalingDimension
+    dlogc_dlogH, α, ν, d::SpatialDimension, z::DynamicalExponent, x_m::ScalingDimension
 ) = dlogc_dlogH * ν * (d + z - x_m) + α
 
 """
@@ -592,7 +633,7 @@ is the case where `x` is derived rather than fitted.
 Reference: [IgloiMonthus2005](@cite) Eq. (A.35), §A.4.2, with the companion
 autocorrelation `G(t) ∼ exp(−A|ln t|^d)` of Eq. (A.34) (= Eq. (9.7), §9.1.3).
 """
-@relation :scaling OrderedGriffithsEnergyScale(dloglogΩ_dloglogL, d) =
+@relation :scaling OrderedGriffithsEnergyScale(dloglogΩ_dloglogL, d::SpatialDimension) =
     dloglogΩ_dloglogL * d - 1
 
 """
