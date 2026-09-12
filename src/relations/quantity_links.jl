@@ -41,6 +41,25 @@ also_constrains(::GriffithsSpecificHeat) = (DisorderAveraged{SpecificHeat},)    
 function also_constrains(::TypicalCorrelationLength)
     return (Typical{CorrelationLength}, DisorderAveraged{CorrelationLength})
 end
+# Appendix A: the size-space and dynamics forms carry the same hidden subjects
+# as their ξ-space partners above, with the same reduction split.
+also_constrains(::ActivatedFiniteSizeScaling) = (MassGap, Typical{MassGap})
+also_constrains(::ConventionalFiniteSizeEnergy) = (MassGap,)
+# β = νx_m in the bulk and β_s = νx_m^s at a surface are the same relation.
+function also_constrains(::OrderParameterDimension)
+    return (SpontaneousMagnetization, SurfaceMagnetization)
+end
+also_constrains(::CriticalAutocorrelation) = (DynamicalCorrelation,)
+also_constrains(::CriticalQuantumSusceptibility) = (Susceptibility,)
+also_constrains(::CriticalQuantumSpecificHeat) = (SpecificHeat,)
+also_constrains(::ActivatedAutocorrelation) = (DisorderAveraged{DynamicalCorrelation},)
+also_constrains(::ActivatedSusceptibility) = (DisorderAveraged{Susceptibility},)
+also_constrains(::ActivatedSpecificHeat) = (DisorderAveraged{SpecificHeat},)
+also_constrains(::GriffithsAutocorrelation) = (DisorderAveraged{DynamicalCorrelation},)
+also_constrains(::ConventionalFieldSusceptibility) = (Susceptibility,)
+also_constrains(::ConventionalFieldSpecificHeat) = (SpecificHeat,)
+also_constrains(::OrderedGriffithsEnergyScale) = (MassGap,)
+also_constrains(::WeinribHalperinExponent) = (CorrelationLength,)
 # HeatCapacityDifference GAINS ThermalExpansionCoefficient + IsothermalCompressibility
 # (α, κT are now typed subjects → auto).  LinearResponseFDT now types `β::InverseTemperature`
 # (bag-visible, like Jarzynski/Crooks) but has no quantity subject; the 4 Maxwell relations

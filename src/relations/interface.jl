@@ -73,6 +73,9 @@ exponent `β` vs the inverse temperature `β`).
 function domain end
 export domain
 
+# The fallback consults `also_constrains`, which is what makes a hand-declared
+# link work on a relation with no typed slot: `@relation` emits no auto-method
+# for those, so a flat `()` here would drop the link without saying so.
 """
     quantities(rel::AbstractRelation) -> Tuple{Vararg{Type}}
 
@@ -82,11 +85,13 @@ variable *symbols* of [`variables`](@ref)).  For a type-keyed relation this is
 auto-derived: the `AbstractQuantity` subset of its [`variable_types`](@ref)
 (family-erased) unioned with [`also_constrains`](@ref) — e.g.
 `quantities(SusceptibilityFDT()) == (Susceptibility, Magnetization)`, the typed
-`χ` plus the `Var(M)` association.  Defaults to `()` for relations that constrain
-parameters/exponents rather than named quantities (scaling laws, Maxwell
-relations).  The reverse index is [`relations_constraining`](@ref).
+`χ` plus the `Var(M)` association.  A relation with NO typed slot gets no
+auto-derived method, so it falls back to its [`also_constrains`](@ref) alone,
+which is `()` unless declared: that is how a scaling law or a Maxwell relation,
+which constrains parameters and exponents rather than named quantities, still
+reports `()`.  The reverse index is [`relations_constraining`](@ref).
 """
-quantities(::AbstractRelation) = ()
+quantities(r::AbstractRelation) = _merged_quantities(r)
 export quantities
 
 """

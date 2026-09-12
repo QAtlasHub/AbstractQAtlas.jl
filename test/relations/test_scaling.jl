@@ -272,3 +272,289 @@ end
         @test !(n in names)
     end
 end
+
+@testset "the finite-size gap tells a CFT point from an infinite-randomness one" begin
+    localslope(y, x, k) = (y[k + 1] - y[k]) / (x[k + 1] - x[k])
+    Ls = (16.0, 32.0, 64.0, 128.0, 256.0)
+    lnL = log.(collect(Ls))
+
+    # Two gaps over the SAME sizes: Cardy's 2πvx/L on a periodic chain, and the
+    # activated exp(-c L^ψ) of an open random one.
+    v, x, c, ψtrue = 1.0, 1 // 8, 0.7, 0.5
+    Δ_cft = [2π * v * x / L for L in Ls]
+    Δ_irfp = [exp(-c * L^ψtrue) for L in Ls]
+
+    # Each law is exact on its own data.
+    @test all(L -> check(FiniteSizeGap(); gap=2π * v * x / L, x=x, v=v, L=L), Ls)
+    ψ_irfp = [localslope(log.(-log.(Δ_irfp)), lnL, k) for k in 1:4]
+    @test all(s -> isapprox(s, ψtrue; atol=1e-12), ψ_irfp)
+    @test check(
+        ActivatedFiniteSizeScaling(); dloglogO_dlogL=ψ_irfp[end], ψ=ψtrue, atol=1e-12
+    )
+    @test solve(ActivatedFiniteSizeScaling(), Val(:ψ); dloglogO_dlogL=ψ_irfp[end]) ≈ ψtrue
+
+    # And each rejects the other's, which is what makes one sweep in L a test.
+    # Reading a scaling dimension off the activated gap gives a different answer
+    # at every size, and the drift is derived rather than eyeballed:
+    # x(L) = exp(-c L^ψ)·L/(2πv), so the ends of the sweep differ by exactly
+    # exp(c(L_max^ψ - L_min^ψ))·L_min/L_max, which diverges as the sweep grows.
+    x_from_irfp = [Δ * L / (2π * v) for (Δ, L) in zip(Δ_irfp, Ls)]
+    @test !check(FiniteSizeGap(); gap=Δ_irfp[end], x=x_from_irfp[1], v=v, L=Ls[end])
+    @test x_from_irfp[1] / x_from_irfp[end] ≈
+        exp(c * (Ls[end]^ψtrue - Ls[1]^ψtrue)) * Ls[1] / Ls[end]
+    @test issorted(x_from_irfp; rev=true)
+    # Conversely the CFT gap has no constant ψ: its apparent one decays as
+    # 1/ln L rather than sitting still.
+    ψ_cft = [localslope(log.(-log.(Δ_cft)), lnL, k) for k in 1:4]
+    @test !check(ActivatedFiniteSizeScaling(); dloglogO_dlogL=ψ_cft[end], ψ=ψtrue, atol=0.1)
+    @test issorted(ψ_cft; rev=true)
+
+    @test variable_types(ActivatedFiniteSizeScaling()) == (ActivatedExponent,)
+    @test ActivatedFiniteSizeScaling() in relations_constraining(ActivatedExponent)
+end
+
+# Appendix A of Igloi-Monthus tabulates four kinds of random fixed point. The
+# 1D numbers below are Table 1 (§4.1.2) and §8.2, taken as INDEPENDENT inputs:
+# each relation has to reproduce them without being told the answer.
+@testset "Appendix A: the exponent sets close on the review's own numbers" begin
+    x_m, β, ν, ψ, d = (3 - sqrt(5)) / 4, (3 - sqrt(5)) / 2, 2 // 1, 1 // 2, 1
+
+    # beta = nu*x_m, twice over: the bulk pair and the surface pair, from Table 1
+    # entries measured by different arguments (rare-region counting vs the
+    # walk-return probability). The surface set is rational, so exactly zero.
+    @test residual(OrderParameterDimension(); β=1 // 1, ν=ν, x_m=1 // 2) == 0 // 1
+    @test check(OrderParameterDimension(); β=β, ν=ν, x_m=x_m, atol=1e-15)
+    @test solve(OrderParameterDimension(), Val(:x_m); β=1 // 1, ν=ν) == 1 // 2
+
+    # The activated thermodynamics reads psi with nothing else fitted: c_V
+    # involves only d and psi, so the slope against ln|ln T| is -d/psi = -2.
+    @test residual(ActivatedSpecificHeat(); dlogc_dloglnT=-2 // 1, d=d, ψ=ψ) == 0 // 1
+    @test solve(ActivatedSpecificHeat(), Val(:ψ); dlogc_dloglnT=-2 // 1, d=d) == ψ
+    # chi needs x_m too: (d - 2x_m)/psi = sqrt(5) - 1.
+    @test check(
+        ActivatedSusceptibility(); dlogχT_dloglnT=sqrt(5) - 1, d=d, x_m=x_m, ψ=ψ, atol=1e-15
+    )
+    # and the autocorrelation is logarithmic in t, with exponent x_m/psi.
+    @test check(
+        ActivatedAutocorrelation();
+        dlogG_dloglnt=(-(3 - sqrt(5)) / 2),
+        x_m=x_m,
+        ψ=ψ,
+        atol=1e-15,
+    )
+
+    # The large-spin fixed point (§8.2): zeta = 1/2 from a walk argument and
+    # kappa = 0.22(1) measured, which must give back the review's z = 1/(2 kappa).
+    κ = 0.22
+    @test solve(LargeSpinMoment(), Val(:z); κ=κ, d=1, ζ=1 // 2) ≈ 1 / (2κ)
+
+    # A conventional random point pins the disorder strength to z/d, which is
+    # exactly the statement that fails at an infinite-randomness one.
+    @test solve(FixedPointDisorderStrength(), Val(:D); z=2 // 1, d=1) == 2 // 1
+    @test solve(FixedPointDisorderStrength(), Val(:z); D=3 // 1, d=2) == 6 // 1
+
+    # A Lorentz-invariant critical point (z = 1) puts the CFT answer back:
+    # G(t) ~ t^{-2x} with x the operator dimension, 2D Ising x = 1/8.
+    @test residual(CriticalAutocorrelation(); dlogG_dlogt=-1 // 4, x_m=1 // 8, z=1 // 1) ==
+        0 // 1
+    # and chi(T) ~ T^{-gamma/nu} along the temperature axis.
+    @test residual(
+        CriticalQuantumSusceptibility(); dlogχ_dlogT=-7 // 4, γ=7 // 4, ν=1 // 1, z=1 // 1
+    ) == 0 // 1
+    @test solve(
+        CriticalQuantumSpecificHeat(), Val(:z); dlogc_dlogT=-1 // 4, α=1 // 2, ν=1
+    ) == 2 // 1
+
+    @test FixedPointDisorderStrength() in relations_constraining(DisorderStrength())
+end
+
+@testset "Appendix A: the four types differ in FORM, not in exponent value" begin
+    localslope(y, x, k) = (y[k + 1] - y[k]) / (x[k + 1] - x[k])
+    ts = exp.(range(log(20.0), log(2.0e6); length=5))
+    lnt, lnlnt = log.(ts), log.(log.(ts))
+
+    # One decay that is a power of t, one that is a power of ln t.
+    G_pow = ts .^ (-1 // 4)                       # critical, 2x_m/z = 1/4
+    G_log = log.(ts) .^ (-0.6)                    # activated, x_m/psi = 0.6
+    s_pow = [localslope(log.(G_pow), lnt, k) for k in 1:4]
+    s_log = [localslope(log.(G_log), lnlnt, k) for k in 1:4]
+
+    # Each law is exact on its own data, at every point of the sweep.
+    @test all(s -> isapprox(s, -0.25; atol=1e-12), s_pow)
+    @test all(s -> isapprox(s, -0.6; atol=1e-12), s_log)
+    @test check(
+        CriticalAutocorrelation(); dlogG_dlogt=s_pow[end], x_m=1 // 8, z=1 // 1, atol=1e-12
+    )
+    @test check(
+        ActivatedAutocorrelation(); dlogG_dloglnt=s_log[end], x_m=0.3, ψ=1 // 2, atol=1e-12
+    )
+
+    # Read on the wrong axis, neither exponent sits still, and the drift is an
+    # identity rather than an observation: for G ~ t^{-a} the slope against
+    # ln ln t is exactly -a·Δ(ln t)/Δ(ln ln t), which grows without bound
+    # because ln t is sampled evenly and ln ln t is not.
+    wrong_log = [localslope(log.(G_pow), lnlnt, k) for k in 1:4]
+    @test all(
+        k -> wrong_log[k] ≈ -0.25 * (lnt[k + 1] - lnt[k]) / (lnlnt[k + 1] - lnlnt[k]), 1:4
+    )
+    @test issorted(abs.(wrong_log))
+    @test !check(
+        ActivatedAutocorrelation();
+        dlogG_dloglnt=wrong_log[end],
+        x_m=1 // 8,
+        ψ=1 // 2,
+        atol=0.5,
+    )
+    wrong_pow = [localslope(log.(G_log), lnt, k) for k in 1:4]
+    @test !check(
+        CriticalAutocorrelation(); dlogG_dlogt=wrong_pow[1], x_m=0.3, z=1 // 1, atol=0.1
+    )
+    @test issorted(abs.(wrong_pow); rev=true)     # dies off as 1/ln t
+
+    # The Griffiths phase shares the FORM of the critical one and differs in
+    # which exponent appears: d/z rather than 2x_m/z. So the same measured decay
+    # is consistent with both, and only a second observable separates them.
+    @test check(GriffithsAutocorrelation(); dlogG_dlogt=-1 // 4, d=1, z=4 // 1)
+    @test check(CriticalAutocorrelation(); dlogG_dlogt=-1 // 4, x_m=1 // 2, z=4 // 1)
+end
+
+@testset "Appendix A: the field axis is a second reading, not the same one" begin
+    # chi and c_V against H share the length L_H ~ H^{-1/(d+z-x_m)}, so the pair
+    # over-determines it the way the temperature pair over-determines nu*z.
+    args = (ν=1 // 1, d=1, z=2 // 1, x_m=1 // 4)          # d + z - x_m = 11/4
+    @test solve(ConventionalFieldSusceptibility(), Val(:dlogχ_dlogH); γ=11 // 4, args...) ==
+        -1 // 1
+    @test solve(ConventionalFieldSpecificHeat(), Val(:dlogc_dlogH); α=11 // 8, args...) ==
+        -1 // 2
+    # It is genuinely a different reading: the same gamma and nu give a different
+    # slope against T, unless d - x_m happens to vanish.
+    @test solve(
+        CriticalQuantumSusceptibility(), Val(:dlogχ_dlogT); γ=11 // 4, ν=1 // 1, z=2 // 1
+    ) == -11 // 8
+
+    # The ordered Griffiths phase above 1D: |ln Omega| ~ (ln L)^{1/d}, a fifth
+    # form. At d = 1 it degenerates to the plain power of L.
+    @test solve(OrderedGriffithsEnergyScale(), Val(:dloglogΩ_dloglogL); d=1 // 1) == 1 // 1
+    @test solve(OrderedGriffithsEnergyScale(), Val(:dloglogΩ_dloglogL); d=3 // 1) == 1 // 3
+    @test solve(OrderedGriffithsEnergyScale(), Val(:d); dloglogΩ_dloglogL=1 // 2) == 2 // 1
+
+    # Synthetic |ln Omega| = (ln L)^{1/d}: the slope is exactly 1/d at every L,
+    # and no power of L fits it for d > 1 (the apparent z runs).
+    localslope(y, x, k) = (y[k + 1] - y[k]) / (x[k + 1] - x[k])
+    Ls = exp.(range(log(50.0), log(1.0e7); length=5))
+    lnL, lnlnL = log.(Ls), log.(log.(Ls))
+    lnΩ = -log.(Ls) .^ (1 / 3)                            # d = 3
+    s3 = [localslope(log.(-lnΩ), lnlnL, k) for k in 1:4]
+    @test all(x -> isapprox(x, 1 / 3; atol=1e-12), s3)
+    @test check(OrderedGriffithsEnergyScale(); dloglogΩ_dloglogL=s3[end], d=3, atol=1e-12)
+    z_eff = [-localslope(lnΩ, lnL, k) for k in 1:4]       # what a power-law fit sees
+    @test !check(
+        ConventionalFiniteSizeEnergy(); dlogΩ_dlogL=(-z_eff[end]), z=z_eff[1], atol=1e-3
+    )
+    @test issorted(z_eff; rev=true)                       # dies off as (ln L)^{1/d - 1}
+end
+
+@testset "correlated disorder: the new exponent IS the relevance threshold" begin
+    # nu = 2/rho, and WeinribHalperinCriterion is marginal at rho = 2/nu. The two
+    # are the same equation, so solving one has to land on the other's boundary.
+    for ρ in (1 // 2, 2 // 3, 1 // 1, 3 // 2)
+        ν = solve(WeinribHalperinExponent(), Val(:ν_dis); ρ=ρ)
+        @test ν == 2 // ρ
+        @test relevance(WeinribHalperinCriterion(); ν_dis=ν, ρ=ρ) === :marginal
+        @test margin(WeinribHalperinCriterion(); ν_dis=ν, ρ=ρ) == 0
+    end
+    # Slower decay than the threshold is relevant, faster is not.
+    @test relevance(WeinribHalperinCriterion(); ν_dis=2 // 1, ρ=1 // 2) === :relevant
+    @test relevance(WeinribHalperinCriterion(); ν_dis=2 // 1, ρ=3 // 2) === :irrelevant
+    @test WeinribHalperinExponent() in relations_constraining(CorrelationLength())
+end
+
+@testset "Luck at the random wandering exponent is Harris in one dimension" begin
+    # Eq. (10.8) fixes omega = 1/2 for an uncorrelated random sequence (the
+    # central limit theorem). There Luck's nu0 > 1/(1-omega) reads nu0 > 2, and
+    # Harris' nu0 > 2/d at d = 1 reads the same. Two criteria implemented
+    # separately have to agree on that whole line, not just at one point.
+    for ν₀ in (1 // 2, 3 // 2, 2 // 1, 5 // 2, 10 // 1)
+        @test relevance(LuckCriterion(); ν₀=ν₀, ω=1 // 2) ===
+            relevance(HarrisCriterion(); ν₀=ν₀, d=1)
+        @test margin(LuckCriterion(); ν₀=ν₀, ω=1 // 2) ==
+            margin(HarrisCriterion(); ν₀=ν₀, d=1)
+    end
+    @test relevance(LuckCriterion(); ν₀=2 // 1, ω=1 // 2) === :marginal
+    # Bounded fluctuations (Fibonacci, omega = -1) are irrelevant wherever the
+    # random sequence at the same nu0 is not, and strictly further from the line.
+    @test relevance(LuckCriterion(); ν₀=1 // 1, ω=-1 // 1) === :irrelevant
+    @test margin(LuckCriterion(); ν₀=1 // 1, ω=-1 // 1) >
+        margin(LuckCriterion(); ν₀=1 // 1, ω=1 // 2)
+end
+
+@testset "every Appendix A coefficient is exercised away from its identity" begin
+    # Mutation testing found four coefficients that no assertion could see,
+    # because the only value ever passed for them was multiplication's identity.
+
+    # ConventionalFiniteSizeEnergy had a negative check only, on data from an
+    # unrelated sweep: a sign flip survived. Omega ~ L^{-z} at z = 3 means the
+    # slope is -3, and the relation has to reject +3 as hard as it accepts -3.
+    @test residual(ConventionalFiniteSizeEnergy(); dlogΩ_dlogL=-3 // 1, z=3 // 1) == 0 // 1
+    @test !check(ConventionalFiniteSizeEnergy(); dlogΩ_dlogL=3 // 1, z=3 // 1)
+    @test solve(ConventionalFiniteSizeEnergy(), Val(:z); dlogΩ_dlogL=-3 // 1) == 3 // 1
+    # It is the size-space form of DynamicalScaling, so the two read one z from
+    # the same slope taken against L and against ξ.
+    @test solve(DynamicalScaling(), Val(:z); dlogΔ_dlogξ=-3 // 1) ==
+        solve(ConventionalFiniteSizeEnergy(), Val(:z); dlogΩ_dlogL=-3 // 1)
+
+    # LargeSpinMoment's d was only ever 1, where dropping it changes nothing.
+    # kappa = d*zeta/z, so doubling d has to double kappa.
+    @test solve(LargeSpinMoment(), Val(:κ); d=2 // 1, ζ=1 // 2, z=4 // 1) ==
+        2 * solve(LargeSpinMoment(), Val(:κ); d=1 // 1, ζ=1 // 2, z=4 // 1)
+    @test solve(LargeSpinMoment(), Val(:κ); d=3 // 1, ζ=1 // 2, z=4 // 1) == 3 // 8
+
+    # nu was 1//1 in every test of these four, so the whole factor was invisible.
+    # Doubling nu has to halve the slope in each of them.
+    for (rel, var, extra) in (
+        (CriticalQuantumSusceptibility(), :dlogχ_dlogT, (γ=7 // 4, z=2 // 1)),
+        (CriticalQuantumSpecificHeat(), :dlogc_dlogT, (α=1 // 2, z=2 // 1)),
+        (
+            ConventionalFieldSusceptibility(),
+            :dlogχ_dlogH,
+            (γ=7 // 4, z=2 // 1, d=1, x_m=1 // 4),
+        ),
+        (
+            ConventionalFieldSpecificHeat(),
+            :dlogc_dlogH,
+            (α=1 // 2, z=2 // 1, d=1, x_m=1 // 4),
+        ),
+    )
+        s1 = solve(rel, Val(var); ν=1 // 1, extra...)
+        s2 = solve(rel, Val(var); ν=2 // 1, extra...)
+        @test s2 == s1 / 2 != 0 // 1
+    end
+end
+
+@testset "every hand-declared link names the quantity it meant to name" begin
+    # The no-op sweep in test_interface.jl cannot see a WRONG target: it checks
+    # also_constrains ⊆ quantities, which holds by construction. Pin the targets.
+    for (rel, q) in (
+        (ActivatedFiniteSizeScaling(), Typical(MassGap())),
+        (ConventionalFiniteSizeEnergy(), MassGap()),
+        (OrderedGriffithsEnergyScale(), MassGap()),
+        (OrderParameterDimension(), SpontaneousMagnetization()),
+        (OrderParameterDimension(), SurfaceMagnetization()),
+        (CriticalAutocorrelation(), DynamicalCorrelation(:z, :z)),
+        (CriticalQuantumSusceptibility(), Susceptibility(:z, :z)),
+        (CriticalQuantumSpecificHeat(), SpecificHeat()),
+        (ConventionalFieldSusceptibility(), Susceptibility(:z, :z)),
+        (ConventionalFieldSpecificHeat(), SpecificHeat()),
+        (ActivatedAutocorrelation(), DisorderAveraged(DynamicalCorrelation(:z, :z))),
+        (ActivatedSusceptibility(), DisorderAveraged(Susceptibility(:z, :z))),
+        (ActivatedSpecificHeat(), DisorderAveraged(SpecificHeat())),
+        (GriffithsAutocorrelation(), DisorderAveraged(DynamicalCorrelation(:z, :z))),
+        (WeinribHalperinExponent(), CorrelationLength()),
+    )
+        @test rel in relations_constraining(q)
+    end
+    # A quantity the atlas can reach is the point of declaring the link: before
+    # this, SurfaceMagnetization was in the vocabulary and in no relation.
+    @test !isempty(relations_constraining(SurfaceMagnetization()))
+    @test FixedPointDisorderStrength() in relations_constraining(DisorderStrength())
+end

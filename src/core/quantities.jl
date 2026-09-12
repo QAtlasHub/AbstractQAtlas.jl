@@ -332,6 +332,25 @@ exponent is β (see `critical_scaling`).
 struct SpontaneousMagnetization <: AbstractMagnetization end
 export SpontaneousMagnetization
 
+"""
+    SurfaceMagnetization() <: AbstractMagnetization
+
+The order parameter at the free end of an OPEN chain, with the far end held
+fixed to break the symmetry.  Which Pauli component that is depends on the
+model's convention, so this package does not name one: the source writes
+`m_s = ⟨σ₁ˣ⟩` for `H = −ΣJσˣσˣ − Σhσᶻ`, QAtlas's TFIM has the two swapped.  A boundary observable: it has no [`PBC`](@ref) counterpart, and its
+scaling dimension `x_m^s` is a surface exponent, distinct from the bulk `x_m`.
+
+It carries the finite-size story of an infinite-randomness fixed point because
+it is exactly computable per disorder realization at any `L` ([Peschel1984](@cite);
+[IgloiMonthus2005](@cite) Eq. (4.4)).  Its [`DisorderAveraged`](@ref) value then
+decays as `L^{-x_m^s}` (Eq. (4.7)) while its [`Typical`](@ref) value decays as
+`exp(-c·L^ψ)` (Eq. (4.6)): same observable, same `L`, different functional form.
+See [`ActivatedFiniteSizeScaling`](@ref).
+"""
+struct SurfaceMagnetization <: AbstractMagnetization end
+export SurfaceMagnetization
+
 function _axistuple(I)
     return if (I isa Tuple && !isempty(I) && all(a -> a isa Symbol, I))
         I
@@ -1437,6 +1456,40 @@ follows a different law, so the two reductions give different exponents.
 """
 struct ActivatedExponent <: AbstractQuantity end
 export ActivatedExponent
+
+"""
+    DisorderStrength() <: AbstractQuantity
+
+The strength of quenched disorder `D`, the broadness of the coupling
+distribution: `D²` is the variance of `ln λ` over the bond ensemble, for which
+[IgloiMonthus2005](@cite) Eq. (A.1) takes `P(λ) = D⁻¹λ^{-1+1/D}` on `0 ≤ λ ≤ 1`.
+
+`D` is what the four fixed-point types of a random system are told apart by, so
+it is a subject rather than a parameter.  It flows to a FINITE value at a
+conventional random critical point and in a Griffiths phase, where it is pinned
+to the dynamical exponent by [`FixedPointDisorderStrength`](@ref) (`D = z/d`);
+it flows to infinity at an infinite-randomness fixed point, which is what
+[`ActivatedExponent`](@ref) rather than [`DynamicalExponent`](@ref) then
+describes.
+"""
+struct DisorderStrength <: AbstractQuantity end
+export DisorderStrength
+
+"""
+    DisorderCorrelationExponent() <: AbstractQuantity
+
+The decay exponent `ρ` of SPATIAL correlations in the disorder itself,
+`[δ(r)δ(r')]_av = G_d(r-r') ∼ |r-r'|^{-ρ}` ([IgloiMonthus2005](@cite)
+Eqs. (10.1)-(10.2)).  Uncorrelated disorder is the `G_d = δ(r)` limit, where `ρ`
+does not apply.
+
+A property of the disorder ensemble rather than of the model, which is why it is
+its own subject: whether it matters is [`WeinribHalperinCriterion`](@ref), and
+where it does, it sets the exponent on its own via
+[`WeinribHalperinExponent`](@ref).
+"""
+struct DisorderCorrelationExponent <: AbstractQuantity end
+export DisorderCorrelationExponent
 
 """
     UniversalityClass() <: AbstractQuantity
