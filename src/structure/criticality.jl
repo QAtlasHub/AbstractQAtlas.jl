@@ -52,9 +52,12 @@ critical_scaling(::Type{CorrelationLength}) = CriticalScaling(:ν, -1)
 critical_scaling(::Type{SurfaceMagnetization}) = CriticalScaling(:β_s, +1)
 
 # The exponent table describes the ARITHMETIC mean, so a disorder average
-# inherits its quantity's law.  `Typical{Q}` deliberately does not: at an
-# infinite-randomness fixed point it has no power law at all, which
-# `fss_size_exponent` says rather than guesses.
+# inherits its quantity's law.  This is not an approximation: at an
+# infinite-randomness fixed point the average is set by the DENSITY of locally
+# ordered rare regions, whose scaling form (IgloiMonthus2005 Eq. (A.19)) is
+# mathematically identical to the conventional one (Eq. (A.11)), so `m` has the
+# same properties in both cases.  `Typical{Q}` deliberately does not inherit: it
+# has no power law at all, which `fss_size_exponent` says rather than guesses.
 critical_scaling(::Type{DisorderAveraged{Q}}) where {Q} = critical_scaling(Q)
 export critical_scaling, CriticalScaling
 

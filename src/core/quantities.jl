@@ -1456,6 +1456,24 @@ struct ActivatedExponent <: AbstractQuantity end
 export ActivatedExponent
 
 """
+    DisorderStrength() <: AbstractQuantity
+
+The strength of quenched disorder `D`, the broadness of the coupling
+distribution: `D²` is the variance of `ln λ` over the bond ensemble, for which
+[IgloiMonthus2005](@cite) Eq. (A.1) takes `P(λ) = D⁻¹λ^{-1+1/D}` on `0 ≤ λ ≤ 1`.
+
+`D` is what the four fixed-point types of a random system are told apart by, so
+it is a subject rather than a parameter.  It flows to a FINITE value at a
+conventional random critical point and in a Griffiths phase, where it is pinned
+to the dynamical exponent by [`FixedPointDisorderStrength`](@ref) (`D = z/d`);
+it flows to infinity at an infinite-randomness fixed point, which is what
+[`ActivatedExponent`](@ref) rather than [`DynamicalExponent`](@ref) then
+describes.
+"""
+struct DisorderStrength <: AbstractQuantity end
+export DisorderStrength
+
+"""
     UniversalityClass() <: AbstractQuantity
 
 The universality class a model's transition belongs to (returned as a

@@ -312,3 +312,144 @@ end
     @test variable_types(ActivatedFiniteSizeScaling()) == (ActivatedExponent,)
     @test ActivatedFiniteSizeScaling() in relations_constraining(ActivatedExponent)
 end
+
+# Appendix A of Igloi-Monthus tabulates four kinds of random fixed point. The
+# 1D numbers below are Table 1 (§4.1.2) and §8.2, taken as INDEPENDENT inputs:
+# each relation has to reproduce them without being told the answer.
+@testset "Appendix A: the exponent sets close on the review's own numbers" begin
+    x_m, β, ν, ψ, d = (3 - sqrt(5)) / 4, (3 - sqrt(5)) / 2, 2 // 1, 1 // 2, 1
+
+    # beta = nu*x_m, twice over: the bulk pair and the surface pair, from Table 1
+    # entries measured by different arguments (rare-region counting vs the
+    # walk-return probability). The surface set is rational, so exactly zero.
+    @test residual(OrderParameterDimension(); β=1 // 1, ν=ν, x_m=1 // 2) == 0 // 1
+    @test check(OrderParameterDimension(); β=β, ν=ν, x_m=x_m, atol=1e-15)
+    @test solve(OrderParameterDimension(), Val(:x_m); β=1 // 1, ν=ν) == 1 // 2
+
+    # The activated thermodynamics reads psi with nothing else fitted: c_V
+    # involves only d and psi, so the slope against ln|ln T| is -d/psi = -2.
+    @test residual(ActivatedSpecificHeat(); dlogc_dloglnT=-2 // 1, d=d, ψ=ψ) == 0 // 1
+    @test solve(ActivatedSpecificHeat(), Val(:ψ); dlogc_dloglnT=-2 // 1, d=d) == ψ
+    # chi needs x_m too: (d - 2x_m)/psi = sqrt(5) - 1.
+    @test check(
+        ActivatedSusceptibility(); dlogχT_dloglnT=sqrt(5) - 1, d=d, x_m=x_m, ψ=ψ, atol=1e-15
+    )
+    # and the autocorrelation is logarithmic in t, with exponent x_m/psi.
+    @test check(
+        ActivatedAutocorrelation();
+        dlogG_dloglnt=(-(3 - sqrt(5)) / 2),
+        x_m=x_m,
+        ψ=ψ,
+        atol=1e-15,
+    )
+
+    # The large-spin fixed point (§8.2): zeta = 1/2 from a walk argument and
+    # kappa = 0.22(1) measured, which must give back the review's z = 1/(2 kappa).
+    κ = 0.22
+    @test solve(LargeSpinMoment(), Val(:z); κ=κ, d=1, ζ=1 // 2) ≈ 1 / (2κ)
+
+    # A conventional random point pins the disorder strength to z/d, which is
+    # exactly the statement that fails at an infinite-randomness one.
+    @test solve(FixedPointDisorderStrength(), Val(:D); z=2 // 1, d=1) == 2 // 1
+    @test solve(FixedPointDisorderStrength(), Val(:z); D=3 // 1, d=2) == 6 // 1
+
+    # A Lorentz-invariant critical point (z = 1) puts the CFT answer back:
+    # G(t) ~ t^{-2x} with x the operator dimension, 2D Ising x = 1/8.
+    @test residual(CriticalAutocorrelation(); dlogG_dlogt=-1 // 4, x_m=1 // 8, z=1 // 1) ==
+        0 // 1
+    # and chi(T) ~ T^{-gamma/nu} along the temperature axis.
+    @test residual(
+        CriticalQuantumSusceptibility(); dlogχ_dlogT=-7 // 4, γ=7 // 4, ν=1 // 1, z=1 // 1
+    ) == 0 // 1
+    @test solve(
+        CriticalQuantumSpecificHeat(), Val(:z); dlogc_dlogT=-1 // 4, α=1 // 2, ν=1
+    ) == 2 // 1
+
+    @test FixedPointDisorderStrength() in relations_constraining(DisorderStrength())
+end
+
+@testset "Appendix A: the four types differ in FORM, not in exponent value" begin
+    localslope(y, x, k) = (y[k + 1] - y[k]) / (x[k + 1] - x[k])
+    ts = exp.(range(log(20.0), log(2.0e6); length=5))
+    lnt, lnlnt = log.(ts), log.(log.(ts))
+
+    # One decay that is a power of t, one that is a power of ln t.
+    G_pow = ts .^ (-1 // 4)                       # critical, 2x_m/z = 1/4
+    G_log = log.(ts) .^ (-0.6)                    # activated, x_m/psi = 0.6
+    s_pow = [localslope(log.(G_pow), lnt, k) for k in 1:4]
+    s_log = [localslope(log.(G_log), lnlnt, k) for k in 1:4]
+
+    # Each law is exact on its own data, at every point of the sweep.
+    @test all(s -> isapprox(s, -0.25; atol=1e-12), s_pow)
+    @test all(s -> isapprox(s, -0.6; atol=1e-12), s_log)
+    @test check(
+        CriticalAutocorrelation(); dlogG_dlogt=s_pow[end], x_m=1 // 8, z=1 // 1, atol=1e-12
+    )
+    @test check(
+        ActivatedAutocorrelation(); dlogG_dloglnt=s_log[end], x_m=0.3, ψ=1 // 2, atol=1e-12
+    )
+
+    # Read on the wrong axis, neither exponent sits still, and the drift is an
+    # identity rather than an observation: for G ~ t^{-a} the slope against
+    # ln ln t is exactly -a·Δ(ln t)/Δ(ln ln t), which grows without bound
+    # because ln t is sampled evenly and ln ln t is not.
+    wrong_log = [localslope(log.(G_pow), lnlnt, k) for k in 1:4]
+    @test all(
+        k -> wrong_log[k] ≈ -0.25 * (lnt[k + 1] - lnt[k]) / (lnlnt[k + 1] - lnlnt[k]), 1:4
+    )
+    @test issorted(abs.(wrong_log))
+    @test !check(
+        ActivatedAutocorrelation();
+        dlogG_dloglnt=wrong_log[end],
+        x_m=1 // 8,
+        ψ=1 // 2,
+        atol=0.5,
+    )
+    wrong_pow = [localslope(log.(G_log), lnt, k) for k in 1:4]
+    @test !check(
+        CriticalAutocorrelation(); dlogG_dlogt=wrong_pow[1], x_m=0.3, z=1 // 1, atol=0.1
+    )
+    @test issorted(abs.(wrong_pow); rev=true)     # dies off as 1/ln t
+
+    # The Griffiths phase shares the FORM of the critical one and differs in
+    # which exponent appears: d/z rather than 2x_m/z. So the same measured decay
+    # is consistent with both, and only a second observable separates them.
+    @test check(GriffithsAutocorrelation(); dlogG_dlogt=-1 // 4, d=1, z=4 // 1)
+    @test check(CriticalAutocorrelation(); dlogG_dlogt=-1 // 4, x_m=1 // 2, z=4 // 1)
+end
+
+@testset "Appendix A: the field axis is a second reading, not the same one" begin
+    # chi and c_V against H share the length L_H ~ H^{-1/(d+z-x_m)}, so the pair
+    # over-determines it the way the temperature pair over-determines nu*z.
+    args = (ν=1 // 1, d=1, z=2 // 1, x_m=1 // 4)          # d + z - x_m = 11/4
+    @test solve(ConventionalFieldSusceptibility(), Val(:dlogχ_dlogH); γ=11 // 4, args...) ==
+        -1 // 1
+    @test solve(ConventionalFieldSpecificHeat(), Val(:dlogc_dlogH); α=11 // 8, args...) ==
+        -1 // 2
+    # It is genuinely a different reading: the same gamma and nu give a different
+    # slope against T, unless d - x_m happens to vanish.
+    @test solve(
+        CriticalQuantumSusceptibility(), Val(:dlogχ_dlogT); γ=11 // 4, ν=1 // 1, z=2 // 1
+    ) == -11 // 8
+
+    # The ordered Griffiths phase above 1D: |ln Omega| ~ (ln L)^{1/d}, a fifth
+    # form. At d = 1 it degenerates to the plain power of L.
+    @test solve(OrderedGriffithsEnergyScale(), Val(:dloglogΩ_dloglogL); d=1 // 1) == 1 // 1
+    @test solve(OrderedGriffithsEnergyScale(), Val(:dloglogΩ_dloglogL); d=3 // 1) == 1 // 3
+    @test solve(OrderedGriffithsEnergyScale(), Val(:d); dloglogΩ_dloglogL=1 // 2) == 2 // 1
+
+    # Synthetic |ln Omega| = (ln L)^{1/d}: the slope is exactly 1/d at every L,
+    # and no power of L fits it for d > 1 (the apparent z runs).
+    localslope(y, x, k) = (y[k + 1] - y[k]) / (x[k + 1] - x[k])
+    Ls = exp.(range(log(50.0), log(1.0e7); length=5))
+    lnL, lnlnL = log.(Ls), log.(log.(Ls))
+    lnΩ = -log.(Ls) .^ (1 / 3)                            # d = 3
+    s3 = [localslope(log.(-lnΩ), lnlnL, k) for k in 1:4]
+    @test all(x -> isapprox(x, 1 / 3; atol=1e-12), s3)
+    @test check(OrderedGriffithsEnergyScale(); dloglogΩ_dloglogL=s3[end], d=3, atol=1e-12)
+    z_eff = [-localslope(lnΩ, lnL, k) for k in 1:4]       # what a power-law fit sees
+    @test !check(
+        ConventionalFiniteSizeEnergy(); dlogΩ_dlogL=(-z_eff[end]), z=z_eff[1], atol=1e-3
+    )
+    @test issorted(z_eff; rev=true)                       # dies off as (ln L)^{1/d - 1}
+end
