@@ -73,12 +73,9 @@ exponent `β` vs the inverse temperature `β`).
 function domain end
 export domain
 
-# The fallback consults `also_constrains` rather than returning `()` flat.  A
-# relation with no typed slot gets no auto-`quantities` method from `@relation`
-# (see `has_typed` there), so before this a hand-declared link on such a relation
-# was silently dropped: the entry compiled, the graph edge never existed, and
-# nothing said so.  With `also_constrains` itself defaulting to `()`, a relation
-# that declares nothing still gets `()`.
+# The fallback consults `also_constrains`, which is what makes a hand-declared
+# link work on a relation with no typed slot: `@relation` emits no auto-method
+# for those, so a flat `()` here would drop the link without saying so.
 """
     quantities(rel::AbstractRelation) -> Tuple{Vararg{Type}}
 

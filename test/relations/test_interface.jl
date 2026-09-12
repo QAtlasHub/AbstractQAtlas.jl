@@ -114,11 +114,9 @@ end
 end
 
 @testset "a declared also_constrains is not allowed to be a no-op" begin
-    # `@relation` only emits the auto-`quantities` method when the relation has
-    # at least one TYPED slot, so an `also_constrains` entry on an all-untyped
-    # relation is silently dropped: the declaration compiles, the link does not
-    # exist, and nothing says so. Measured on WeinribHalperinExponent, whose
-    # `(CorrelationLength,)` entry was dead until `ρ` was given a type.
+    # `@relation` emits the auto-`quantities` method only for a relation with at
+    # least one TYPED slot, so on an all-untyped one an `also_constrains` entry
+    # can compile while the link does not exist and nothing says so.
     silent = [
         r for r in all_relations() if !isempty(AbstractQAtlas.also_constrains(r)) &&
             !issubset(

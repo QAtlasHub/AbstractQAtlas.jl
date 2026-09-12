@@ -274,11 +274,12 @@ Variables: `φ`, `d`, `x_m`, `ψ`.
 # The conventional and Griffiths columns agree in form and differ in which
 # exponent combination appears, so the relations below are separate objects.
 #
-# What is NOT here: Appendix A also states each observable against a small
-# ordering field `H` instead of against `T`.  Where that gives the same exponent
-# combination on a different axis it is the same relation, named in the
-# docstring rather than duplicated (Eqs. (A.26), (A.29), (A.33)); only a NEW
-# combination gets its own relation (Eq. (A.15)).
+# What is NOT here: an equation whose exponent combination already appears
+# above is the same relation on another axis, named in a docstring rather than
+# duplicated.  Eqs. (A.26) and (A.33) restate observables against a small
+# ordering field `H` instead of `T`; Eq. (A.29) is the Griffiths gap
+# DISTRIBUTION, not a field statement at all, but carries the same `-1+d/z`.
+# Only a NEW combination gets its own relation (Eq. (A.15)).
 
 """
     OrderParameterDimension <: AbstractRelation
@@ -588,8 +589,6 @@ not `1/d` (§9.3 quotes `x = 2` and `x = 3/2` as conjectures for a 2D Dirac
 problem), where it reads as a divergent `z` or a vanishing `ψ`.  This relation
 is the case where `x` is derived rather than fitted.
 
-Variables: `dloglogΩ_dloglogL`, `d`.
-
 Reference: [IgloiMonthus2005](@cite) Eq. (A.35), §A.4.2, with the companion
 autocorrelation `G(t) ∼ exp(−A|ln t|^d)` of Eq. (A.34) (= Eq. (9.7), §9.1.3).
 """
@@ -602,7 +601,10 @@ autocorrelation `G(t) ∼ exp(−A|ln t|^d)` of Eq. (A.34) (= Eq. (9.7), §9.1.3
 When spatially correlated disorder IS relevant, the correlation-length exponent
 it flows to is fixed by the correlation decay alone,
 
-`ν = 2/ρ`   for   `G_d(r) ∼ r^{−ρ}` with `ρ < 2/ν₀`.
+`ν = 2/ρ`   for   `G_d(r) ∼ r^{−ρ}` with `ρ < 2/ν_unc`,
+
+where `ν_unc` is the correlation-length exponent of the same model with
+UNCORRELATED disorder, not the clean `ν₀` that [`HarrisCriterion`](@ref) takes.
 
 The companion of [`WeinribHalperinCriterion`](@ref), which decides whether that
 `ρ` matters at all: the criterion's marginal line `ρ = 2/ν` and this relation

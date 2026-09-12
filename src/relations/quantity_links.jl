@@ -45,7 +45,10 @@ end
 # as their ξ-space partners above, with the same reduction split.
 also_constrains(::ActivatedFiniteSizeScaling) = (MassGap, Typical{MassGap})
 also_constrains(::ConventionalFiniteSizeEnergy) = (MassGap,)
-also_constrains(::OrderParameterDimension) = (SpontaneousMagnetization,)
+# β = νx_m in the bulk and β_s = νx_m^s at a surface are the same relation.
+function also_constrains(::OrderParameterDimension)
+    return (SpontaneousMagnetization, SurfaceMagnetization)
+end
 also_constrains(::CriticalAutocorrelation) = (DynamicalCorrelation,)
 also_constrains(::CriticalQuantumSusceptibility) = (Susceptibility,)
 also_constrains(::CriticalQuantumSpecificHeat) = (SpecificHeat,)

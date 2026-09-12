@@ -487,3 +487,74 @@ end
     @test margin(LuckCriterion(); ν₀=1 // 1, ω=-1 // 1) >
         margin(LuckCriterion(); ν₀=1 // 1, ω=1 // 2)
 end
+
+@testset "every Appendix A coefficient is exercised away from its identity" begin
+    # Mutation testing found four coefficients that no assertion could see,
+    # because the only value ever passed for them was multiplication's identity.
+
+    # ConventionalFiniteSizeEnergy had a negative check only, on data from an
+    # unrelated sweep: a sign flip survived. Omega ~ L^{-z} at z = 3 means the
+    # slope is -3, and the relation has to reject +3 as hard as it accepts -3.
+    @test residual(ConventionalFiniteSizeEnergy(); dlogΩ_dlogL=-3 // 1, z=3 // 1) == 0 // 1
+    @test !check(ConventionalFiniteSizeEnergy(); dlogΩ_dlogL=3 // 1, z=3 // 1)
+    @test solve(ConventionalFiniteSizeEnergy(), Val(:z); dlogΩ_dlogL=-3 // 1) == 3 // 1
+    # It is the size-space form of DynamicalScaling, so the two read one z from
+    # the same slope taken against L and against ξ.
+    @test solve(DynamicalScaling(), Val(:z); dlogΔ_dlogξ=-3 // 1) ==
+        solve(ConventionalFiniteSizeEnergy(), Val(:z); dlogΩ_dlogL=-3 // 1)
+
+    # LargeSpinMoment's d was only ever 1, where dropping it changes nothing.
+    # kappa = d*zeta/z, so doubling d has to double kappa.
+    @test solve(LargeSpinMoment(), Val(:κ); d=2 // 1, ζ=1 // 2, z=4 // 1) ==
+        2 * solve(LargeSpinMoment(), Val(:κ); d=1 // 1, ζ=1 // 2, z=4 // 1)
+    @test solve(LargeSpinMoment(), Val(:κ); d=3 // 1, ζ=1 // 2, z=4 // 1) == 3 // 8
+
+    # nu was 1//1 in every test of these four, so the whole factor was invisible.
+    # Doubling nu has to halve the slope in each of them.
+    for (rel, var, extra) in (
+        (CriticalQuantumSusceptibility(), :dlogχ_dlogT, (γ=7 // 4, z=2 // 1)),
+        (CriticalQuantumSpecificHeat(), :dlogc_dlogT, (α=1 // 2, z=2 // 1)),
+        (
+            ConventionalFieldSusceptibility(),
+            :dlogχ_dlogH,
+            (γ=7 // 4, z=2 // 1, d=1, x_m=1 // 4),
+        ),
+        (
+            ConventionalFieldSpecificHeat(),
+            :dlogc_dlogH,
+            (α=1 // 2, z=2 // 1, d=1, x_m=1 // 4),
+        ),
+    )
+        s1 = solve(rel, Val(var); ν=1 // 1, extra...)
+        s2 = solve(rel, Val(var); ν=2 // 1, extra...)
+        @test s2 == s1 / 2 != 0 // 1
+    end
+end
+
+@testset "every hand-declared link names the quantity it meant to name" begin
+    # The no-op sweep in test_interface.jl cannot see a WRONG target: it checks
+    # also_constrains ⊆ quantities, which holds by construction. Pin the targets.
+    for (rel, q) in (
+        (ActivatedFiniteSizeScaling(), Typical(MassGap())),
+        (ConventionalFiniteSizeEnergy(), MassGap()),
+        (OrderedGriffithsEnergyScale(), MassGap()),
+        (OrderParameterDimension(), SpontaneousMagnetization()),
+        (OrderParameterDimension(), SurfaceMagnetization()),
+        (CriticalAutocorrelation(), DynamicalCorrelation(:z, :z)),
+        (CriticalQuantumSusceptibility(), Susceptibility(:z, :z)),
+        (CriticalQuantumSpecificHeat(), SpecificHeat()),
+        (ConventionalFieldSusceptibility(), Susceptibility(:z, :z)),
+        (ConventionalFieldSpecificHeat(), SpecificHeat()),
+        (ActivatedAutocorrelation(), DisorderAveraged(DynamicalCorrelation(:z, :z))),
+        (ActivatedSusceptibility(), DisorderAveraged(Susceptibility(:z, :z))),
+        (ActivatedSpecificHeat(), DisorderAveraged(SpecificHeat())),
+        (GriffithsAutocorrelation(), DisorderAveraged(DynamicalCorrelation(:z, :z))),
+        (WeinribHalperinExponent(), CorrelationLength()),
+    )
+        @test rel in relations_constraining(q)
+    end
+    # A quantity the atlas can reach is the point of declaring the link: before
+    # this, SurfaceMagnetization was in the vocabulary and in no relation.
+    @test !isempty(relations_constraining(SurfaceMagnetization()))
+    @test FixedPointDisorderStrength() in relations_constraining(DisorderStrength())
+end

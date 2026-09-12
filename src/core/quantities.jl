@@ -335,8 +335,10 @@ export SpontaneousMagnetization
 """
     SurfaceMagnetization() <: AbstractMagnetization
 
-Order parameter at the free end of an OPEN chain, `m_s = ⟨σ₁ᶻ⟩` with the far end
-held fixed.  A boundary observable: it has no [`PBC`](@ref) counterpart, and its
+The order parameter at the free end of an OPEN chain, with the far end held
+fixed to break the symmetry.  Which Pauli component that is depends on the
+model's convention, so this package does not name one: the source writes
+`m_s = ⟨σ₁ˣ⟩` for `H = −ΣJσˣσˣ − Σhσᶻ`, QAtlas's TFIM has the two swapped.  A boundary observable: it has no [`PBC`](@ref) counterpart, and its
 scaling dimension `x_m^s` is a surface exponent, distinct from the bulk `x_m`.
 
 It carries the finite-size story of an infinite-randomness fixed point because

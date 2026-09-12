@@ -104,6 +104,7 @@ singular_form(Susceptibility(:z, :z), 0.01; exponents=exps)           # |t|^{-7/
 Throws for a quantity with no reduced-temperature critical law.
 """
 function singular_form(q::AbstractQuantity, t; exponents::NamedTuple)
+    _refuse_activated_fss(q, exponents, "singular_form")
     cs = critical_scaling(q)
     cs === nothing && error(
         "singular_form: $(typeof(q)) has no reduced-temperature critical law " *
@@ -113,23 +114,44 @@ function singular_form(q::AbstractQuantity, t; exponents::NamedTuple)
 end
 export singular_form
 
+# Which quantities keep their conventional power law once the disorder average
+# is taken at an infinite-randomness fixed point.  An ALLOW-list, so a quantity
+# added later is refused rather than silently assumed: the source justifies the
+# average only where the law is carried by the density of locally ordered rare
+# regions, which scales as the conventional one does (IgloiMonthus2005 Eq. (A.19)
+# against Eq. (A.11)).  Eq. (A.25) is the counterexample the list exists for: the
+# disorder-averaged specific heat goes as `L^{-d}`, not as `L^{α/ν}`, and for the
+# 1D chain those are -1 and 0.
+_average_keeps_power_law(::Type{<:AbstractQuantity}) = false
+_average_keeps_power_law(::Type{<:AbstractMagnetization}) = true   # Eq. (A.19)
+_average_keeps_power_law(::Type{<:AbstractSusceptibility}) = true  # Eq. (A.25), χ ∼ L^{d-2x_m}/T
+_average_keeps_power_law(::Type{CorrelationLength}) = true         # ξ ∼ L at any fixed point
+
 # At an infinite-randomness fixed point the typical and the disorder-averaged
-# value of ONE observable at ONE size follow different laws in `L`, so a bare
-# quantity no longer names a single finite-size form.  `ψ` in `exponents` is
-# what says the fixed point is of that kind.
-function _refuse_activated_fss(q::AbstractQuantity, exponents::NamedTuple)
+# value of ONE observable follow different laws, so a bare quantity no longer
+# names a single scaling form.  `ψ` in `exponents` is what says the fixed point
+# is of that kind; `verb` only shapes the message.
+function _refuse_activated_fss(q::AbstractQuantity, exponents::NamedTuple, verb::String)
     (haskey(exponents, :ψ) && !iszero(exponents.ψ)) || return nothing
-    q isa DisorderAveraged && return nothing
+    if q isa DisorderAveraged
+        _average_keeps_power_law(typeof(q.quantity)) && return nothing
+        return error(
+            "$verb: the disorder average of $(typeof(q.quantity)) does not keep its " *
+            "power law at an infinite-randomness fixed point (ψ = $(exponents.ψ)). " *
+            "IgloiMonthus2005 Eq. (A.25) gives c_V ∼ L^{-d} rather than L^{α/ν}; " *
+            "use ActivatedSpecificHeat / ActivatedSusceptibility.",
+        )
+    end
     q isa Typical && error(
-        "fss_size_exponent: $(typeof(q)) at an infinite-randomness fixed point " *
+        "$verb: $(typeof(q)) at an infinite-randomness fixed point " *
         "(ψ = $(exponents.ψ)) has no power of L at all. The typical value falls " *
         "as exp(-c·L^ψ), a stretched exponential; use ActivatedFiniteSizeScaling.",
     )
     return error(
-        "fss_size_exponent: exponents carry ψ = $(exponents.ψ) ≠ 0, an " *
+        "$verb: exponents carry ψ = $(exponents.ψ) ≠ 0, an " *
         "infinite-randomness fixed point, where the typical and the " *
-        "disorder-averaged $(typeof(q)) scale differently in L. Say which: " *
-        "DisorderAveraged(q) is a power of L, Typical(q) is not.",
+        "disorder-averaged $(typeof(q)) scale differently. Say which: " *
+        "DisorderAveraged(q) is a power law, Typical(q) is not.",
     )
 end
 
@@ -147,9 +169,14 @@ fss_size_exponent(Susceptibility(:z, :z); exponents=exps)          # +γ/ν  (= 
 fss_size_exponent(SpontaneousMagnetization(); exponents=exps)  # −β/ν  (= −1/8)
 fss_size_exponent(CorrelationLength(); exponents=exps)         # +1    (ξ ∼ L)
 ```
+
+Throws when `exponents` carries a nonzero `ψ`, an infinite-randomness fixed
+point, unless the quantity says which reduction is meant and that reduction
+still has a power of `L`.  [`singular_form`](@ref) refuses on the same terms;
+`fss_peak` and `collapse_coordinates` inherit it through here.
 """
 function fss_size_exponent(q::AbstractQuantity; exponents::NamedTuple)
-    _refuse_activated_fss(q, exponents)
+    _refuse_activated_fss(q, exponents, "fss_size_exponent")
     cs = critical_scaling(q)
     cs === nothing &&
         error("fss_size_exponent: $(typeof(q)) has no reduced-temperature critical law")

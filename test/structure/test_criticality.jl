@@ -137,3 +137,40 @@ const SDRG = (β=(3 - sqrt(5)) / 2, β_s=1 // 1, ν=2 // 1, ψ=1 // 2)
     @test fss_size_exponent(m; exponents=(β_s=1 // 1, ν=2 // 1)) == -1 // 2
     @test fss_size_exponent(m; exponents=(β_s=1 // 1, ν=2 // 1, ψ=0 // 1)) == -1 // 2
 end
+
+@testset "the average keeps its power law only where the source says it does" begin
+    # Eq. (A.19) justifies the disorder average following the conventional form
+    # for the order parameter, and Eq. (A.25) is the counterexample: c_V goes as
+    # L^{-d}, not L^{alpha/nu}. For the 1D chain alpha = 2 - d*nu = 0, so the
+    # conventional route would answer 0 where the truth is -1. Refuse instead.
+    E = (α=0 // 1, γ=7 // 4, β=1 // 8, ν=2 // 1, ψ=1 // 2)
+    @test_throws "does not keep its power law" fss_size_exponent(
+        DisorderAveraged(SpecificHeat()); exponents=E
+    )
+    @test_throws "ActivatedSpecificHeat" fss_size_exponent(
+        DisorderAveraged(SpecificHeat()); exponents=E
+    )
+    # The two the source does justify still answer, and answer the same as they
+    # would with no ψ present at all.
+    for q in (
+        DisorderAveraged(SpontaneousMagnetization()),
+        DisorderAveraged(Susceptibility(:z, :z)),
+        DisorderAveraged(CorrelationLength()),
+    )
+        @test fss_size_exponent(q; exponents=E) ==
+            fss_size_exponent(q; exponents=(α=0 // 1, γ=7 // 4, β=1 // 8, ν=2 // 1))
+    end
+    # Same refusal wherever ψ is absent or zero: nothing to disambiguate.
+    @test fss_size_exponent(
+        DisorderAveraged(SpecificHeat()); exponents=(α=0 // 1, ν=2 // 1)
+    ) == 0 // 1
+
+    # singular_form is the sibling verb on the reduced-temperature axis and had
+    # no guard at all: it answered 0.01 for a bare quantity on the same input
+    # fss_size_exponent refused.
+    m = SurfaceMagnetization()
+    @test_throws "DisorderAveraged" singular_form(m, 0.01; exponents=SDRG)
+    @test_throws "no power of L" singular_form(Typical(m), 0.01; exponents=SDRG)
+    @test singular_form(DisorderAveraged(m), 0.01; exponents=SDRG) ==
+        singular_form(m, 0.01; exponents=(β_s=1 // 1, ν=2 // 1))
+end
