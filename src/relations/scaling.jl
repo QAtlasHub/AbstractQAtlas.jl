@@ -640,6 +640,36 @@ end
 export exponents_consistent
 
 """
+    exponents_consistent(s::ScalingDimensions; atol=0) -> Bool
+    exponents_consistent(s::InfiniteRandomness; atol=0) -> Bool
+
+The same gate run on a fixed point that carries its own `d`, so the dimension
+cannot be restated wrongly at the call site.  Equivalent to
+`exponents_consistent(critical_exponents(s); d = s.d)`.
+
+This is the door to prefer.  Passing a bare NamedTuple leaves `d` to the caller,
+and a sweep silently SKIPS every relation whose variables are not all present
+(see [`applicable_relations`](@ref)), so forgetting `d` does not fail; it just
+stops checking the twelve relations that need it.
+"""
+function exponents_consistent(s::ScalingDimensions; atol=0)
+    return exponents_consistent(critical_exponents(s); d=s.d, atol=atol)
+end
+function exponents_consistent(s::InfiniteRandomness; atol=0)
+    return exponents_consistent(critical_exponents(s); d=s.d, atol=atol)
+end
+
+"""
+    exponent_residuals(s::ScalingDimensions) -> NamedTuple
+    exponent_residuals(s::InfiniteRandomness) -> NamedTuple
+
+Per-relation residuals of a fixed point that carries its own `d`, the
+diagnostic companion of [`exponents_consistent`](@ref).
+"""
+exponent_residuals(s::ScalingDimensions) = exponent_residuals(critical_exponents(s); d=s.d)
+exponent_residuals(s::InfiniteRandomness) = exponent_residuals(critical_exponents(s); d=s.d)
+
+"""
     exponent_residuals(nt::NamedTuple; d) -> NamedTuple
 
 Per-relation residuals of the scaling laws for the exponent set

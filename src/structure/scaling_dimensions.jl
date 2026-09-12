@@ -1,5 +1,13 @@
-# structure/scaling_dimensions.jl — the RG-eigenvalue origin of the
-# critical exponents.
+# structure/scaling_dimensions.jl: the RG origin of the critical exponents,
+# for the two kinds of fixed point this package can parameterise.
+#
+# Both follow one rule: DECLARE ONCE the independent data plus the spatial
+# dimension `d`, DERIVE EVERYTHING else.  `ScalingDimensions` is the clean
+# (or conventional random) case, two relevant eigenvalues; `InfiniteRandomness`
+# is the activated case, where no finite `z` exists and the defining exponent
+# is `ψ` instead.  `d` is a FIELD of each, not a per-call argument, because it
+# is the one number a caller can supply wrongly without the answer looking
+# wrong (see the warning on `InfiniteRandomness`).
 #
 # The four scaling laws in `relations/scaling.jl` (Rushbrooke, Widom,
 # Fisher, Josephson) are written there as CHECKABLE identities among a
@@ -124,3 +132,120 @@ function scaling_dimensions(; ν, η, d)
     return ScalingDimensions(y_t, y_h, d)
 end
 export scaling_dimensions
+
+# ─── Infinite-randomness fixed points ────────────────────────────────────
+#
+# At an infinite-randomness fixed point the free energy is not a homogeneous
+# function of `(t, h)` with two eigenvalues: the dynamics is activated, no
+# finite `z` exists, and the scale that plays `y_t`'s role is `ψ`.  What
+# survives is the same DECLARE-ONCE structure with a different independent
+# set, `(ψ, ν, x_m)` plus `d`, from which the rest of the exponent table
+# follows through relations this package already states:
+#
+#     β     = ν·x_m                (OrderParameterDimension,   Eq. (A.11))
+#     ν_typ = ν·(1 − ψ)            (TypicalCorrelationLength,  Eq. (9.4))
+#     φ     = (d − x_m)/ψ          (ActivatedMomentGrowth,     Eq. (A.21))
+#
+# Surface exponents are NOT derivable from the bulk set, here as in the clean
+# case: `x_m^s` is independent data and is not carried.
+
+"""
+    InfiniteRandomness(ψ, ν, x_m, d)
+
+The data of an infinite-randomness fixed point: the activated exponent `ψ`
+(`ln(1/Δ) ∼ ξ^ψ`), the average correlation-length exponent `ν`, the bulk
+order-parameter scaling dimension `x_m`, and the SPATIAL dimension `d`.  The
+counterpart of [`ScalingDimensions`](@ref) for a fixed point that has no finite
+dynamical exponent, and the same contract: these are the inputs, every other
+exponent is derived by [`critical_exponents`](@ref).
+
+!!! warning "`d` is the SPATIAL dimension"
+    Not the Euclidean one.  A 1D quantum chain has `d = 1` here, though its
+    classical image is 2D and atlases that carry a `d` kwarg for a central
+    charge or a conformal weight often mean 2.  Every infinite-randomness
+    relation in this package reads the spatial `d`, and passing the Euclidean
+    one gives an answer that does not look wrong: for the random
+    transverse-field Ising chain `φ` comes out 3.618 instead of the golden
+    mean 1.618.  Holding `d` in the struct is what makes that a single
+    decision at construction rather than one per call.
+
+Arguments are promoted to a common type; pass `Rational`s where the values are
+rational.  `ψ ≤ 0` is refused rather than accepted: it names a conventional
+fixed point, which is [`ScalingDimensions`](@ref)'s job, and it would divide by
+zero in `φ`.
+
+```julia
+critical_exponents(InfiniteRandomness(1//2, 2//1, (3-sqrt(5))/4, 1))
+# (β = 0.381…, ν = 2.0, ν_typ = 1.0, ψ = 0.5, x_m = 0.190…, φ = 1.618…)
+```
+"""
+struct InfiniteRandomness{T<:Real}
+    ψ::T
+    ν::T
+    x_m::T
+    d::T
+    function InfiniteRandomness(ψ::T, ν::T, x_m::T, d::T) where {T<:Real}
+        ψ > 0 || error(
+            "InfiniteRandomness: ψ = $ψ is not an infinite-randomness fixed point. " *
+            "ψ > 0 is what the name means; a fixed point with ψ = 0 has a finite " *
+            "dynamical exponent and is parameterised by ScalingDimensions.",
+        )
+        ν > 0 || error("InfiniteRandomness: ν = $ν must be positive.")
+        d > 0 || error("InfiniteRandomness: d = $d must be positive.")
+        return new{T}(ψ, ν, x_m, d)
+    end
+end
+function InfiniteRandomness(ψ::Real, ν::Real, x_m::Real, d::Real)
+    return InfiniteRandomness(promote(ψ, ν, x_m, d)...)
+end
+export InfiniteRandomness
+
+"""
+    critical_exponents(s::InfiniteRandomness) -> NamedTuple
+
+The exponent set `(β, ν, ν_typ, ψ, x_m, φ)` of an infinite-randomness fixed
+point, DERIVED from `s`: the three independent inputs plus `d`, nothing
+hand-entered:
+
+- `β     = ν·x_m`         (order parameter, `m ∼ |δ|^{+β}`)
+- `ν_typ = ν·(1 − ψ)`     (typical correlation length, always `< ν` for `ψ > 0`)
+- `φ     = (d − x_m)/ψ`   (cluster-moment growth, `μ ∼ |ln Ω|^φ`)
+
+`ψ` and `x_m` are inputs that are themselves exponents, so they appear in the
+set; `d` does not, matching [`critical_exponents`](@ref)`(::ScalingDimensions)`.
+Use [`exponents_consistent`](@ref)`(s)` to sweep the registry without having to
+restate it.
+
+By construction the result satisfies [`OrderParameterDimension`](@ref),
+[`TypicalCorrelationLength`](@ref) and [`ActivatedMomentGrowth`](@ref) with
+residual exactly zero, for any `s`.
+"""
+function critical_exponents(s::InfiniteRandomness)
+    ψ, ν, x_m, d = s.ψ, s.ν, s.x_m, s.d
+    return (β=ν * x_m, ν=ν, ν_typ=ν * (1 - ψ), ψ=ψ, x_m=x_m, φ=(d - x_m) / ψ)
+end
+
+"""
+    critical_exponent(name::Symbol, s::InfiniteRandomness) -> Real
+
+A single derived exponent (`:β`, `:ν`, `:ν_typ`, `:ψ`, `:x_m` or `:φ`) of `s`.
+"""
+critical_exponent(name::Symbol, s::InfiniteRandomness) = critical_exponents(s)[name]
+
+"""
+    infinite_randomness(; ν, ν_typ, x_m, d) -> InfiniteRandomness
+
+Invert the exponent map: recover the defining `ψ = 1 − ν_typ/ν` from the two
+correlation lengths, at dimension `d`.  Composing with
+[`critical_exponents`](@ref) closes the loop, the way
+[`scaling_dimensions`](@ref) does for the clean case.
+
+```julia
+s = infinite_randomness(; ν = 2//1, ν_typ = 1//1, x_m = 1//4, d = 1)
+s.ψ            # 1//2
+```
+"""
+function infinite_randomness(; ν, ν_typ, x_m, d)
+    return InfiniteRandomness(1 - ν_typ / ν, ν, x_m, d)
+end
+export infinite_randomness
