@@ -583,11 +583,45 @@ collapses back to [`ConventionalFiniteSizeEnergy`](@ref), a plain power of `L`.
 
 Variables: `dloglogΩ_dloglogL`, `d`.
 
+The same `|ln Ω| ∼ (ln L)^x` form turns up elsewhere with an exponent that is
+not `1/d` (§9.3 quotes `x = 2` and `x = 3/2` as conjectures for a 2D Dirac
+problem), where it reads as a divergent `z` or a vanishing `ψ`.  This relation
+is the case where `x` is derived rather than fitted.
+
+Variables: `dloglogΩ_dloglogL`, `d`.
+
 Reference: [IgloiMonthus2005](@cite) Eq. (A.35), §A.4.2, with the companion
 autocorrelation `G(t) ∼ exp(−A|ln t|^d)` of Eq. (A.34) (= Eq. (9.7), §9.1.3).
 """
 @relation :scaling OrderedGriffithsEnergyScale(dloglogΩ_dloglogL, d) =
     dloglogΩ_dloglogL * d - 1
+
+"""
+    WeinribHalperinExponent <: AbstractRelation
+
+When spatially correlated disorder IS relevant, the correlation-length exponent
+it flows to is fixed by the correlation decay alone,
+
+`ν = 2/ρ`   for   `G_d(r) ∼ r^{−ρ}` with `ρ < 2/ν₀`.
+
+The companion of [`WeinribHalperinCriterion`](@ref), which decides whether that
+`ρ` matters at all: the criterion's marginal line `ρ = 2/ν` and this relation
+are the same equation, so the new exponent is exactly where the perturbation
+stops being relevant.  Nothing about the clean model survives except through the
+threshold, which is why correlated disorder makes a new universality class
+rather than shifting the old one.
+
+Not a 1D statement.  The review derives it for the random transverse-field
+chain and then states it holds in higher dimensions too, on the general argument
+of Weinrib and Halperin ([WeinribHalperin1983](@cite)).
+
+Variables: `ν_dis`, `ρ`.
+
+Reference: [IgloiMonthus2005](@cite) Eq. (10.3), §10.1 for the 1D case and the
+paragraph below it for the general one; the relevance threshold is Eq. (10.2).
+"""
+@relation :scaling WeinribHalperinExponent(ν_dis, ρ::DisorderCorrelationExponent) =
+    ν_dis * ρ - 2
 
 """
     exponents_consistent(nt::NamedTuple; d, atol=0) -> Bool

@@ -453,3 +453,37 @@ end
     )
     @test issorted(z_eff; rev=true)                       # dies off as (ln L)^{1/d - 1}
 end
+
+@testset "correlated disorder: the new exponent IS the relevance threshold" begin
+    # nu = 2/rho, and WeinribHalperinCriterion is marginal at rho = 2/nu. The two
+    # are the same equation, so solving one has to land on the other's boundary.
+    for ρ in (1 // 2, 2 // 3, 1 // 1, 3 // 2)
+        ν = solve(WeinribHalperinExponent(), Val(:ν_dis); ρ=ρ)
+        @test ν == 2 // ρ
+        @test relevance(WeinribHalperinCriterion(); ν_dis=ν, ρ=ρ) === :marginal
+        @test margin(WeinribHalperinCriterion(); ν_dis=ν, ρ=ρ) == 0
+    end
+    # Slower decay than the threshold is relevant, faster is not.
+    @test relevance(WeinribHalperinCriterion(); ν_dis=2 // 1, ρ=1 // 2) === :relevant
+    @test relevance(WeinribHalperinCriterion(); ν_dis=2 // 1, ρ=3 // 2) === :irrelevant
+    @test WeinribHalperinExponent() in relations_constraining(CorrelationLength())
+end
+
+@testset "Luck at the random wandering exponent is Harris in one dimension" begin
+    # Eq. (10.8) fixes omega = 1/2 for an uncorrelated random sequence (the
+    # central limit theorem). There Luck's nu0 > 1/(1-omega) reads nu0 > 2, and
+    # Harris' nu0 > 2/d at d = 1 reads the same. Two criteria implemented
+    # separately have to agree on that whole line, not just at one point.
+    for ν₀ in (1 // 2, 3 // 2, 2 // 1, 5 // 2, 10 // 1)
+        @test relevance(LuckCriterion(); ν₀=ν₀, ω=1 // 2) ===
+            relevance(HarrisCriterion(); ν₀=ν₀, d=1)
+        @test margin(LuckCriterion(); ν₀=ν₀, ω=1 // 2) ==
+            margin(HarrisCriterion(); ν₀=ν₀, d=1)
+    end
+    @test relevance(LuckCriterion(); ν₀=2 // 1, ω=1 // 2) === :marginal
+    # Bounded fluctuations (Fibonacci, omega = -1) are irrelevant wherever the
+    # random sequence at the same nu0 is not, and strictly further from the line.
+    @test relevance(LuckCriterion(); ν₀=1 // 1, ω=-1 // 1) === :irrelevant
+    @test margin(LuckCriterion(); ν₀=1 // 1, ω=-1 // 1) >
+        margin(LuckCriterion(); ν₀=1 // 1, ω=1 // 2)
+end

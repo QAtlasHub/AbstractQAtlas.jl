@@ -56,6 +56,7 @@ also_constrains(::GriffithsAutocorrelation) = (DisorderAveraged{DynamicalCorrela
 also_constrains(::ConventionalFieldSusceptibility) = (Susceptibility,)
 also_constrains(::ConventionalFieldSpecificHeat) = (SpecificHeat,)
 also_constrains(::OrderedGriffithsEnergyScale) = (MassGap,)
+also_constrains(::WeinribHalperinExponent) = (CorrelationLength,)
 # HeatCapacityDifference GAINS ThermalExpansionCoefficient + IsothermalCompressibility
 # (α, κT are now typed subjects → auto).  LinearResponseFDT now types `β::InverseTemperature`
 # (bag-visible, like Jarzynski/Crooks) but has no quantity subject; the 4 Maxwell relations

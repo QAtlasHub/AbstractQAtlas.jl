@@ -14,9 +14,9 @@ AbstractQAtlas.domain(::_NonAffineDemo) = :test_only
 
 @testset "registry + traits" begin
     rels = all_relations()
-    @test length(rels) == 158        # +5 infinite-randomness (see :scaling below); +ActivatedDynamicalScaling, +TypicalBelowAverage, +AnnealedFreeEnergyBound; universal-only: model-specific (spin glass, Drude mobility, single-band Hall) moved to QAtlas; +LoschmidtRate; +8 universal bounds; +ElectricCurrentResponse
+    @test length(rels) == 159        # +5 infinite-randomness (see :scaling below); +ActivatedDynamicalScaling, +TypicalBelowAverage, +AnnealedFreeEnergyBound; universal-only: model-specific (spin glass, Drude mobility, single-band Hall) moved to QAtlas; +LoschmidtRate; +8 universal bounds; +ElectricCurrentResponse
     @test allunique(typeof.(rels))
-    @test length(all_relations(; domain=:scaling)) == 26   # +ActivatedDynamicalScaling, ActivatedFiniteSizeScaling, +14 Appendix-A scaling types; +TypicalCorrelationLength, GriffithsExponentDivergence, GriffithsSusceptibility, GriffithsSpecificHeat, ActivatedMomentGrowth
+    @test length(all_relations(; domain=:scaling)) == 27   # +ActivatedDynamicalScaling, ActivatedFiniteSizeScaling, +14 Appendix-A scaling types, +WeinribHalperinExponent; +TypicalCorrelationLength, GriffithsExponentDivergence, GriffithsSusceptibility, GriffithsSpecificHeat, ActivatedMomentGrowth
     @test length(all_relations(; domain=:thermodynamic)) == 15
     @test length(all_relations(; domain=:fundamental)) == 9   # +GrandPotentialLegendre, ParticleNumberResponse (grand-canonical); +ElectricCurrentResponse (j = −∂H/∂A)
     @test length(all_relations(; domain=:topology)) == 3
@@ -111,4 +111,24 @@ end
     r = exponent_residuals(ising; d=2)
     @test keys(r) == (:rushbrooke, :widom, :fisher, :josephson)
     @test all(iszero, values(r))
+end
+
+@testset "a declared also_constrains is not allowed to be a no-op" begin
+    # `@relation` only emits the auto-`quantities` method when the relation has
+    # at least one TYPED slot, so an `also_constrains` entry on an all-untyped
+    # relation is silently dropped: the declaration compiles, the link does not
+    # exist, and nothing says so. Measured on WeinribHalperinExponent, whose
+    # `(CorrelationLength,)` entry was dead until `ρ` was given a type.
+    silent = [
+        r for r in all_relations() if !isempty(AbstractQAtlas.also_constrains(r)) &&
+            !issubset(
+                map(AbstractQAtlas._family, AbstractQAtlas.also_constrains(r)),
+                quantities(r),
+            )
+    ]
+    @test isempty(silent)
+    # and the reverse index really is reachable from a hand-declared link
+    @test WeinribHalperinExponent() in relations_constraining(CorrelationLength())
+    @test GriffithsSusceptibility() in
+        relations_constraining(DisorderAveraged(Susceptibility(:z, :z)))
 end

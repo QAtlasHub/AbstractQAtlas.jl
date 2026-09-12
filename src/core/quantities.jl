@@ -1474,6 +1474,22 @@ struct DisorderStrength <: AbstractQuantity end
 export DisorderStrength
 
 """
+    DisorderCorrelationExponent() <: AbstractQuantity
+
+The decay exponent `ρ` of SPATIAL correlations in the disorder itself,
+`[δ(r)δ(r')]_av = G_d(r-r') ∼ |r-r'|^{-ρ}` ([IgloiMonthus2005](@cite)
+Eqs. (10.1)-(10.2)).  Uncorrelated disorder is the `G_d = δ(r)` limit, where `ρ`
+does not apply.
+
+A property of the disorder ensemble rather than of the model, which is why it is
+its own subject: whether it matters is [`WeinribHalperinCriterion`](@ref), and
+where it does, it sets the exponent on its own via
+[`WeinribHalperinExponent`](@ref).
+"""
+struct DisorderCorrelationExponent <: AbstractQuantity end
+export DisorderCorrelationExponent
+
+"""
     UniversalityClass() <: AbstractQuantity
 
 The universality class a model's transition belongs to (returned as a
