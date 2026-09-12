@@ -332,6 +332,23 @@ exponent is β (see `critical_scaling`).
 struct SpontaneousMagnetization <: AbstractMagnetization end
 export SpontaneousMagnetization
 
+"""
+    SurfaceMagnetization() <: AbstractMagnetization
+
+Order parameter at the free end of an OPEN chain, `m_s = ⟨σ₁ᶻ⟩` with the far end
+held fixed.  A boundary observable: it has no [`PBC`](@ref) counterpart, and its
+scaling dimension `x_m^s` is a surface exponent, distinct from the bulk `x_m`.
+
+It carries the finite-size story of an infinite-randomness fixed point because
+it is exactly computable per disorder realization at any `L` ([Peschel1984](@cite);
+[IgloiMonthus2005](@cite) Eq. (4.4)).  Its [`DisorderAveraged`](@ref) value then
+decays as `L^{-x_m^s}` (Eq. (4.7)) while its [`Typical`](@ref) value decays as
+`exp(-c·L^ψ)` (Eq. (4.6)): same observable, same `L`, different functional form.
+See [`ActivatedFiniteSizeScaling`](@ref).
+"""
+struct SurfaceMagnetization <: AbstractMagnetization end
+export SurfaceMagnetization
+
 function _axistuple(I)
     return if (I isa Tuple && !isempty(I) && all(a -> a isa Symbol, I))
         I

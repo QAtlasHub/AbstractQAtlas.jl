@@ -108,6 +108,37 @@ chain; that value is Fisher's, [FisherDS1995](@cite).
     dloglogΔ_dlogξ - ψ
 
 """
+    ActivatedFiniteSizeScaling <: AbstractRelation
+
+Finite-size scaling of a TYPICAL observable at an infinite-randomness fixed
+point, on an open chain of length `L`:
+
+`ln O_typ(L) ∼ −L^ψ`   ⟹   `d(ln[−ln O_typ])/d(ln L) = ψ`.
+
+The counterpart of [`FiniteSizeGap`](@ref), and the contrast is the point: a
+conformal critical point closes its finite-size gap as a POWER of `L`
+(`2πvx/L`, periodic chain), an infinite-randomness one as a STRETCHED
+EXPONENTIAL on an open one.  One sweep in `L` tells them apart.
+
+This is not [`ActivatedDynamicalScaling`](@ref) restated.  That relation is
+about the correlation length `ξ`, which diverges at criticality and so
+constrains nothing at `δ = 0`; this one is about the system size, the only
+scale left there.  The review states them as separate equations.
+
+Supplied-derivative convention: `dloglogO_dlogL` is the caller-computed slope of
+`ln[−ln O_typ]` against `ln L`; `O_typ < 1` is required for the inner log.
+
+Variables: `dloglogO_dlogL`, `ψ`.
+
+Reference: [IgloiMonthus2005](@cite) Eq. (4.12) for the gap and Eq. (4.6) for
+the surface magnetization, both in §4.1 and both stated for free boundary
+conditions; `L^ψ ln m` as the scaling combination of any infinite-disorder
+fixed point is §2.4.
+"""
+@relation :scaling ActivatedFiniteSizeScaling(dloglogO_dlogL, ψ::ActivatedExponent) =
+    dloglogO_dlogL - ψ
+
+"""
     TypicalCorrelationLength <: AbstractRelation
 
 At an infinite-randomness fixed point the typical correlation length is an

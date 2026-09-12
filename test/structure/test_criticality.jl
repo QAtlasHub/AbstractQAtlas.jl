@@ -105,3 +105,35 @@ end
         @test isapprox(O1 * s1, O2 * s2; rtol=1e-12)
     end
 end
+
+# Igloi-Monthus Table 1 (§4.1.2): the random transverse-field Ising chain.
+const SDRG = (β=(3 - sqrt(5)) / 2, β_s=1 // 1, ν=2 // 1, ψ=1 // 2)
+
+@testset "at an infinite-randomness point a bare quantity names no size law" begin
+    m = SurfaceMagnetization()
+    @test critical_scaling(m) == CriticalScaling(:β_s, +1)
+
+    # The disorder average is an ordinary power of L, and the power it returns
+    # is the review's own surface dimension: -x_m_s = -1/2, Eq. (4.7).
+    @test fss_size_exponent(DisorderAveraged(m); exponents=SDRG) == -1 // 2
+    # Same for the bulk order parameter: -x_m = -(3-√5)/4, Table 1.
+    @test fss_size_exponent(DisorderAveraged(SpontaneousMagnetization()); exponents=SDRG) ≈
+        -(3 - sqrt(5)) / 4
+
+    # The typical value has no power of L at all, and the refusal says that
+    # rather than "this quantity has no entry".
+    @test_throws "no power of L" fss_size_exponent(Typical(m); exponents=SDRG)
+    @test_throws "ActivatedFiniteSizeScaling" fss_size_exponent(Typical(m); exponents=SDRG)
+    @test_throws "ActivatedFiniteSizeScaling" fss_peak(Typical(m), 64; exponents=SDRG)
+    @test_throws "ActivatedFiniteSizeScaling" collapse_coordinates(
+        Typical(m), 0.1, 64, 0.0; exponents=SDRG
+    )
+
+    # A bare quantity is the trap: the answer -1/2 is right for the average and
+    # wrong for the typical, so once ψ is present the caller has to say which.
+    @test_throws "DisorderAveraged" fss_size_exponent(m; exponents=SDRG)
+    # Nothing is refused where there is nothing to disambiguate: drop ψ, or set
+    # it to zero (not an infinite-randomness point), and the same call answers.
+    @test fss_size_exponent(m; exponents=(β_s=1 // 1, ν=2 // 1)) == -1 // 2
+    @test fss_size_exponent(m; exponents=(β_s=1 // 1, ν=2 // 1, ψ=0 // 1)) == -1 // 2
+end

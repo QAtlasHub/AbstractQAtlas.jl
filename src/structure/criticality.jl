@@ -49,6 +49,13 @@ critical_scaling(::Type{SpontaneousMagnetization}) = CriticalScaling(:β, +1)
 critical_scaling(::Type{<:AbstractSusceptibility}) = CriticalScaling(:γ, -1)
 critical_scaling(::Type{SpecificHeat}) = CriticalScaling(:α, -1)
 critical_scaling(::Type{CorrelationLength}) = CriticalScaling(:ν, -1)
+critical_scaling(::Type{SurfaceMagnetization}) = CriticalScaling(:β_s, +1)
+
+# The exponent table describes the ARITHMETIC mean, so a disorder average
+# inherits its quantity's law.  `Typical{Q}` deliberately does not: at an
+# infinite-randomness fixed point it has no power law at all, which
+# `fss_size_exponent` says rather than guesses.
+critical_scaling(::Type{DisorderAveraged{Q}}) where {Q} = critical_scaling(Q)
 export critical_scaling, CriticalScaling
 
 """
@@ -103,6 +110,26 @@ function singular_form(q::AbstractQuantity, t; exponents::NamedTuple)
 end
 export singular_form
 
+# At an infinite-randomness fixed point the typical and the disorder-averaged
+# value of ONE observable at ONE size follow different laws in `L`, so a bare
+# quantity no longer names a single finite-size form.  `ψ` in `exponents` is
+# what says the fixed point is of that kind.
+function _refuse_activated_fss(q::AbstractQuantity, exponents::NamedTuple)
+    (haskey(exponents, :ψ) && !iszero(exponents.ψ)) || return nothing
+    q isa DisorderAveraged && return nothing
+    q isa Typical && error(
+        "fss_size_exponent: $(typeof(q)) at an infinite-randomness fixed point " *
+        "(ψ = $(exponents.ψ)) has no power of L at all. The typical value falls " *
+        "as exp(-c·L^ψ), a stretched exponential; use ActivatedFiniteSizeScaling.",
+    )
+    return error(
+        "fss_size_exponent: exponents carry ψ = $(exponents.ψ) ≠ 0, an " *
+        "infinite-randomness fixed point, where the typical and the " *
+        "disorder-averaged $(typeof(q)) scale differently in L. Say which: " *
+        "DisorderAveraged(q) is a power of L, Typical(q) is not.",
+    )
+end
+
 """
     fss_size_exponent(quantity; exponents::NamedTuple) -> Real
 
@@ -119,6 +146,7 @@ fss_size_exponent(CorrelationLength(); exponents=exps)         # +1    (ξ ∼ L
 ```
 """
 function fss_size_exponent(q::AbstractQuantity; exponents::NamedTuple)
+    _refuse_activated_fss(q, exponents)
     cs = critical_scaling(q)
     cs === nothing &&
         error("fss_size_exponent: $(typeof(q)) has no reduced-temperature critical law")

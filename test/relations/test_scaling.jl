@@ -272,3 +272,43 @@ end
         @test !(n in names)
     end
 end
+
+@testset "the finite-size gap tells a CFT point from an infinite-randomness one" begin
+    localslope(y, x, k) = (y[k + 1] - y[k]) / (x[k + 1] - x[k])
+    Ls = (16.0, 32.0, 64.0, 128.0, 256.0)
+    lnL = log.(collect(Ls))
+
+    # Two gaps over the SAME sizes: Cardy's 2πvx/L on a periodic chain, and the
+    # activated exp(-c L^ψ) of an open random one.
+    v, x, c, ψtrue = 1.0, 1 // 8, 0.7, 0.5
+    Δ_cft = [2π * v * x / L for L in Ls]
+    Δ_irfp = [exp(-c * L^ψtrue) for L in Ls]
+
+    # Each law is exact on its own data.
+    @test all(L -> check(FiniteSizeGap(); gap=2π * v * x / L, x=x, v=v, L=L), Ls)
+    ψ_irfp = [localslope(log.(-log.(Δ_irfp)), lnL, k) for k in 1:4]
+    @test all(s -> isapprox(s, ψtrue; atol=1e-12), ψ_irfp)
+    @test check(
+        ActivatedFiniteSizeScaling(); dloglogO_dlogL=ψ_irfp[end], ψ=ψtrue, atol=1e-12
+    )
+    @test solve(ActivatedFiniteSizeScaling(), Val(:ψ); dloglogO_dlogL=ψ_irfp[end]) ≈ ψtrue
+
+    # And each rejects the other's, which is what makes one sweep in L a test.
+    # Reading a scaling dimension off the activated gap gives a different answer
+    # at every size, and the drift is derived rather than eyeballed:
+    # x(L) = exp(-c L^ψ)·L/(2πv), so the ends of the sweep differ by exactly
+    # exp(c(L_max^ψ - L_min^ψ))·L_min/L_max, which diverges as the sweep grows.
+    x_from_irfp = [Δ * L / (2π * v) for (Δ, L) in zip(Δ_irfp, Ls)]
+    @test !check(FiniteSizeGap(); gap=Δ_irfp[end], x=x_from_irfp[1], v=v, L=Ls[end])
+    @test x_from_irfp[1] / x_from_irfp[end] ≈
+        exp(c * (Ls[end]^ψtrue - Ls[1]^ψtrue)) * Ls[1] / Ls[end]
+    @test issorted(x_from_irfp; rev=true)
+    # Conversely the CFT gap has no constant ψ: its apparent one decays as
+    # 1/ln L rather than sitting still.
+    ψ_cft = [localslope(log.(-log.(Δ_cft)), lnL, k) for k in 1:4]
+    @test !check(ActivatedFiniteSizeScaling(); dloglogO_dlogL=ψ_cft[end], ψ=ψtrue, atol=0.1)
+    @test issorted(ψ_cft; rev=true)
+
+    @test variable_types(ActivatedFiniteSizeScaling()) == (ActivatedExponent,)
+    @test ActivatedFiniteSizeScaling() in relations_constraining(ActivatedExponent)
+end
