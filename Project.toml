@@ -4,7 +4,6 @@ version = "0.7.8"
 authors = ["sota shimozono <shimozono-sota631@g.ecc.u-tokyo.ac.jp>"]
 
 [deps]
-ExperimentalAPI = "fd2d14cb-3a46-42a9-afd8-e8499236f05e"
 InteractiveUtils = "b77e0a4c-d291-57a0-90e8-8db25a27a240"
 LinearAlgebra = "37e2e46d-f89d-539d-b4ee-838fcccc9c8e"
 
@@ -18,7 +17,6 @@ AbstractQAtlasZygoteExt = "Zygote"
 
 [compat]
 Aqua = "0.8"
-ExperimentalAPI = "0.1"
 ForwardDiff = "0.10, 1"
 InteractiveUtils = "1"
 LinearAlgebra = "1"

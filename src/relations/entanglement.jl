@@ -249,14 +249,7 @@ Only [`PBC`](@ref), because Eq. (24) is the ring.  A ring block is two cuts, and
 that is checked through [`entanglement_cuts`](@ref) as in
 [`cft_entanglement_entropy`](@ref).
 """
-@experimental """
-Eq. (24)'s scaling function is not settled here: `f` is caller-supplied, no
-independent oracle checks the form, and the only case pinned is its conformal
-one-harmonic reduction. No bound on `f` follows from the geometry either, so a
-positive but small value returns a negative entropy rather than a refusal
-""" function infinite_randomness_entanglement_entropy(
-    bc::PBC, A::Region; c̃::Real, c₁′::Real, f
-)
+function infinite_randomness_entanglement_entropy(bc::PBC, A::Region; c̃::Real, c₁′::Real, f)
     ℓ, N = length(A), bc.N
     N > 0 || error("infinite_randomness_entanglement_entropy: $bc declares no length.")
     0 < ℓ < N || error(
@@ -392,13 +385,6 @@ depends on it.
     )
     S̄ - (c̃ / 3) * log(L * f) - c₁′
 end
-
-@experimental """
-Eq. (24)'s scaling function is not settled here: `f` is caller-supplied, no
-independent oracle checks the form, and the only case pinned is its conformal
-one-harmonic reduction. No bound on `f` follows from the geometry either, so a
-positive but small value returns a negative entropy rather than a refusal
-""" InfiniteRandomnessEntanglementPBC
 
 """
     page_average_entropy(dA, dB) -> Float64
