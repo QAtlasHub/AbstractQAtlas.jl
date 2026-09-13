@@ -97,7 +97,104 @@ derivative, hence [`also_constrains`](@ref).
 ) = dS_dlogℓ - ncuts * c̃ / 6
 
 """
-    CFTEntanglementRing <: AbstractRelation
+    entanglement_cuts(bc::BoundaryCondition, A::Region) -> Int
+
+The number of cuts bounding `A`, which Iglói & Lin ([IgloiLin2008](@cite),
+Eq. 5) call `b`, "the number of boundary points between the subsystem and the
+rest of the chain": the count of adjacent site pairs with exactly one member in
+`A`, with `(N, 1)` adjacent under [`PBC`](@ref).
+
+This is the `ncuts` the entanglement relations take, derived instead of
+asserted.  Supplying it by hand is where the geometry is usually lost: a block
+in the bulk of an open chain has two cuts, not the one its boundary condition
+suggests.
+
+[`Region`](@ref) is a set with no adjacency, so the sites must be integers and
+the chain length must come from `bc`; anything else is refused rather than
+guessed.  A block filling the whole ring returns 0, as it must.
+
+```julia
+entanglement_cuts(PBC(8), Region(2, 3, 4))   # 2
+entanglement_cuts(OBC(8), Region(1, 2, 3))   # 1, it touches the end
+entanglement_cuts(OBC(8), Region(2, 3, 4))   # 2, the same block in the bulk
+```
+"""
+function entanglement_cuts(bc::BoundaryCondition, A::Region)
+    isempty(A) && return 0
+    sites = A.sites
+    eltype(sites) <: Integer || error(
+        "entanglement_cuts: adjacency needs integer sites; got $(eltype(sites)). " *
+        "Region is a set layer with no geometry, so pass `ncuts` directly instead.",
+    )
+    if bc isa Infinite
+        lo, hi = minimum(sites), maximum(sites)
+        return count(i -> (i in sites) != (i + 1 in sites), (lo - 1):hi)
+    end
+    N = bc.N
+    N > 0 || error(
+        "entanglement_cuts: $bc declares no chain length. Pass it as OBC(N) / PBC(N); " *
+        "the `N = 0` sentinel means the size lives in a caller's kwargs, which this " *
+        "function cannot see.",
+    )
+    maximum(sites) <= N && minimum(sites) >= 1 || error(
+        "entanglement_cuts: sites $(minimum(sites))..$(maximum(sites)) fall outside " *
+        "the chain 1..$N declared by $bc.",
+    )
+    n = count(i -> (i in sites) != (i + 1 in sites), 1:(N - 1))
+    bc isa PBC && ((N in sites) != (1 in sites)) && (n += 1)
+    return n
+end
+export entanglement_cuts
+
+"""
+    cft_entanglement_entropy(bc::BoundaryCondition, A::Region; c, c₁, ln_g = 0) -> Real
+
+Critical entanglement entropy of `A`, in nats, dispatched on the boundary
+condition (Iglói & Lin, [IgloiLin2008](@cite), Eqs. 2-4):
+[`CFTEntanglementPBC`](@ref) on a ring, [`CFTEntanglementOBC`](@ref) on an open
+chain, and `(c/3) ln ℓ + c₁` in the thermodynamic limit.
+
+`ℓ` is `length(A)` and the chain length is `bc.N`, so neither is passed twice.
+The open-chain form is the one that needs `ln_g`; a ring has no boundary
+entropy and ignores it.
+
+Restricted to the geometry each published form was derived for: a contiguous
+block, at an end for [`OBC`](@ref).  That is checked through
+[`entanglement_cuts`](@ref) rather than assumed, because the formulas do not
+hold for a region the count does not match.
+"""
+function cft_entanglement_entropy(
+    bc::BoundaryCondition, A::Region; c::Real, c₁::Real, ln_g::Real=0
+)
+    ℓ = length(A)
+    ℓ > 0 || error("cft_entanglement_entropy: the region is empty.")
+    b = entanglement_cuts(bc, A)
+    bc isa Infinite && (
+        b == 2 || error(
+            "cft_entanglement_entropy: an infinite chain's block must have 2 cuts, " *
+            "got $b; the region is not contiguous.",
+        )
+    )
+    bc isa Infinite && return (c / 3) * log(ℓ) + c₁
+    N = bc.N
+    if bc isa PBC
+        b == 2 || error(
+            "cft_entanglement_entropy: Eq. (2) is a contiguous block on a ring, " *
+            "which has 2 cuts; this region has $b.",
+        )
+        return (c / 3) * log((N / π) * sin(π * ℓ / N)) + c₁
+    end
+    b == 1 || error(
+        "cft_entanglement_entropy: Eq. (3) is the block at an open end, which has " *
+        "1 cut; this region has $b. A bulk block of an open chain has 2 and is not " *
+        "this formula.",
+    )
+    return (c / 6) * log((2N / π) * sin(π * ℓ / N)) + ln_g + c₁ / 2
+end
+export cft_entanglement_entropy
+
+"""
+    CFTEntanglementPBC <: AbstractRelation
 
 Entanglement entropy of a block of `ℓ` sites in a critical ring of `L`
 (Iglói & Lin, [IgloiLin2008](@cite), Eq. 2):
@@ -110,18 +207,18 @@ nats, which rescales `S` and `c₁` together and leaves `c` alone.  As `ℓ ≪ 
 chord tends to `ℓ` and this becomes the infinite-chain
 `S = (c/3) ln ℓ + c₁` of Eq. (4).
 """
-@relation :entanglement CFTEntanglementRing(S, c::CentralCharge, L, ℓ, c₁) =
+@relation :entanglement CFTEntanglementPBC(S, c::CentralCharge, L, ℓ, c₁) =
     S - (c / 3) * log((L / π) * sin(π * ℓ / L)) - c₁
 
 """
-    CFTEntanglementOpenChain <: AbstractRelation
+    CFTEntanglementOBC <: AbstractRelation
 
 The same for the leftmost `ℓ` sites of a critical open chain of `L`
 (Iglói & Lin, [IgloiLin2008](@cite), Eq. 3):
 
 `S = (c/6) ln[(2L/π) sin(πℓ/L)] + ln g + c₁/2`.
 
-Three things separate this from [`CFTEntanglementRing`](@ref), and only the
+Three things separate this from [`CFTEntanglementPBC`](@ref), and only the
 first is the cut count: one cut gives `c/6`, the chord carries `2L/π` rather
 than `L/π`, and an open chain has a boundary entropy `ln g` (Affleck & Ludwig)
 that a ring does not.  `c₁` is the same constant as in the ring, entering
@@ -129,7 +226,7 @@ halved.  So the boundary condition is not a factor on the slope, and reading one
 geometry's data with the other's formula misses the chord and the boundary term
 as well as the 2.
 """
-@relation :entanglement CFTEntanglementOpenChain(S, c::CentralCharge, L, ℓ, c₁, ln_g) =
+@relation :entanglement CFTEntanglementOBC(S, c::CentralCharge, L, ℓ, c₁, ln_g) =
     S - (c / 6) * log((2L / π) * sin(π * ℓ / L)) - ln_g - c₁ / 2
 
 """
@@ -176,7 +273,7 @@ leading correction is one power of `L` slower.
     ΔS - ncuts * (c / 6) * log(2)
 
 """
-    InfiniteRandomnessEntanglementRing <: AbstractRelation
+    InfiniteRandomnessEntanglementPBC <: AbstractRelation
 
 Finite-size entropy of a block in a random critical ring, at the
 infinite-randomness fixed point (Iglói & Lin, [IgloiLin2008](@cite), Eq. 24):
@@ -188,7 +285,7 @@ reflection symmetric, `f(v) = f(1-v)`, tends to `v` as `v → 0`, and expands as
 `f(v) = Σₖ Aₖ sin((2k-1)πv)` subject to `Σₖ Aₖ(2k-1)π = 1`; the source notes
 that for a conformally invariant model **only the first term exists**.  Keeping
 just `k = 1` forces `A₁ = 1/π` from that normalisation and returns
-`L f = (L/π) sin(πℓ/L)`, which is [`CFTEntanglementRing`](@ref) exactly.  So the
+`L f = (L/π) sin(πℓ/L)`, which is [`CFTEntanglementPBC`](@ref) exactly.  So the
 difference between a critical chain and a random one at finite size is not the
 coefficient alone, as it is for the slope: the higher harmonics are absent in
 the first case and present in the second.
@@ -197,7 +294,7 @@ the first case and present in the second.
 alone requires, being independent of the form of the disorder, while `c₁′`
 depends on it.
 """
-@relation :entanglement InfiniteRandomnessEntanglementRing(
+@relation :entanglement InfiniteRandomnessEntanglementPBC(
     S̄, c̃::EffectiveCentralCharge, L, f, c₁′
 ) = S̄ - (c̃ / 3) * log(L * f) - c₁′
 

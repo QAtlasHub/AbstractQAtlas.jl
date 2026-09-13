@@ -179,23 +179,79 @@ end
     @test only(found).pass
 end
 
+@testset "entanglement_cuts derives b from the Region and the boundary condition" begin
+    # A contiguous block has two cuts on a ring, and one only when it reaches an
+    # end of an open chain. The same sites give different answers, which is the
+    # whole reason the count cannot be read off the boundary condition.
+    @test entanglement_cuts(PBC(8), Region(2, 3, 4)) == 2
+    @test entanglement_cuts(OBC(8), Region(2, 3, 4)) == 2
+    @test entanglement_cuts(OBC(8), Region(1, 2, 3)) == 1
+    @test entanglement_cuts(OBC(8), Region(6, 7, 8)) == 1
+
+    # Filling the system leaves nothing to cut, on either boundary condition.
+    @test entanglement_cuts(PBC(4), Region(1, 2, 3, 4)) == 0
+    @test entanglement_cuts(OBC(4), Region(1, 2, 3, 4)) == 0
+
+    # The ring's wrap-around is a real adjacency: a block straddling it stays at
+    # two cuts, where an open chain would count the same sites as two blocks.
+    @test entanglement_cuts(PBC(8), Region(8, 1, 2)) == 2
+    @test entanglement_cuts(OBC(8), Region(8, 1, 2)) == 2
+    @test entanglement_cuts(PBC(8), Region(2, 3, 6, 7)) == 4
+
+    # An infinite chain needs no N: adjacency around the region is enough.
+    @test entanglement_cuts(Infinite(), Region(5, 6, 7)) == 2
+    @test entanglement_cuts(Infinite(), Region(5, 6, 9)) == 4
+    @test entanglement_cuts(PBC(8), Region()) == 0
+
+    # A set with no adjacency is refused rather than guessed at, and so are
+    # sites the declared chain does not contain.
+    @test_throws ErrorException entanglement_cuts(OBC(8), Region("a", "b"))
+    @test_throws ErrorException entanglement_cuts(OBC(4), Region(3, 4, 5))
+    @test_throws ErrorException entanglement_cuts(OBC(), Region(1, 2))
+end
+
+@testset "cft_entanglement_entropy reads ℓ and L off the Region and the bc" begin
+    c, c₁, N = 1 / 2, 0.4785, 64
+
+    # Same closed forms as the relations, with nothing passed twice.
+    A_ring = Region(1:32...)
+    S_p = cft_entanglement_entropy(PBC(N), A_ring; c=c, c₁=c₁)
+    @test check(CFTEntanglementPBC(); S=S_p, c=c, L=N, ℓ=32, c₁=c₁, atol=1e-12)
+
+    A_end = Region(1:16...)
+    S_o = cft_entanglement_entropy(OBC(N), A_end; c=c, c₁=c₁, ln_g=0.0)
+    @test check(CFTEntanglementOBC(); S=S_o, c=c, L=N, ℓ=16, c₁=c₁, ln_g=0.0, atol=1e-12)
+
+    # The guard that matters: Eq. (3) is the END block of an open chain. The same
+    # sixteen sites in the bulk have two cuts and are refused, rather than
+    # silently returning the one-cut answer.
+    @test_throws ErrorException cft_entanglement_entropy(
+        OBC(N), Region(20:35...); c=c, c₁=c₁
+    )
+    @test entanglement_cuts(OBC(N), Region(20:35...)) == 2
+
+    # And a ring block must be contiguous for Eq. (2) to be the right formula.
+    @test_throws ErrorException cft_entanglement_entropy(
+        PBC(N), Region(1, 2, 10, 11); c=c, c₁=c₁
+    )
+
+    # The thermodynamic limit is the small-ℓ end of the ring, approached from it.
+    S_inf = cft_entanglement_entropy(Infinite(), Region(1:8...); c=c, c₁=c₁)
+    @test S_inf ≈ (c / 3) * log(8) + c₁ atol = 1e-12
+    @test cft_entanglement_entropy(PBC(4096), Region(1:8...); c=c, c₁=c₁) ≈ S_inf atol =
+        1e-5
+end
+
 @testset "finite-size entropy: ring, open chain, and what separates them" begin
     c, c₁, L = 1 / 2, 0.4785, 2048.0          # Ising; c₁ non-universal, cancels below
 
     ring(ℓ, Lc=L) = (c / 3) * log((Lc / π) * sin(π * ℓ / Lc)) + c₁
     open_(ℓ, Lc=L) = (c / 6) * log((2Lc / π) * sin(π * ℓ / Lc)) + 0.0 + c₁ / 2
 
-    @test check(CFTEntanglementRing(); S=ring(512), c=c, L=L, ℓ=512, c₁=c₁, atol=1e-12)
+    @test check(CFTEntanglementPBC(); S=ring(512), c=c, L=L, ℓ=512, c₁=c₁, atol=1e-12)
     # Iglói & Lin Table 1 measure g → 1 for the Ising chain, so `ln g` vanishes there.
     @test check(
-        CFTEntanglementOpenChain();
-        S=open_(512),
-        c=c,
-        L=L,
-        ℓ=512,
-        c₁=c₁,
-        ln_g=0.0,
-        atol=1e-12,
+        CFTEntanglementOBC(); S=open_(512), c=c, L=L, ℓ=512, c₁=c₁, ln_g=0.0, atol=1e-12
     )
 
     # A ring block far from filling the ring is the infinite chain: the chord
@@ -277,7 +333,7 @@ end
     # So the random ring form with that f, read at c̃ → c, IS the ring form.
     S = (c̃ / 3) * log(L * f_conformal(ℓ / L)) + c₁′
     @test check(
-        InfiniteRandomnessEntanglementRing();
+        InfiniteRandomnessEntanglementPBC();
         S̄=S,
         c̃=c̃,
         L=L,
@@ -285,7 +341,7 @@ end
         c₁′=c₁′,
         atol=1e-12,
     )
-    @test check(CFTEntanglementRing(); S=S, c=c̃, L=L, ℓ=ℓ, c₁=c₁′, atol=1e-12)
+    @test check(CFTEntanglementPBC(); S=S, c=c̃, L=L, ℓ=ℓ, c₁=c₁′, atol=1e-12)
 
     # A second harmonic is what a random chain may carry and a conformal one may
     # not, and it moves the entropy, so the two forms are not interchangeable
@@ -296,7 +352,7 @@ end
     S_two = (c̃ / 3) * log(L * f_two(ℓ / L)) + c₁′
     @test !isapprox(S_two, S; atol=1e-4)
     @test check(
-        InfiniteRandomnessEntanglementRing();
+        InfiniteRandomnessEntanglementPBC();
         S̄=S_two,
         c̃=c̃,
         L=L,
@@ -304,7 +360,7 @@ end
         c₁′=c₁′,
         atol=1e-12,
     )
-    @test !check(CFTEntanglementRing(); S=S_two, c=c̃, L=L, ℓ=ℓ, c₁=c₁′, atol=1e-4)
+    @test !check(CFTEntanglementPBC(); S=S_two, c=c̃, L=L, ℓ=ℓ, c₁=c₁′, atol=1e-4)
 end
 
 @testset "c̃ is not c: the two slopes cannot be read for each other" begin
