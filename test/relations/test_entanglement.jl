@@ -12,8 +12,6 @@ using LinearAlgebra, Random
 using ExperimentalAPI: ExperimentalAPI
 
 struct _UnknownBC <: AbstractQAtlas.BoundaryCondition end
-struct _HalfKnownBC <: AbstractQAtlas.BoundaryCondition end
-AbstractQAtlas.entanglement_cuts(::_HalfKnownBC, ::Region{<:Integer}) = 2
 
 @testset "Rényi-2 from purity: S_2 = −ln Tr ρ²" begin
     # pure state: purity 1, S_2 = 0
@@ -220,60 +218,6 @@ end
     @test_throws "declares no chain length" entanglement_cuts(PBC(), Region(1, 2))
 end
 
-@testset "cft_entanglement_entropy reads ℓ and L off the Region and the bc" begin
-    c, c₁, N = 1 / 2, 0.4785, 64
-
-    # Same closed forms as the relations, with nothing passed twice.
-    A_ring = Region(1:32...)
-    S_p = cft_entanglement_entropy(PBC(N), A_ring; c=c, c₁=c₁)
-    @test check(CFTEntanglementPBC(); S=S_p, c=c, L=N, ℓ=32, c₁=c₁, atol=1e-12)
-
-    A_end = Region(1:16...)
-    S_o = cft_entanglement_entropy(OBC(N), A_end; c=c, c₁=c₁, ln_g=0.0)
-    @test check(CFTEntanglementOBC(); S=S_o, c=c, L=N, ℓ=16, c₁=c₁, ln_g=0.0, atol=1e-12)
-
-    # The guard that matters: Eq. (3) is the END block of an open chain. The same
-    # sixteen sites in the bulk have two cuts and are refused, rather than
-    # silently returning the one-cut answer.
-    @test_throws "block at an open end" cft_entanglement_entropy(
-        OBC(N), Region(20:35...); c=c, c₁=c₁
-    )
-    @test entanglement_cuts(OBC(N), Region(20:35...)) == 2
-
-    # And a ring block must be contiguous for Eq. (2) to be the right formula.
-    @test_throws "contiguous block on a ring" cft_entanglement_entropy(
-        PBC(N), Region(1, 2, 10, 11); c=c, c₁=c₁
-    )
-
-    # The boundary entropy has to be able to move the answer, or the term could
-    # be dropped without any test noticing. Being additive, it moves it exactly.
-    ln_g = log(sqrt(2))
-    @test cft_entanglement_entropy(OBC(N), A_end; c=c, c₁=c₁, ln_g=ln_g) - S_o ≈ ln_g atol =
-        1e-12
-    @test !isapprox(
-        cft_entanglement_entropy(OBC(N), A_end; c=c, c₁=c₁, ln_g=ln_g), S_o; atol=1e-6
-    )
-    # A ring has no boundary, so the argument must not reach the answer there.
-    @test cft_entanglement_entropy(PBC(N), A_ring; c=c, c₁=c₁, ln_g=ln_g) ≈ S_p atol = 1e-12
-
-    # The refusals reached through this function, not only through the cut count:
-    # an empty region, a region filling the system, and a gapped block on an
-    # infinite chain each have their own guard and none was being called.
-    @test_throws "region is empty" cft_entanglement_entropy(OBC(N), Region(); c=c, c₁=c₁)
-    @test_throws "this region has 0" cft_entanglement_entropy(
-        PBC(4), Region(1, 2, 3, 4); c=c, c₁=c₁
-    )
-    @test_throws "must have 2 cuts" cft_entanglement_entropy(
-        Infinite(), Region(5, 6, 9); c=c, c₁=c₁
-    )
-
-    # The thermodynamic limit is the small-ℓ end of the ring, approached from it.
-    S_inf = cft_entanglement_entropy(Infinite(), Region(1:8...); c=c, c₁=c₁)
-    @test S_inf ≈ (c / 3) * log(8) + c₁ atol = 1e-12
-    @test cft_entanglement_entropy(PBC(4096), Region(1:8...); c=c, c₁=c₁) ≈ S_inf atol =
-        1e-5
-end
-
 @testset "finite-size entropy: ring, open chain, and what separates them" begin
     c, c₁, L = 1 / 2, 0.4785, 2048.0          # Ising; c₁ non-universal, cancels below
 
@@ -382,39 +326,13 @@ end
         2
     @test_throws "not a lattice index" entanglement_cuts(OBC(8), Region(true))
 
-    # A boundary condition with no branch must not read as an open chain. The cut
-    # count refuses it first, which is why `_HalfKnownBC` exists: it has adjacency
-    # but no closed form, the state a future edit reaches by teaching one function
-    # about a new boundary condition and not the other.
+    # A boundary condition with no branch must not read as an open chain.
     @test_throws "no adjacency defined" entanglement_cuts(_UnknownBC(), Region(1, 2))
-    @test_throws "no closed form registered" cft_entanglement_entropy(
-        _HalfKnownBC(), Region(1, 2); c=0.5, c₁=0.0
-    )
 
-    # The random ring's `f` is only a number to the relation, so the wrapper is
-    # what sees the geometry: it samples f at v = ℓ/L and refuses a non-positive
-    # value there.
+    # The random ring's `f` is only a number to the relation, so the sign guard is
+    # all it can offer; the geometry-aware sampling lives in the region sweep.
     @test_throws "L = -1024" AbstractQAtlas.solve(
         InfiniteRandomnessEntanglementPBC(), Val(:S̄); c̃=0.25, L=-1024.0, f=-0.3, c₁′=0.3
-    )
-    conf(v) = sin(π * v) / π
-    S̄ = infinite_randomness_entanglement_entropy(
-        PBC(1024), Region(1:300...); c̃=log(2) / 2, c₁′=0.3, f=conf
-    )
-    @test check(
-        InfiniteRandomnessEntanglementPBC();
-        S̄=S̄,
-        c̃=log(2) / 2,
-        L=1024.0,
-        f=conf(300 / 1024),
-        c₁′=0.3,
-        atol=1e-12,
-    )
-    @test_throws "is not positive" infinite_randomness_entanglement_entropy(
-        PBC(1024), Region(1:300...); c̃=log(2) / 2, c₁′=0.3, f=(v -> 0.0)
-    )
-    @test_throws "has 4" infinite_randomness_entanglement_entropy(
-        PBC(64), Region(1, 2, 10, 11); c̃=log(2) / 2, c₁′=0.3, f=conf
     )
 end
 
@@ -424,14 +342,12 @@ end
     # Eq. (24) has no independent oracle here and `f` admits no bound, so the two
     # names that carry it say so at runtime.
     @test ExperimentalAPI.isexperimental(_QI, :InfiniteRandomnessEntanglementPBC)
-    @test ExperimentalAPI.isexperimental(_QI, :infinite_randomness_entanglement_entropy)
 
     # The rest must NOT be marked. A flag on everything reports nothing, and these
     # are anchored to published constants with discriminating tests above.
     @test !ExperimentalAPI.isexperimental(_QI, :InfiniteRandomnessEntanglementSlope)
     @test !ExperimentalAPI.isexperimental(_QI, :CFTEntanglementPBC)
     @test !ExperimentalAPI.isexperimental(_QI, :CFTEntanglementOBC)
-    @test !ExperimentalAPI.isexperimental(_QI, :cft_entanglement_entropy)
     @test !ExperimentalAPI.isexperimental(_QI, :entanglement_cuts)
 end
 

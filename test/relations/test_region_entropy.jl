@@ -3,6 +3,8 @@
 
 using AbstractQAtlas
 using Test
+
+struct _NoFormBC <: AbstractQAtlas.BoundaryCondition end
 const AQ = AbstractQAtlas
 
 @testset "Region set algebra (dimension-agnostic)" begin
@@ -454,4 +456,94 @@ end
     )
     @test region_check_all(impossible)                     # subadditive, Araki–Lieb: true
     @test !region_check_all(impossible; local_dim=2)       # ...and impossible
+end
+
+@testset "finite-size forms are reached from a region-keyed bag" begin
+    c, c₁, N = 0.5, 0.4785, 64
+    ring(ℓ) = (c / 3) * log((N / π) * sin(π * ℓ / N)) + c₁
+
+    # The point of the layer: a bag built the ordinary way reaches the relations,
+    # with ℓ, L and the cut count derived rather than passed. Before it existed,
+    # `applicable_relations` on this bag returned nothing at all.
+    b = bag(
+        entanglement_entropy(Region(1:32...)) => ring(32),
+        entanglement_entropy(Region(5:20...)) => ring(16),
+        CentralCharge => c,
+    )
+    rows = finite_size_entropy_report(b, PBC(N); c₁=c₁)
+    @test length(rows) == 2
+    @test all(r -> r.pass, rows)
+    @test all(r -> r.relation isa CFTEntanglementPBC, rows)
+
+    # A wrong entropy has to fail, or passing says nothing.
+    bad = bag(entanglement_entropy(Region(1:32...)) => ring(32) + 0.1, CentralCharge => c)
+    @test !only(finite_size_entropy_report(bad, PBC(N); c₁=c₁)).pass
+
+    # Only the geometry each equation was derived for is matched, and the rest is
+    # skipped rather than answered: four cuts on a ring, and no adjacency at all.
+    mixed = bag(
+        entanglement_entropy(Region(1, 2, 10, 11)) => 1.0,
+        entanglement_entropy(Region("a", "b")) => 1.0,
+        CentralCharge => c,
+    )
+    @test isempty(finite_size_entropy_report(mixed, PBC(N); c₁=c₁))
+
+    # The same sixteen sites match at an open end and not in the bulk, which is
+    # the distinction the cut count exists for.
+    at_end = bag(entanglement_entropy(Region(1:16...)) => 0.0, CentralCharge => c)
+    in_bulk = bag(entanglement_entropy(Region(20:35...)) => 0.0, CentralCharge => c)
+    @test length(finite_size_entropy_report(at_end, OBC(N); c₁=c₁)) == 1
+    @test only(finite_size_entropy_report(at_end, OBC(N); c₁=c₁)).relation isa
+        CFTEntanglementOBC
+    @test isempty(finite_size_entropy_report(in_bulk, OBC(N); c₁=c₁))
+
+    # An infinite chain has no L to supply and gets Eq. (4).
+    binf = bag(
+        entanglement_entropy(Region(1:8...)) => (c / 3) * log(8) + c₁, CentralCharge => c
+    )
+    inf_rows = finite_size_entropy_report(binf, Infinite(); c₁=c₁)
+    @test only(inf_rows).relation isa CFTEntanglementInfinite
+    @test only(inf_rows).pass
+
+    # Without a central charge there is nothing to check against, and no rows.
+    @test isempty(
+        finite_size_entropy_report(
+            bag(entanglement_entropy(Region(1:32...)) => 1.0), PBC(N); c₁=c₁
+        ),
+    )
+
+    # An empty report must mean "nothing matched", so a boundary condition with no
+    # form is refused rather than quietly returning one.
+    @test_throws "no finite-size form registered" finite_size_entropy_report(
+        b, _NoFormBC(); c₁=c₁
+    )
+end
+
+@testset "the random ring is reached the same way, with f sampled at ℓ/L" begin
+    c̃, c₁′, N = log(2) / 2, 0.31, 1024
+    conf(v) = sin(π * v) / π
+    S̄(ℓ) = (c̃ / 3) * log(N * conf(ℓ / N)) + c₁′
+
+    b = bag(entanglement_entropy(Region(1:300...)) => S̄(300), EffectiveCentralCharge => c̃)
+    # `f` is a callable here, so the sweep samples it at the point the geometry
+    # picks rather than trusting a number the caller computed.
+    rows = finite_size_entropy_report(b, PBC(N); c₁=0.0, f=conf, c₁′=c₁′)
+    @test only(rows).relation isa InfiniteRandomnessEntanglementPBC
+    @test only(rows).pass
+
+    # Without the scaling function the random form cannot be instantiated at all.
+    @test isempty(finite_size_entropy_report(b, PBC(N); c₁=0.0, c₁′=c₁′))
+
+    # A bag carrying both charges is checked against both laws, which is how the
+    # clean and the random readings of one measurement are told apart.
+    both = bag(
+        entanglement_entropy(Region(1:300...)) => S̄(300),
+        CentralCharge => 0.5,
+        EffectiveCentralCharge => c̃,
+    )
+    kinds = [
+        nameof(typeof(r.relation)) for
+        r in finite_size_entropy_report(both, PBC(N); c₁=0.0, f=conf, c₁′=c₁′)
+    ]
+    @test Set(kinds) == Set([:CFTEntanglementPBC, :InfiniteRandomnessEntanglementPBC])
 end

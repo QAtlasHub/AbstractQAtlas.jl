@@ -181,103 +181,6 @@ end
 export entanglement_cuts
 
 """
-    cft_entanglement_entropy(bc::BoundaryCondition, A::Region; c, c₁, ln_g = 0) -> Real
-
-Critical entanglement entropy of `A`, in nats, dispatched on the boundary
-condition (Iglói & Lin, [IgloiLin2008](@cite), Eqs. 2-4):
-[`CFTEntanglementPBC`](@ref) on a ring, [`CFTEntanglementOBC`](@ref) on an open
-chain, and `(c/3) ln ℓ + c₁` in the thermodynamic limit.
-
-`ℓ` is `length(A)` and the chain length is `bc.N`, so neither is passed twice.
-The open-chain form is the one that needs `ln_g`; a ring has no boundary
-entropy and ignores it.
-
-Restricted to the geometry each published form was derived for: a contiguous
-block, at an end for [`OBC`](@ref).  That is checked through
-[`entanglement_cuts`](@ref) rather than assumed, because the formulas do not
-hold for a region the count does not match.
-"""
-function cft_entanglement_entropy(
-    bc::BoundaryCondition, A::Region; c::Real, c₁::Real, ln_g::Real=0
-)
-    ℓ = length(A)
-    ℓ > 0 || error("cft_entanglement_entropy: the region is empty.")
-    b = entanglement_cuts(bc, A)
-    if bc isa Infinite
-        b == 2 || error(
-            "cft_entanglement_entropy: an infinite chain's block must have 2 cuts, " *
-            "got $b; the region is not contiguous.",
-        )
-        return (c / 3) * log(ℓ) + c₁
-    elseif bc isa PBC
-        b == 2 || error(
-            "cft_entanglement_entropy: Eq. (2) is a contiguous block on a ring, " *
-            "which has 2 cuts; this region has $b.",
-        )
-        return (c / 3) * log(_chord(bc.N, ℓ)) + c₁
-    elseif bc isa OBC
-        b == 1 || error(
-            "cft_entanglement_entropy: Eq. (3) is the block at an open end, which " *
-            "has 1 cut; this region has $b. A bulk block of an open chain has 2 and " *
-            "is not this formula.",
-        )
-        return (c / 6) * log(2 * _chord(bc.N, ℓ)) + ln_g + c₁ / 2
-    end
-    return error(
-        "cft_entanglement_entropy: no closed form registered for $(typeof(bc)). " *
-        "Add a branch when a boundary condition is added; falling through would " *
-        "hand back the open-chain answer for a geometry that is not one.",
-    )
-end
-export cft_entanglement_entropy
-
-"""
-    infinite_randomness_entanglement_entropy(bc::PBC, A::Region; c̃, c₁′, f) -> Real
-
-Disorder-averaged entropy of `A` in a random critical ring, in nats
-(Iglói & Lin, [IgloiLin2008](@cite), Eq. 24; see
-[`InfiniteRandomnessEntanglementPBC`](@ref)).
-
-`f` is the scaling function itself, a callable, evaluated here at `v = ℓ/L` taken
-from the region and the boundary condition.  The relation cannot do this: it
-receives only the number `f(v)`, so it cannot tell a scaling function from a
-typo, and a value near zero there returns a large negative entropy rather than
-an error.  Passing the function is what lets `v` be checked and `f` be sampled
-at the point the geometry actually picks.
-
-Only [`PBC`](@ref), because Eq. (24) is the ring.  A ring block is two cuts, and
-that is checked through [`entanglement_cuts`](@ref) as in
-[`cft_entanglement_entropy`](@ref).
-"""
-@experimental """
-Eq. (24)'s scaling function is not settled here: `f` is caller-supplied, no
-independent oracle checks the form, and the only case pinned is its conformal
-one-harmonic reduction. No bound on `f` follows from the geometry either, so a
-positive but small value returns a negative entropy rather than a refusal
-""" function infinite_randomness_entanglement_entropy(
-    bc::PBC, A::Region; c̃::Real, c₁′::Real, f
-)
-    ℓ, N = length(A), bc.N
-    N > 0 || error("infinite_randomness_entanglement_entropy: $bc declares no length.")
-    0 < ℓ < N || error(
-        "infinite_randomness_entanglement_entropy: need 0 < ℓ < L, got ℓ = $ℓ on L = $N.",
-    )
-    b = entanglement_cuts(bc, A)
-    b == 2 || error(
-        "infinite_randomness_entanglement_entropy: Eq. (24) is a contiguous block on " *
-        "a ring, which has 2 cuts; this region has $b.",
-    )
-    v = ℓ / N
-    fv = f(v)
-    fv > 0 || error(
-        "infinite_randomness_entanglement_entropy: f($v) = $fv is not positive. The " *
-        "scaling function obeys f(v) → v as v → 0, so it is positive on 0 < v < 1.",
-    )
-    return (c̃ / 3) * log(N * fv) + c₁′
-end
-export infinite_randomness_entanglement_entropy
-
-"""
     CFTEntanglementPBC <: AbstractRelation
 
 Entanglement entropy of a block of `ℓ` sites in a critical ring of `L`
@@ -292,6 +195,23 @@ infinite-chain `S = (c/3) ln ℓ + c₁` of Eq. (4).
 @relation :entanglement CFTEntanglementPBC(S, c::CentralCharge, L, ℓ, c₁) = begin
     _require_block(:CFTEntanglementPBC, L, ℓ)
     S - (c / 3) * log(_chord(L, ℓ)) - c₁
+end
+
+"""
+    CFTEntanglementInfinite <: AbstractRelation
+
+The thermodynamic limit of [`CFTEntanglementPBC`](@ref) (Iglói & Lin,
+[IgloiLin2008](@cite), Eq. 4):
+
+`S = (c/3) ln ℓ + c₁`.
+
+Still two cuts, and the same `c₁`: the chord tends to `ℓ` as `ℓ ≪ L`, so this is
+where the ring form goes rather than a separate law.  It exists as its own
+relation because a bag on an infinite chain has no `L` to supply.
+"""
+@relation :entanglement CFTEntanglementInfinite(S, c::CentralCharge, ℓ, c₁) = begin
+    ℓ > 0 || error("CFTEntanglementInfinite: need ℓ > 0, got $ℓ.")
+    S - (c / 3) * log(ℓ) - c₁
 end
 
 """
@@ -366,9 +286,9 @@ infinite-randomness fixed point (Iglói & Lin, [IgloiLin2008](@cite), Eq. 24):
 `f` is supplied by the caller because it is not the conformal chord.  Only its
 value arrives, not the function or the geometry, so nothing here can tell a
 scaling function from a typo: `L > 0` and `f > 0` are checked and a small
-positive `f` still returns a large negative entropy.  Use
-[`infinite_randomness_entanglement_entropy`](@ref), which takes `f` as a callable
-and the geometry as a [`Region`](@ref), when both are available.  It is
+positive `f` still returns a large negative entropy.  Reached through
+[`finite_size_entropy_report`](@ref), `f` is a callable sampled at `v = ℓ/L`
+taken from the region, which is where that can be seen.  It is
 reflection symmetric, `f(v) = f(1-v)`, tends to `v` as `v → 0`, and expands as
 `f(v) = Σₖ Aₖ sin((2k-1)πv)` subject to `Σₖ Aₖ(2k-1)π = 1`; the source notes
 that for a conformally invariant model **only the first term exists**.  Keeping

@@ -1,5 +1,6 @@
-# relations/region_entropy.jl — auto-discovery of the entanglement-entropy
-# inequalities over the REGIONS present in a bag (design §5/§8b, Phase-2).
+# relations/region_entropy.jl — auto-discovery over the REGIONS present in a bag
+# (design §5/§8b, Phase-2): the entropy inequalities, and the finite-size forms
+# that read a critical chain's central charge off the same entries.
 #
 # The entropy inequalities hold for ANY (disjoint) regions.  Keyed on a Region
 # support (`entanglement_entropy(A)`), they become auto-discoverable: `region_report`
@@ -370,3 +371,112 @@ function region_tee_report(b::Bag)
     return out
 end
 export region_tee_report
+
+# ─── Finite-size forms over the same region-keyed entries ──────────────────
+#
+# The inequalities above hold for any regions; these hold for one region at a
+# time and only where the geometry matches the equation, so the matcher is a
+# sweep with an admission test rather than a combination search.
+
+"""
+    RegionFiniteSizeRow
+
+One row of a [`finite_size_entropy_report`](@ref): the `relation` it matched, the
+`region` it was auto-instantiated on, its [`residual`](@ref), and `pass`.
+
+Separate from [`RegionReportRow`](@ref) because the residual means something
+else.  There it is a slack, satisfied at `≥ 0`; these are equalities, satisfied
+only near `0`, and reading one as the other would call every negative residual a
+violation and every large positive one a success.
+"""
+struct RegionFiniteSizeRow
+    relation::AbstractRelation
+    region::Region
+    residual::Number
+    pass::Bool
+end
+export RegionFiniteSizeRow
+
+function _finite_size_row!(out, rel, A, vars, atol)
+    r = residual(rel; vars...)
+    push!(out, RegionFiniteSizeRow(rel, A, r, isapprox(r, zero(r); atol=atol)))
+    return out
+end
+
+"""
+    finite_size_entropy_report(b::Bag, bc::BoundaryCondition; c₁, kwargs...)
+        -> Vector{RegionFiniteSizeRow}
+
+Check every region entropy in `b` against the finite-size form its geometry
+admits, under the boundary condition `bc`.
+
+`ℓ` is the region's own length, `L` is `bc.N`, and the cut count comes from
+[`entanglement_cuts`](@ref), so the three arguments most easily got wrong are
+read off the bag rather than passed.  A region is matched only where its cut
+count is the one its equation was derived for: two on a ring or an infinite
+chain, one at an open end.  Anything else is skipped, as a non-disjoint pair is
+skipped by [`region_report`](@ref), which is what makes a mixed bag usable.
+
+The central charge is read from the bag, as `CentralCharge` and, when a random
+critical chain is being checked, `EffectiveCentralCharge`; the latter also needs
+`f`, the scaling function, and its own constant `c₁′`.  The non-universal
+constants are arguments because they are not quantities: `c₁`, and `ln_g` for
+the boundary entropy an open chain carries.
+
+A region whose sites are not integers is skipped, having no adjacency to count
+cuts with. A region of integer sites lying off the chain `bc` declares is not
+skipped but refused, since that is the wrong `bc` for this bag and every later
+row would be wrong the same way.
+
+```julia
+b = bag(entanglement_entropy(Region(1:32...)) => 1.06, CentralCharge => 0.5)
+finite_size_entropy_report(b, PBC(64); c₁=0.4785)
+```
+"""
+function finite_size_entropy_report(
+    b::Bag, bc::BoundaryCondition; c₁::Real, ln_g::Real=0, f=nothing, c₁′::Real=0, atol=1e-8
+)
+    # An empty report must mean "no region matched", so a boundary condition with no
+    # form here is refused rather than producing one: it would otherwise be a
+    # boundary condition taught to `entanglement_cuts` and not to this sweep, and
+    # the two are indistinguishable from the outside.
+    bc isa Union{Infinite,OBC,PBC} || error(
+        "finite_size_entropy_report: no finite-size form registered for $(typeof(bc))."
+    )
+    out = RegionFiniteSizeRow[]
+    ents = _region_entropies(b)
+    isempty(ents) && return out
+    c = get(b, VariableKey(CentralCharge), nothing)
+    c̃ = get(b, VariableKey(EffectiveCentralCharge), nothing)
+    (c === nothing && c̃ === nothing) && return out
+    for pair in sort!(collect(ents); by=p -> (length(p.first), repr(p.first)))
+        A, S = pair.first, pair.second
+        (isempty(A) || !(eltype(A.sites) <: Integer) || eltype(A.sites) === Bool) &&
+            continue
+        ℓ, n = length(A), entanglement_cuts(bc, A)
+        if c !== nothing
+            if bc isa Infinite && n == 2
+                _finite_size_row!(out, CFTEntanglementInfinite(), A, (; S, c, ℓ, c₁), atol)
+            elseif bc isa PBC && n == 2
+                _finite_size_row!(
+                    out, CFTEntanglementPBC(), A, (; S, c, L=bc.N, ℓ, c₁), atol
+                )
+            elseif bc isa OBC && n == 1
+                _finite_size_row!(
+                    out, CFTEntanglementOBC(), A, (; S, c, L=bc.N, ℓ, c₁, ln_g), atol
+                )
+            end
+        end
+        if c̃ !== nothing && f !== nothing && bc isa PBC && n == 2
+            _finite_size_row!(
+                out,
+                InfiniteRandomnessEntanglementPBC(),
+                A,
+                (; S̄=S, c̃, L=float(bc.N), f=f(ℓ / bc.N), c₁′),
+                atol,
+            )
+        end
+    end
+    return out
+end
+export finite_size_entropy_report
