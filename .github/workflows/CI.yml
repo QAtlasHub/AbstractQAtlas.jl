@@ -26,15 +26,22 @@ jobs:
     secrets:
       CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
 
-  # Also exercise the julia 1.10 LTS floor (the package is stdlib-only and uses no 1.11-only
-  # features) so the lowered `julia` compat bound is actually tested.
+  # Exercise the declared `julia` floor, so the compat bound is tested rather than
+  # asserted. That floor is 1.11 and is no longer the LTS: ExperimentalAPI requires
+  # 1.11, and not incidentally, since its `surface` is `names(m)` under the meaning
+  # 1.11 gave that function.
+  #
+  # The key stays `ci-lts` although it no longer tests the LTS, because branch
+  # protection requires the context `ci-lts / All shards passed` by name and a
+  # renamed job would simply never report it. Renaming needs the required context
+  # swapped first.
   ci-lts:
     permissions:
       contents: write
     uses: QAtlasHub/TestShards.jl/.github/workflows/sharded-tests.yml@main
     with:
       shards: 4
-      julia-version: '1.10'
+      julia-version: '1.11'
       artifact-prefix: lts
       # The history belongs to the version above: two legs measuring different configurations
       # cannot both own it.
