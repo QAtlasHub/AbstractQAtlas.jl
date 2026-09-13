@@ -8,15 +8,18 @@
 using AbstractQAtlas
 using AbstractQAtlas:
     ScalingDimensions,
+    InfiniteRandomness,
     critical_exponents,
     critical_exponent,
     scaling_dimensions,
+    infinite_randomness,
     residual,
     Rushbrooke,
     Widom,
     Fisher,
     Josephson,
-    exponents_consistent
+    exponents_consistent,
+    exponent_residuals
 
 # a spread of EXACT rational RG data (various y_t, y_h, d), including the two
 # physical fixed points 2D-Ising (1, 15//8, 2) and 3D-percolation-like sets
@@ -88,4 +91,143 @@ end
     # laws still hold to floating tolerance
     @test residual(Rushbrooke(); α=e.α, β=e.β, γ=e.γ) ≈ 0 atol = 1e-12
     @test residual(Fisher(); γ=e.γ, ν=e.ν, η=e.η) ≈ 0 atol = 1e-12
+end
+
+# An infinite-randomness fixed point has the same DECLARE-ONCE structure with a
+# different independent set: (ψ, ν, x_m) plus d. The three relations it feeds
+# are stated separately in relations/scaling.jl, so they are the independent
+# expectation here, exactly as the four clean laws are above.
+const _IRFP_SETS = (
+    (1 // 2, 2 // 1, 1 // 4, 1),      # RTFIC ψ and ν, rational x_m stand-in
+    (1 // 2, 2 // 1, 1 // 3, 2),
+    (1 // 3, 3 // 2, 1 // 5, 2),
+    (2 // 3, 5 // 2, 2 // 7, 3),
+    (1 // 4, 4 // 1, 1 // 8, 1),
+)
+
+@testset "the infinite-randomness relations are IDENTITIES in (ψ, ν, x_m, d)" begin
+    for (ψ, ν, x_m, dd) in _IRFP_SETS
+        e = critical_exponents(InfiniteRandomness(ψ, ν, x_m, dd))
+        @test residual(OrderParameterDimension(); β=e.β, ν=e.ν, x_m=e.x_m) == 0 // 1
+        @test residual(TypicalCorrelationLength(); ν_typ=e.ν_typ, ν=e.ν, ψ=e.ψ) == 0 // 1
+        @test residual(ActivatedMomentGrowth(); φ=e.φ, d=dd, x_m=e.x_m, ψ=e.ψ) == 0 // 1
+        # Rational in ⇒ Rational out, as for the clean set
+        @test all(v -> v isa Rational, values(e))
+        # and the gate agrees without being told d a second time
+        @test exponents_consistent(InfiniteRandomness(ψ, ν, x_m, dd))
+    end
+end
+
+@testset "RTFIC Table 1 falls out of (1//2, 2, x_m, d = 1)" begin
+    # Igloi-Monthus Table 1 (§4.1.2). x_m is irrational, so ν_typ and the
+    # rational-valued entries are exact and β, φ are compared at machine
+    # precision against the table's own closed forms.
+    x_m = (3 - sqrt(5)) / 4
+    e = critical_exponents(InfiniteRandomness(1 // 2, 2 // 1, x_m, 1))
+    @test e.ν_typ == 1.0                        # Eq. (4.10)
+    @test e.β ≈ (3 - sqrt(5)) / 2               # Table 1, β = ν x_m
+    @test e.φ ≈ (1 + sqrt(5)) / 2               # the golden mean, Eq. (A.21)
+    for name in (:β, :ν, :ν_typ, :ψ, :x_m, :φ)
+        @test critical_exponent(name, InfiniteRandomness(1 // 2, 2 // 1, x_m, 1)) == e[name]
+    end
+end
+
+@testset "`d` in the struct is what makes the Euclidean mix-up one decision" begin
+    # The trap: an atlas hands out a `d` kwarg meaning the EUCLIDEAN dimension
+    # (2 for a 1D quantum chain), while every infinite-randomness relation
+    # reads the SPATIAL one. The wrong answer does not look wrong.
+    x_m = (3 - sqrt(5)) / 4
+    spatial = critical_exponents(InfiniteRandomness(1 // 2, 2 // 1, x_m, 1))
+    euclidean = critical_exponents(InfiniteRandomness(1 // 2, 2 // 1, x_m, 2))
+    @test spatial.φ ≈ (1 + sqrt(5)) / 2
+    @test euclidean.φ ≈ (1 + sqrt(5)) / 2 + 2   # 3.618, and nothing flags it
+    # Only φ moves: d enters no other derived exponent, which is exactly why a
+    # wrong d survives a partial check.
+    for name in (:β, :ν, :ν_typ, :ψ, :x_m)
+        @test spatial[name] == euclidean[name]
+    end
+    # The struct-aware gate has no second place to state d, so both are internally
+    # consistent; what the struct buys is that the choice is made ONCE.
+    @test exponents_consistent(InfiniteRandomness(1 // 2, 2 // 1, x_m, 1); atol=1e-15)
+    @test exponents_consistent(InfiniteRandomness(1 // 2, 2 // 1, x_m, 2); atol=1e-15)
+end
+
+@testset "a sweep without `d` does not fail, it stops checking" begin
+    # applicable_relations keeps only relations whose every variable is present,
+    # so a bare tuple missing d silently drops the ones that need it. That is
+    # the hazard exponents_consistent(::InfiniteRandomness) exists to remove.
+    s = InfiniteRandomness(1 // 2, 2 // 1, 1 // 4, 1)
+    e = critical_exponents(s)
+    with_d = Set(
+        nameof(typeof(r)) for r in applicable_relations((; e..., d=s.d); domain=:scaling)
+    )
+    without_d = Set(nameof(typeof(r)) for r in applicable_relations(e; domain=:scaling))
+    @test :ActivatedMomentGrowth in with_d
+    @test !(:ActivatedMomentGrowth in without_d)
+    @test without_d ⊊ with_d
+    @test check_all(e; domain=:scaling)          # green, having checked less
+    # the struct door reports on the full set, keyed by relation name
+    @test Set(keys(exponent_residuals(s))) ==
+        Set(Symbol(lowercase(String(n))) for n in with_d)
+end
+
+@testset "inverse map: (ν, ν_typ) recovers ψ at dimension d" begin
+    for (ψ, ν, x_m, dd) in _IRFP_SETS
+        e = critical_exponents(InfiniteRandomness(ψ, ν, x_m, dd))
+        s = infinite_randomness(; ν=e.ν, ν_typ=e.ν_typ, x_m=e.x_m, d=dd)
+        @test s.ψ == ψ
+        @test critical_exponents(s) == e
+    end
+end
+
+@testset "the constructor refuses what the name rules out" begin
+    @test_throws "not an infinite-randomness fixed point" InfiniteRandomness(
+        0, 2, 1 // 4, 1
+    )
+    @test_throws "ScalingDimensions" InfiniteRandomness(0, 2, 1 // 4, 1)
+    @test_throws "not an infinite-randomness fixed point" InfiniteRandomness(
+        -1 // 2, 2, 1 // 4, 1
+    )
+    @test_throws "ν = " InfiniteRandomness(1 // 2, 0, 1 // 4, 1)
+    @test_throws "d = " InfiniteRandomness(1 // 2, 2, 1 // 4, 0)
+    # ψ = 1 is allowed: ν_typ collapses to 0, which is a statement, not an error
+    @test critical_exponents(InfiniteRandomness(1 // 1, 2 // 1, 1 // 4, 1)).ν_typ == 0 // 1
+    # ...but past it ν_typ would go negative, and a correlation length has no
+    # negative exponent. The sweep cannot catch this: the three relations it runs
+    # are the formulas critical_exponents uses, so they are zero for any input.
+    @test_throws "ν_typ = ν(1-ψ) negative" InfiniteRandomness(3 // 2, 2 // 1, 1 // 4, 1)
+    # x_m outside (0, d) is the same kind of unphysical-but-finite input: below 0
+    # the order parameter diverges at criticality, at or above d the cluster's
+    # fractal dimension d - x_m stops being positive.
+    @test_throws "0 < x_m < d" InfiniteRandomness(1 // 2, 2 // 1, -1 // 4, 1)
+    @test_throws "0 < x_m < d" InfiniteRandomness(1 // 2, 2 // 1, 5 // 1, 1)
+    @test_throws "0 < x_m < d" InfiniteRandomness(1 // 2, 2 // 1, 1 // 1, 1)   # x_m == d
+    # Non-finite input is refused before any of the above can read it.
+    @test_throws "must be finite" InfiniteRandomness(Inf, 2.0, 0.25, 1.0)
+    @test_throws "must be finite" InfiniteRandomness(0.5, 2.0, NaN, 1.0)
+    @test_throws "must be finite" InfiniteRandomness(0.5, 2.0, 0.25, Inf)
+end
+
+@testset "a fixed point that carries `d` needs no second statement of it" begin
+    # Both structs answer the registry gate from their own field, which is the
+    # only door that cannot be given the wrong dimension.
+    for (yt, yh, dd) in _RG_SETS
+        s = ScalingDimensions(yt, yh, dd)
+        @test exponents_consistent(s)
+        @test exponents_consistent(s) == exponents_consistent(critical_exponents(s); d=dd)
+        @test exponent_residuals(s) == exponent_residuals(critical_exponents(s); d=dd)
+        @test all(iszero, values(exponent_residuals(s)))
+    end
+    # A wrong dimension is a thing the struct door has no place to accept: the
+    # same eigenvalues at another d are a different fixed point, and fail.
+    @test !exponents_consistent(
+        (critical_exponents(ScalingDimensions(1 // 1, 15 // 8, 2))); d=3
+    )
+    # and the same for the activated side, at every d in the sweep: pinning it at
+    # one fixture whose d happened to be 1 could not see whether the method reads
+    # `s.d` at all, since the right-hand side spells 1 as a literal.
+    for (ψ, ν, x_m, dd) in _IRFP_SETS
+        s = InfiniteRandomness(ψ, ν, x_m, dd)
+        @test exponent_residuals(s) == exponent_residuals(critical_exponents(s); d=dd)
+    end
 end

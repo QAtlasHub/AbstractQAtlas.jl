@@ -558,3 +558,80 @@ end
     @test !isempty(relations_constraining(SurfaceMagnetization()))
     @test FixedPointDisorderStrength() in relations_constraining(DisorderStrength())
 end
+
+@testset "one `d` everywhere, and the quantum form adds `z` itself" begin
+    # The 1D transverse-field Ising chain, with its OWN spatial dimension and its
+    # z, which is the d every relation taking one reads.
+    chain = (α=0 // 1, β=1 // 8, γ=7 // 4, δ=15 // 1, ν=1 // 1, η=1 // 4, d=1, z=1 // 1)
+
+    # Hyperscaling holds in the quantum form at the chain's own d.
+    @test residual(QuantumHyperscaling(); α=chain.α, ν=chain.ν, d=chain.d, z=chain.z) ==
+        0 // 1
+    # The classical form does not, and that is the correct report rather than a
+    # naming accident: 2 - α = dν is not what a quantum critical point obeys.
+    # It closes only on the chain's classical IMAGE, the 2D Ising model.
+    @test residual(Josephson(); α=chain.α, ν=chain.ν, d=chain.d) == 1 // 1
+    @test residual(Josephson(); α=chain.α, ν=chain.ν, d=2) == 0 // 1
+    # The gap between them is exactly zν, so neither is a rounding of the other.
+    @test residual(Josephson(); α=chain.α, ν=chain.ν, d=chain.d) -
+          residual(QuantumHyperscaling(); α=chain.α, ν=chain.ν, d=chain.d, z=chain.z) ==
+        chain.z * chain.ν
+
+    # Harris reads the same d as the quantum form, and gets the answer that makes
+    # the RTFIC an infinite-randomness problem in the first place.
+    @test relevance(HarrisCriterion(); ν₀=chain.ν, d=chain.d) === :relevant
+    @test relevance(HarrisCriterion(); ν₀=chain.ν, d=2) === :marginal   # the image's d
+
+    # A classical system has one system, so the two forms coincide there: z = 0
+    # recovers Josephson identically, for any exponent set.
+    for (α, ν, dd) in ((0 // 1, 1 // 1, 2), (0 // 1, 1 // 2, 4), (1 // 8, 3 // 4, 3))
+        @test residual(QuantumHyperscaling(); α=α, ν=ν, d=dd, z=0) ==
+            residual(Josephson(); α=α, ν=ν, d=dd)
+    end
+    @test relevance(HarrisCriterion(); ν₀=1 // 1, d=2) === :marginal    # Harris 1974
+
+    # A sweep over the chain sees both hyperscaling forms, and says so: the
+    # classical one fails. That is deliberate, not a gap.
+    rep = Dict(
+        nameof(typeof(r.relation)) => r.pass for
+        r in relation_report(chain; domain=:scaling)
+    )
+    @test rep[:QuantumHyperscaling]
+    @test !rep[:Josephson]
+end
+
+@testset "`d` is a typed subject, so the graph can be asked what reads it" begin
+    rs = relations_constraining(SpatialDimension())
+    # Every relation that takes a d, named. Listing a subset leaves the rest
+    # resting on the soft coverage ratio, which cannot see one missing entry.
+    @test length(rs) == 13
+    for r in (
+        Josephson(),
+        QuantumHyperscaling(),
+        GriffithsSusceptibility(),
+        GriffithsSpecificHeat(),
+        GriffithsAutocorrelation(),
+        ActivatedMomentGrowth(),
+        ActivatedSusceptibility(),
+        ActivatedSpecificHeat(),
+        LargeSpinMoment(),
+        OrderedGriffithsEnergyScale(),
+        FixedPointDisorderStrength(),
+        ConventionalFieldSusceptibility(),
+        ConventionalFieldSpecificHeat(),
+    )
+        @test r in rs
+    end
+    # and nothing that does not take a d claims to
+    for r in (
+        Rushbrooke(),
+        Widom(),
+        Fisher(),
+        ActivatedFiniteSizeScaling(),
+        WeinribHalperinExponent(),
+    )
+        @test !(r in rs)
+    end
+    @test SpatialDimension() isa AbstractQuantity
+    @test variable_types(QuantumHyperscaling()) == (SpatialDimension, DynamicalExponent)
+end

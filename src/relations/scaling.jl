@@ -52,14 +52,46 @@ Reference: [Fisher1964](@cite) (J. Math. Phys. **5**, 944).
 """
     Josephson <: AbstractRelation
 
-The Josephson (hyperscaling) identity `2 − α = d·ν`.  Valid below the
-upper critical dimension; at and above it, mean-field exponents satisfy
-it only at `d = d_upper` (e.g. `d = 4` for Ising).
+The Josephson (hyperscaling) identity `2 − α = d·ν`, for a CLASSICAL critical
+point, below the upper critical dimension; at and above it mean-field exponents
+satisfy it only at `d = d_upper` (`4` for Ising).
+
+Its `d` counts the directions of the system it is about, so at a quantum
+critical point that is the classical IMAGE's: a chain maps to 2D Ising and takes
+`2`, not `1`.  Given the chain's own `d` it reports a violation, correctly,
+classical hyperscaling not being what a quantum critical point obeys.  That law
+is [`QuantumHyperscaling`](@ref).
 
 Reference: [Josephson1967](@cite) (Proc. Phys. Soc. **92**, 269, "Inequality for
-the specific heat: I. Derivation") — again an inequality first, `2 − α ≥ dν`.
+the specific heat: I. Derivation"), again an inequality first, `2 − α ≥ dν`.
 """
-@relation :scaling Josephson(α, ν, d) = 2 - α - d * ν
+@relation :scaling Josephson(α, ν, d::SpatialDimension) = 2 - α - d * ν
+
+"""
+    QuantumHyperscaling <: AbstractRelation
+
+Hyperscaling at a QUANTUM critical point, where imaginary time is a direction of
+the critical theory with its own exponent:
+
+`2 − α = (d + z)·ν`.
+
+[`Josephson`](@ref) about the same physics, taking the system's OWN `d` and `z`
+and summing them rather than the image's dimension pre-summed.  That is what
+makes one exponent table plus `(d, z)` answer both, with neither handed a number
+meaning the other's system.  `z = 0` reduces the formula to Josephson, which is
+algebra and not a limit any quantum critical point reaches (`Δ ∼ ξ^{-z}` would
+never close); Josephson's `d` for a quantum system is its image's, not this
+one's with `z` zeroed.  No finite `z` exists at an infinite-randomness fixed
+point ([`ActivatedExponent`](@ref)), so neither form applies there.
+
+Variables: `α`, `ν`, `d`, `z`.
+
+Reference: [Sachdev2011](@cite); the Euclidean action of a `d`-dimensional
+quantum system at `T = 0` lives in `d + z` EFFECTIVE directions, `z` being
+generally non-integer, so the count is scaling-theoretic and not geometric.
+"""
+@relation :scaling QuantumHyperscaling(α, ν, d::SpatialDimension, z::DynamicalExponent) =
+    2 - α - (d + z) * ν
 
 """
     DynamicalScaling <: AbstractRelation
@@ -194,15 +226,14 @@ what makes a continuously varying `z` measurable:
 
 `d(ln χ)/d(ln T) = −1 + d/z`.
 
-Divergent for `z > d`, finite for `z < d` — so the Griffiths phase has a line
-inside it, at `z = d`, across which `χ` stops diverging while nothing else
-happens. Written multiplied through by `z`, which keeps the residual affine in
-every variable (so generic `solve` works) and finite at `z = 0`.
+Divergent for `z > d` and finite for `z < d`, so the Griffiths phase has a line
+inside it at `z = d` across which `χ` stops diverging while nothing else happens.
+Multiplied through by `z`, which keeps the residual affine in every variable (so
+generic `solve` works) and finite at `z = 0`.
 
-Reads two more of Appendix A's equations unchanged, because they carry the same
-combination on other axes: the Griffiths gap DISTRIBUTION `P(ε) ∼ ε^{−1+d/z}`
-(Eq. (A.29)), which is the microscopic origin of the rest, and the field-driven
-`χ(H) ∼ H^{−1+d/z}` (Eq. (A.33)).
+The same combination on other axes is this relation too: the gap DISTRIBUTION
+`P(ε) ∼ ε^{−1+d/z}` (Eq. (A.29)), which is where the rest comes from, and the
+field-driven `χ(H) ∼ H^{−1+d/z}` (Eq. (A.33)).
 
 Reference: [IgloiMonthus2005](@cite) Eq. (4.56), §4.4.2, written there for the
 1D chain, and Eq. (A.32), §A.4.1 in `d` dimensions.  §9.1.2 states the
@@ -211,8 +242,9 @@ Reference: [IgloiMonthus2005](@cite) Eq. (4.56), §4.4.2, written there for the
 
 Variables: `dlogχ_dlogT`, `d`, `z`.
 """
-@relation :scaling GriffithsSusceptibility(dlogχ_dlogT, d, z::DynamicalExponent) =
-    (dlogχ_dlogT + 1) * z - d
+@relation :scaling GriffithsSusceptibility(
+    dlogχ_dlogT, d::SpatialDimension, z::DynamicalExponent
+) = (dlogχ_dlogT + 1) * z - d
 
 """
     GriffithsSpecificHeat <: AbstractRelation
@@ -230,8 +262,9 @@ this reads the entropy too), under the same `z → z/d` of §9.1.2.
 
 Variables: `dlogc_dlogT`, `d`, `z`.
 """
-@relation :scaling GriffithsSpecificHeat(dlogc_dlogT, d, z::DynamicalExponent) =
-    dlogc_dlogT * z - d
+@relation :scaling GriffithsSpecificHeat(
+    dlogc_dlogT, d::SpatialDimension, z::DynamicalExponent
+) = dlogc_dlogT * z - d
 
 """
     ActivatedMomentGrowth <: AbstractRelation
@@ -248,38 +281,36 @@ log-energy one. For the 1D random transverse-field Ising chain
 
 Written multiplied through by `ψ`, keeping the residual affine in every variable.
 
-Reference: [IgloiMonthus2005](@cite) Eq. (A.21), §A.4, where `d − x_m` is
+Reference: [IgloiMonthus2005](@cite) Eq. (A.21), §A.3, where `d − x_m` is
 identified as the fractal dimension of the cluster.  The golden mean it returns
 for the RTFIC is that review's Eq. (3.18), §3.5, reached by a different route.
 
 Variables: `φ`, `d`, `x_m`, `ψ`.
 """
-@relation :scaling ActivatedMomentGrowth(φ, d, x_m, ψ::ActivatedExponent) =
-    φ * ψ - (d - x_m)
+@relation :scaling ActivatedMomentGrowth(
+    φ, d::SpatialDimension, x_m, ψ::ActivatedExponent
+) = φ * ψ - (d - x_m)
 
 # ─── Appendix A: the four scaling types of a random system ───────────────
 #
-# [IgloiMonthus2005](@cite) Appendix A gives the same menu of observables for
-# each kind of fixed point a random system can flow to: how the energy scale
-# tracks the size, how autocorrelations decay, and what the low-temperature
-# thermodynamics looks like.  The four answers are different in FORM, not just
-# in exponent value, which is what makes measuring one of them a classification
-# rather than a fit:
+# [IgloiMonthus2005](@cite) Appendix A gives one menu of observables per kind of
+# fixed point a random system can flow to.  The answers differ in FORM, not only
+# in exponent value, which is what makes measuring one a classification and not
+# a fit:
 #
-#   conventional random critical (A.2)  power of L,       power of t,   power of T
-#   infinite disorder            (A.3)  exponential in L, power of ln t, power of ln T
-#   Griffiths phase              (A.4)  power of L,       power of t,   power of T
-#   large spin                   (A.5)  power of L,       -            , Curie
+#              energy vs size    autocorrelation  low T
+#   (A.2) conventional random   power of L        power of t     power of T
+#   (A.3) infinite disorder     exponential in L  power of ln t  power of ln T
+#   (A.4) Griffiths             power of L        power of t     power of T
+#   (A.5) large spin            power of L        -              Curie
 #
-# The conventional and Griffiths columns agree in form and differ in which
-# exponent combination appears, so the relations below are separate objects.
-#
-# What is NOT here: an equation whose exponent combination already appears
-# above is the same relation on another axis, named in a docstring rather than
-# duplicated.  Eqs. (A.26) and (A.33) restate observables against a small
-# ordering field `H` instead of `T`; Eq. (A.29) is the Griffiths gap
-# DISTRIBUTION, not a field statement at all, but carries the same `-1+d/z`.
-# Only a NEW combination gets its own relation (Eq. (A.15)).
+# Rows (A.2) and (A.4) agree in form and differ in which exponent combination
+# appears, so they are separate objects.  Conversely, an equation whose
+# combination already appears is the same relation on another axis and is named
+# in a docstring instead: (A.26) and (A.33) restate observables against `H`
+# rather than `T`, and (A.29) is the Griffiths gap DISTRIBUTION, no field in it
+# at all, but carrying the same `-1+d/z`.  Only a new combination gets its own
+# relation, which is why (A.15) has one.
 
 """
     OrderParameterDimension <: AbstractRelation
@@ -324,7 +355,7 @@ critical scaling) and restated below Eq. (A.29), §A.4.1, for the Griffiths
 phase. The contrast is Eq. (A.18), §A.3.
 """
 @relation :scaling FixedPointDisorderStrength(
-    D::DisorderStrength, z::DynamicalExponent, d
+    D::DisorderStrength, z::DynamicalExponent, d::SpatialDimension
 ) = D * d - z
 
 """
@@ -454,7 +485,7 @@ Variables: `dlogχT_dloglnT`, `d`, `x_m`, `ψ`.
 Reference: [IgloiMonthus2005](@cite) Eq. (A.25), §A.3.
 """
 @relation :scaling ActivatedSusceptibility(
-    dlogχT_dloglnT, d, x_m::ScalingDimension, ψ::ActivatedExponent
+    dlogχT_dloglnT, d::SpatialDimension, x_m::ScalingDimension, ψ::ActivatedExponent
 ) = dlogχT_dloglnT * ψ - (d - 2 * x_m)
 
 """
@@ -475,8 +506,9 @@ Variables: `dlogc_dloglnT`, `d`, `ψ`.
 
 Reference: [IgloiMonthus2005](@cite) Eq. (A.25), §A.3.
 """
-@relation :scaling ActivatedSpecificHeat(dlogc_dloglnT, d, ψ::ActivatedExponent) =
-    dlogc_dloglnT * ψ + d
+@relation :scaling ActivatedSpecificHeat(
+    dlogc_dloglnT, d::SpatialDimension, ψ::ActivatedExponent
+) = dlogc_dloglnT * ψ + d
 
 """
     GriffithsAutocorrelation <: AbstractRelation
@@ -500,8 +532,9 @@ Reference: [IgloiMonthus2005](@cite) Eq. (A.27), §A.4.1. In the ORDERED
 Griffiths phase of a chain the same argument gives `2/z` instead of `d/z`,
 because isolating a domain costs two weak bonds rather than a surface.
 """
-@relation :scaling GriffithsAutocorrelation(dlogG_dlogt, d, z::DynamicalExponent) =
-    dlogG_dlogt * z + d
+@relation :scaling GriffithsAutocorrelation(
+    dlogG_dlogt, d::SpatialDimension, z::DynamicalExponent
+) = dlogG_dlogt * z + d
 
 """
     LargeSpinMoment <: AbstractRelation
@@ -522,7 +555,8 @@ Reference: [IgloiMonthus2005](@cite) Eqs. (A.37) and (A.38), §A.5; the 1D
 instance is Eqs. (8.6)-(8.8), §8.2, where `ζ = 1/2` and `κ = 0.22(1)` is
 measured, giving `z = 1/(2κ)`.
 """
-@relation :scaling LargeSpinMoment(κ, d, ζ, z::DynamicalExponent) = κ * z - d * ζ
+@relation :scaling LargeSpinMoment(κ, d::SpatialDimension, ζ, z::DynamicalExponent) =
+    κ * z - d * ζ
 
 """
     ConventionalFieldSusceptibility <: AbstractRelation
@@ -543,7 +577,7 @@ Variables: `dlogχ_dlogH`, `γ`, `ν`, `d`, `z`, `x_m`.
 Reference: [IgloiMonthus2005](@cite) Eq. (A.15), §A.2.
 """
 @relation :scaling ConventionalFieldSusceptibility(
-    dlogχ_dlogH, γ, ν, d, z::DynamicalExponent, x_m::ScalingDimension
+    dlogχ_dlogH, γ, ν, d::SpatialDimension, z::DynamicalExponent, x_m::ScalingDimension
 ) = dlogχ_dlogH * ν * (d + z - x_m) + γ
 
 """
@@ -564,7 +598,7 @@ Variables: `dlogc_dlogH`, `α`, `ν`, `d`, `z`, `x_m`.
 Reference: [IgloiMonthus2005](@cite) Eq. (A.15), §A.2.
 """
 @relation :scaling ConventionalFieldSpecificHeat(
-    dlogc_dlogH, α, ν, d, z::DynamicalExponent, x_m::ScalingDimension
+    dlogc_dlogH, α, ν, d::SpatialDimension, z::DynamicalExponent, x_m::ScalingDimension
 ) = dlogc_dlogH * ν * (d + z - x_m) + α
 
 """
@@ -592,7 +626,7 @@ is the case where `x` is derived rather than fitted.
 Reference: [IgloiMonthus2005](@cite) Eq. (A.35), §A.4.2, with the companion
 autocorrelation `G(t) ∼ exp(−A|ln t|^d)` of Eq. (A.34) (= Eq. (9.7), §9.1.3).
 """
-@relation :scaling OrderedGriffithsEnergyScale(dloglogΩ_dloglogL, d) =
+@relation :scaling OrderedGriffithsEnergyScale(dloglogΩ_dloglogL, d::SpatialDimension) =
     dloglogΩ_dloglogL * d - 1
 
 """
@@ -638,6 +672,36 @@ function exponents_consistent(nt::NamedTuple; d, atol=0)
     return check_all((; nt..., d=d); atol=atol, domain=:scaling)
 end
 export exponents_consistent
+
+"""
+    exponents_consistent(s::ScalingDimensions; atol=0) -> Bool
+    exponents_consistent(s::InfiniteRandomness; atol=0) -> Bool
+
+The same gate run on a fixed point that carries its own `d`, so the dimension
+cannot be restated wrongly at the call site.  Equivalent to
+`exponents_consistent(critical_exponents(s); d = s.d)`.
+
+This is the door to prefer.  Passing a bare NamedTuple leaves `d` to the caller,
+and a sweep silently SKIPS every relation whose variables are not all present
+(see [`applicable_relations`](@ref)), so forgetting `d` does not fail; it just
+stops checking the twelve relations that need it.
+"""
+function exponents_consistent(s::ScalingDimensions; atol=0)
+    return exponents_consistent(critical_exponents(s); d=s.d, atol=atol)
+end
+function exponents_consistent(s::InfiniteRandomness; atol=0)
+    return exponents_consistent(critical_exponents(s); d=s.d, atol=atol)
+end
+
+"""
+    exponent_residuals(s::ScalingDimensions) -> NamedTuple
+    exponent_residuals(s::InfiniteRandomness) -> NamedTuple
+
+Per-relation residuals of a fixed point that carries its own `d`, the
+diagnostic companion of [`exponents_consistent`](@ref).
+"""
+exponent_residuals(s::ScalingDimensions) = exponent_residuals(critical_exponents(s); d=s.d)
+exponent_residuals(s::InfiniteRandomness) = exponent_residuals(critical_exponents(s); d=s.d)
 
 """
     exponent_residuals(nt::NamedTuple; d) -> NamedTuple

@@ -73,23 +73,21 @@ exponent `β` vs the inverse temperature `β`).
 function domain end
 export domain
 
-# The fallback consults `also_constrains`, which is what makes a hand-declared
-# link work on a relation with no typed slot: `@relation` emits no auto-method
-# for those, so a flat `()` here would drop the link without saying so.
 """
     quantities(rel::AbstractRelation) -> Tuple{Vararg{Type}}
 
-The physical-quantity TYPES a relation directly constrains — the machine
-link from a relation to the vocabulary it speaks about (beyond the bare
-variable *symbols* of [`variables`](@ref)).  For a type-keyed relation this is
-auto-derived: the `AbstractQuantity` subset of its [`variable_types`](@ref)
-(family-erased) unioned with [`also_constrains`](@ref) — e.g.
-`quantities(SusceptibilityFDT()) == (Susceptibility, Magnetization)`, the typed
-`χ` plus the `Var(M)` association.  A relation with NO typed slot gets no
-auto-derived method, so it falls back to its [`also_constrains`](@ref) alone,
-which is `()` unless declared: that is how a scaling law or a Maxwell relation,
-which constrains parameters and exponents rather than named quantities, still
-reports `()`.  The reverse index is [`relations_constraining`](@ref).
+The physical-quantity TYPES a relation directly constrains: the machine link to
+the vocabulary it speaks about, beyond the bare variable *symbols* of
+[`variables`](@ref).  For a type-keyed relation it is auto-derived, the
+`AbstractQuantity` subset of its [`variable_types`](@ref) (family-erased) unioned
+with [`also_constrains`](@ref), e.g.
+`quantities(SusceptibilityFDT()) == (Susceptibility, Magnetization)`: the typed
+`χ` plus the `Var(M)` association.  With no typed slot `@relation` emits no
+auto-method and this fallback runs, giving `also_constrains` alone, so a
+hand-declared link still works; flattening this to `()` would drop such a link
+without saying so.  A scaling or Maxwell relation, constraining parameters
+rather than named quantities, declares none and so still reports `()`.  The reverse index
+is [`relations_constraining`](@ref).
 """
 quantities(r::AbstractRelation) = _merged_quantities(r)
 export quantities

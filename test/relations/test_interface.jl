@@ -14,9 +14,9 @@ AbstractQAtlas.domain(::_NonAffineDemo) = :test_only
 
 @testset "registry + traits" begin
     rels = all_relations()
-    @test length(rels) == 159        # +5 infinite-randomness (see :scaling below); +ActivatedDynamicalScaling, +TypicalBelowAverage, +AnnealedFreeEnergyBound; universal-only: model-specific (spin glass, Drude mobility, single-band Hall) moved to QAtlas; +LoschmidtRate; +8 universal bounds; +ElectricCurrentResponse
+    @test length(rels) == 160        # +5 infinite-randomness (see :scaling below); +ActivatedDynamicalScaling, +TypicalBelowAverage, +AnnealedFreeEnergyBound; universal-only: model-specific (spin glass, Drude mobility, single-band Hall) moved to QAtlas; +LoschmidtRate; +8 universal bounds; +ElectricCurrentResponse
     @test allunique(typeof.(rels))
-    @test length(all_relations(; domain=:scaling)) == 27   # +ActivatedDynamicalScaling, ActivatedFiniteSizeScaling, +14 Appendix-A scaling types, +WeinribHalperinExponent; +TypicalCorrelationLength, GriffithsExponentDivergence, GriffithsSusceptibility, GriffithsSpecificHeat, ActivatedMomentGrowth
+    @test length(all_relations(; domain=:scaling)) == 28   # +ActivatedDynamicalScaling, ActivatedFiniteSizeScaling, +14 Appendix-A scaling types, +WeinribHalperinExponent, +QuantumHyperscaling; +TypicalCorrelationLength, GriffithsExponentDivergence, GriffithsSusceptibility, GriffithsSpecificHeat, ActivatedMomentGrowth
     @test length(all_relations(; domain=:thermodynamic)) == 15
     @test length(all_relations(; domain=:fundamental)) == 9   # +GrandPotentialLegendre, ParticleNumberResponse (grand-canonical); +ElectricCurrentResponse (j = −∂H/∂A)
     @test length(all_relations(; domain=:topology)) == 3
