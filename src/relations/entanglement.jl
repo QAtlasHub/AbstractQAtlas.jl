@@ -97,6 +97,111 @@ derivative, hence [`also_constrains`](@ref).
 ) = dS_dlogℓ - ncuts * c̃ / 6
 
 """
+    CFTEntanglementRing <: AbstractRelation
+
+Entanglement entropy of a block of `ℓ` sites in a critical ring of `L`
+(Iglói & Lin, [IgloiLin2008](@cite), Eq. 2):
+
+`S = (c/3) ln[(L/π) sin(πℓ/L)] + c₁`.
+
+Two cuts, hence `c/3`.  `c₁` is not universal, and its value moves with the base
+the entropy is measured in; the source works in bits, and everything here is in
+nats, which rescales `S` and `c₁` together and leaves `c` alone.  As `ℓ ≪ L` the
+chord tends to `ℓ` and this becomes the infinite-chain
+`S = (c/3) ln ℓ + c₁` of Eq. (4).
+"""
+@relation :entanglement CFTEntanglementRing(S, c::CentralCharge, L, ℓ, c₁) =
+    S - (c / 3) * log((L / π) * sin(π * ℓ / L)) - c₁
+
+"""
+    CFTEntanglementOpenChain <: AbstractRelation
+
+The same for the leftmost `ℓ` sites of a critical open chain of `L`
+(Iglói & Lin, [IgloiLin2008](@cite), Eq. 3):
+
+`S = (c/6) ln[(2L/π) sin(πℓ/L)] + ln g + c₁/2`.
+
+Three things separate this from [`CFTEntanglementRing`](@ref), and only the
+first is the cut count: one cut gives `c/6`, the chord carries `2L/π` rather
+than `L/π`, and an open chain has a boundary entropy `ln g` (Affleck & Ludwig)
+that a ring does not.  `c₁` is the same constant as in the ring, entering
+halved.  So the boundary condition is not a factor on the slope, and reading one
+geometry's data with the other's formula misses the chord and the boundary term
+as well as the 2.
+"""
+@relation :entanglement CFTEntanglementOpenChain(S, c::CentralCharge, L, ℓ, c₁, ln_g) =
+    S - (c / 6) * log((2L / π) * sin(π * ℓ / L)) - ln_g - c₁ / 2
+
+"""
+    OffCriticalEntanglementSaturation <: AbstractRelation
+
+Away from criticality the entropy stops growing with `ℓ` and saturates on the
+correlation length (Iglói & Lin, [IgloiLin2008](@cite), Eq. 5, valid for
+`ξ ≪ ℓ`):
+
+`S ≃ ncuts · (c/6) ln ξ`.
+
+The source writes the prefactor as `b`, "the number of boundary points between
+the subsystem and the rest of the chain", which is `ncuts` under another name:
+the same axis that counts cuts at criticality counts them here, with `ξ` in the
+place `ℓ` held.
+"""
+@relation :entanglement OffCriticalEntanglementSaturation(
+    S, c::CentralCharge, ξ::CorrelationLength, ncuts
+) = S - ncuts * (c / 6) * log(ξ)
+
+"""
+    HalvedChainEntropyDifference <: AbstractRelation
+
+Central charge from two chain lengths rather than from a fit (Iglói & Lin,
+[IgloiLin2008](@cite), Sec. 3.1), with `ΔS(L) = S_L(L/2) - S_{L/2}(L/4)`:
+
+`ΔS = ncuts · (c/6) ln 2`.
+
+Exact on the conformal forms, since halving the chain shifts the chord by a
+factor of two and the non-universal `c₁` cancels: the estimator needs no
+constant, which is why the source uses it.  The `ln 2` is not decoration.  The
+source reads `ΔS = c/3` for a ring and `c/6` for an open chain because it counts
+bits, where `log₂ 2 = 1` absorbs it; in nats it does not, and dropping it returns
+`c ln 2` in place of `c`.  For the Ising chain that is `(ln 2)/2`, which is
+exactly the effective central charge of the *random* Ising chain, so the slip is
+numerically indistinguishable from having measured a different fixed point.
+
+The finite-size approach differs by boundary condition in its exponent, not only
+its amplitude: the source measures `c(L) = 1/2 - 0.623/L² + O(L⁻³)` on a ring
+against `c(L) = 1/2 + 1.339/L + O(L⁻²)` on an open chain, so an open chain's
+leading correction is one power of `L` slower.
+"""
+@relation :entanglement HalvedChainEntropyDifference(ΔS, c::CentralCharge, ncuts) =
+    ΔS - ncuts * (c / 6) * log(2)
+
+"""
+    InfiniteRandomnessEntanglementRing <: AbstractRelation
+
+Finite-size entropy of a block in a random critical ring, at the
+infinite-randomness fixed point (Iglói & Lin, [IgloiLin2008](@cite), Eq. 24):
+
+`S̄ = (c̃/3) ln[L f(ℓ/L)] + c₁′`.
+
+`f` is supplied by the caller because it is not the conformal chord.  It is
+reflection symmetric, `f(v) = f(1-v)`, tends to `v` as `v → 0`, and expands as
+`f(v) = Σₖ Aₖ sin((2k-1)πv)` subject to `Σₖ Aₖ(2k-1)π = 1`; the source notes
+that for a conformally invariant model **only the first term exists**.  Keeping
+just `k = 1` forces `A₁ = 1/π` from that normalisation and returns
+`L f = (L/π) sin(πℓ/L)`, which is [`CFTEntanglementRing`](@ref) exactly.  So the
+difference between a critical chain and a random one at finite size is not the
+coefficient alone, as it is for the slope: the higher harmonics are absent in
+the first case and present in the second.
+
+`c̃ = (ln 2)/2` is reported universal here in a stronger sense than the slope
+alone requires, being independent of the form of the disorder, while `c₁′`
+depends on it.
+"""
+@relation :entanglement InfiniteRandomnessEntanglementRing(
+    S̄, c̃::EffectiveCentralCharge, L, f, c₁′
+) = S̄ - (c̃ / 3) * log(L * f) - c₁′
+
+"""
     page_average_entropy(dA, dB) -> Float64
 
 Page's average entanglement entropy of the smaller subsystem `A` for a

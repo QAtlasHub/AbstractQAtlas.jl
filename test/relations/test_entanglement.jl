@@ -179,6 +179,134 @@ end
     @test only(found).pass
 end
 
+@testset "finite-size entropy: ring, open chain, and what separates them" begin
+    c, c₁, L = 1 / 2, 0.4785, 2048.0          # Ising; c₁ non-universal, cancels below
+
+    ring(ℓ, Lc=L) = (c / 3) * log((Lc / π) * sin(π * ℓ / Lc)) + c₁
+    open_(ℓ, Lc=L) = (c / 6) * log((2Lc / π) * sin(π * ℓ / Lc)) + 0.0 + c₁ / 2
+
+    @test check(CFTEntanglementRing(); S=ring(512), c=c, L=L, ℓ=512, c₁=c₁, atol=1e-12)
+    # Iglói & Lin Table 1 measure g → 1 for the Ising chain, so `ln g` vanishes there.
+    @test check(
+        CFTEntanglementOpenChain();
+        S=open_(512),
+        c=c,
+        L=L,
+        ℓ=512,
+        c₁=c₁,
+        ln_g=0.0,
+        atol=1e-12,
+    )
+
+    # A ring block far from filling the ring is the infinite chain: the chord
+    # tends to ℓ, so the two forms must agree, and increasingly so.
+    inf_chain(ℓ) = (c / 3) * log(ℓ) + c₁
+    @test abs(ring(8) - inf_chain(8)) < abs(ring(256) - inf_chain(256))
+    @test ring(8) ≈ inf_chain(8) atol = 2e-5
+
+    # The open chain is NOT the ring halved. Same (L, ℓ, c, c₁), and the gap is
+    # the chord's 2L/π against L/π; assuming a bare factor of two misses it.
+    @test !isapprox(open_(512), ring(512) / 2; atol=1e-6)
+    @test open_(512) - ring(512) / 2 ≈ (c / 6) * log(2) atol = 1e-12
+end
+
+@testset "HalvedChainEntropyDifference is exact on both boundary conditions" begin
+    c, c₁, L = 1 / 2, 0.4785, 4096.0
+    ring(ℓ, Lc) = (c / 3) * log((Lc / π) * sin(π * ℓ / Lc)) + c₁
+    open_(ℓ, Lc) = (c / 6) * log((2Lc / π) * sin(π * ℓ / Lc)) + c₁ / 2
+
+    # Derived from the two forms above, not assumed: halving shifts the chord by
+    # exactly two, and c₁ (and `ln g`) cancel, which is why no constant appears.
+    ΔS_ring = ring(L / 2, L) - ring(L / 4, L / 2)
+    ΔS_open = open_(L / 2, L) - open_(L / 4, L / 2)
+    @test check(HalvedChainEntropyDifference(); ΔS=ΔS_ring, c=c, ncuts=2, atol=1e-12)
+    @test check(HalvedChainEntropyDifference(); ΔS=ΔS_open, c=c, ncuts=1, atol=1e-12)
+
+    # The `ln 2` is load-bearing, and its absence is not merely a wrong number.
+    # The source reads ΔS = c/3 and c/6 because it counts bits; applying that to
+    # entropies in nats returns c·ln 2 rather than c.
+    @test solve(HalvedChainEntropyDifference(), Val(:c); ΔS=ΔS_ring, ncuts=2) ≈ c atol =
+        1e-12
+    @test ΔS_ring / (2 / 6) ≈ c * log(2) atol = 1e-12
+    @test !isapprox(ΔS_ring / (2 / 6), c; atol=1e-3)
+
+    # For the Ising chain that misreading lands exactly on the random chain's
+    # effective central charge, since c̃ = c ln 2 there: a clean chain measured
+    # in the wrong base is numerically an infinite-randomness one.
+    @test c * log(2) ≈ log(2) / 2 atol = 1e-15
+
+    # And the cut count still discriminates: the same difference read at the
+    # wrong count returns twice or half the central charge.
+    @test solve(HalvedChainEntropyDifference(), Val(:c); ΔS=ΔS_ring, ncuts=1) ≈ 2c atol =
+        1e-12
+end
+
+@testset "off-critical saturation counts the same boundary points" begin
+    c, ξ = 1 / 2, 40.0
+    # Iglói & Lin write the prefactor as `b`, the number of boundary points.
+    @test check(
+        OffCriticalEntanglementSaturation();
+        S=2 * (c / 6) * log(ξ),
+        c=c,
+        ξ=ξ,
+        ncuts=2,
+        atol=1e-12,
+    )
+    @test check(
+        OffCriticalEntanglementSaturation();
+        S=1 * (c / 6) * log(ξ),
+        c=c,
+        ξ=ξ,
+        ncuts=1,
+        atol=1e-12,
+    )
+    # ξ replaces ℓ: at ξ = ℓ the saturated value meets the critical logarithm.
+    @test 2 * (c / 6) * log(ξ) ≈ (c / 3) * log(ξ) atol = 1e-12
+end
+
+@testset "the conformal chord is the one-harmonic case of the random one" begin
+    c̃, c₁′, L, ℓ = log(2) / 2, 0.31, 1024.0, 300.0
+
+    # `Σₖ Aₖ(2k-1)π = 1` with a single harmonic forces A₁ = 1/π, and then
+    # `L f(ℓ/L)` is the conformal chord exactly.
+    A₁ = 1 / π
+    @test A₁ * (2 * 1 - 1) * π ≈ 1 atol = 1e-14
+    f_conformal(v) = A₁ * sin(π * v)
+    @test L * f_conformal(ℓ / L) ≈ (L / π) * sin(π * ℓ / L) atol = 1e-12
+
+    # So the random ring form with that f, read at c̃ → c, IS the ring form.
+    S = (c̃ / 3) * log(L * f_conformal(ℓ / L)) + c₁′
+    @test check(
+        InfiniteRandomnessEntanglementRing();
+        S̄=S,
+        c̃=c̃,
+        L=L,
+        f=f_conformal(ℓ / L),
+        c₁′=c₁′,
+        atol=1e-12,
+    )
+    @test check(CFTEntanglementRing(); S=S, c=c̃, L=L, ℓ=ℓ, c₁=c₁′, atol=1e-12)
+
+    # A second harmonic is what a random chain may carry and a conformal one may
+    # not, and it moves the entropy, so the two forms are not interchangeable
+    # once it is present.
+    A₃ = 0.02
+    f_two(v) = (1 - A₃ * 3π) / π * sin(π * v) + A₃ * sin(3π * v)
+    @test (1 - A₃ * 3π) / π * π + A₃ * 3π ≈ 1 atol = 1e-14   # normalisation held
+    S_two = (c̃ / 3) * log(L * f_two(ℓ / L)) + c₁′
+    @test !isapprox(S_two, S; atol=1e-4)
+    @test check(
+        InfiniteRandomnessEntanglementRing();
+        S̄=S_two,
+        c̃=c̃,
+        L=L,
+        f=f_two(ℓ / L),
+        c₁′=c₁′,
+        atol=1e-12,
+    )
+    @test !check(CFTEntanglementRing(); S=S_two, c=c̃, L=L, ℓ=ℓ, c₁=c₁′, atol=1e-4)
+end
+
 @testset "c̃ is not c: the two slopes cannot be read for each other" begin
     rel = InfiniteRandomnessEntanglementSlope()
     @test variable_types(rel) == (EffectiveCentralCharge,)
