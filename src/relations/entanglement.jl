@@ -47,6 +47,56 @@ derivative, hence [`also_constrains`](@ref).  `ncuts` has no default:
     dS_dlogℓ - ncuts * c / 6
 
 """
+    InfiniteRandomnessEntanglementSlope <: AbstractRelation
+
+The same logarithmic growth at a **one-dimensional** infinite-randomness fixed
+point, with the effective central charge in place of the CFT one (Refael &
+Moore, [RefaelMoore2004](@cite)):
+
+`dS/d(ln ℓ) = ncuts · c̃/6`.
+
+There is no `d` slot because there is no family to index.  Above one dimension
+the entropy obeys an area law rather than a logarithm, and whether an
+infinite-randomness fixed point is reached at all is model-dependent and settled
+only numerically: the random transverse-field Ising model reaches one in `d ≥ 2`
+while the random Heisenberg antiferromagnet does not (Iglói & Monthus,
+[IgloiMonthus2005](@cite), Sec. 9).  A `d` argument would advertise a
+generalisation that does not exist.
+
+The claim is the leading slope, not the finite-size form.  `ncuts` fixes how
+many cuts contribute, which is what separates a ring from an open end, but it
+does not carry the rest of what a boundary changes: the chord argument that
+turns `ln ℓ` into `ln[(L/π) sin(πℓ/L)]` has a different prefactor inside the
+logarithm for an open chain, an open chain adds a boundary entropy, and its
+oscillating corrections are the stronger.  None of that is asserted here, and at
+a fixed point with no conformal map none of it follows from the slope.
+
+What matters is what does not change.  The fixed point is not conformally
+invariant, yet both the form and the geometry factor survive, so `ncuts` means
+what it means in [`CFTEntanglementSlope`](@ref) and only `c` becomes
+[`EffectiveCentralCharge`](@ref).  Refael and Moore's `2 ln √L` (Eq. 13) is that
+same factor arriving from the RG: two cuts, each contributing `ln Γ` at
+`Γ = √L`.
+
+`S` is in nats, as there.  The source counts bits, so its slope is this one over
+`ln 2`; `c̃` is unchanged by the base, which rescales entropy and logarithm
+alike.  Random Ising is `c̃ = (ln 2)/2` either way, growing as
+`(ln 2/6) ln ℓ ≈ 0.1155 ln ℓ` across two cuts.
+
+`c̃` is measured per class, not derived: `(ln 2)/2` for the random transverse
+field Ising chain, `ln 2` for the random singlet phase of the Heisenberg and XX
+chains.  Both are `ln 2` times the pure value, which the source reports for
+every chain it treats while calling a general law only possible, so that is not
+a relation here.
+
+Variables: `dS_dlogℓ`, `c̃`, `ncuts`; the entropy arrives through the supplied
+derivative, hence [`also_constrains`](@ref).
+"""
+@relation :entanglement InfiniteRandomnessEntanglementSlope(
+    dS_dlogℓ, c̃::EffectiveCentralCharge, ncuts
+) = dS_dlogℓ - ncuts * c̃ / 6
+
+"""
     page_average_entropy(dA, dB) -> Float64
 
 Page's average entanglement entropy of the smaller subsystem `A` for a

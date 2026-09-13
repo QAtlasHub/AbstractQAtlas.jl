@@ -117,6 +117,92 @@ end
     @test only(discovered).pass
 end
 
+@testset "InfiniteRandomnessEntanglementSlope reproduces Refael-Moore" begin
+    # Refael & Moore 2004: c̃ = (ln 2)/2 for the random transverse-field Ising
+    # chain (Eq. 23) and ln 2 for the random singlet phase of the Heisenberg and
+    # XX chains (Eq. 19).
+    c̃_ising, c̃_singlet = log(2) / 2, log(2)
+
+    # Their published slopes, for a segment of a chain, which is two cuts.
+    @test check(
+        InfiniteRandomnessEntanglementSlope();
+        dS_dlogℓ=log(2) / 6,
+        c̃=c̃_ising,
+        ncuts=2,
+        atol=1e-14,
+    )
+    @test check(
+        InfiniteRandomnessEntanglementSlope();
+        dS_dlogℓ=log(2) / 3,
+        c̃=c̃_singlet,
+        ncuts=2,
+        atol=1e-14,
+    )
+
+    # Eqs. (19) and (23) are written in bits, `S = -Tr ρ log₂ ρ`, where the same
+    # two-cut slopes read 1/3 and 1/6 exactly.  Dividing by ln 2 must land there,
+    # or the relation is off by the base.
+    @test (log(2) / 3) / log(2) ≈ 1 / 3 atol = 1e-14
+    @test (log(2) / 6) / log(2) ≈ 1 / 6 atol = 1e-14
+
+    # Getting the cut count wrong is not a small error: read at one cut, the
+    # random Ising slope returns the random singlet value, so the two classes
+    # trade places.  This is the failure the `ncuts` axis exists to prevent.
+    @test solve(
+        InfiniteRandomnessEntanglementSlope(), Val(:c̃); dS_dlogℓ=log(2) / 6, ncuts=2
+    ) ≈ c̃_ising atol = 1e-14
+    @test solve(
+        InfiniteRandomnessEntanglementSlope(), Val(:c̃); dS_dlogℓ=log(2) / 6, ncuts=1
+    ) ≈ c̃_singlet atol = 1e-14
+
+    # A block at an open end is one cut: half the slope, ln 2/12 = 0.0578, not
+    # the ln 2/6 = 0.1155 of a segment.  The two must not be interchangeable.
+    @test check(
+        InfiniteRandomnessEntanglementSlope();
+        dS_dlogℓ=log(2) / 12,
+        c̃=c̃_ising,
+        ncuts=1,
+        atol=1e-14,
+    )
+    @test !check(
+        InfiniteRandomnessEntanglementSlope();
+        dS_dlogℓ=log(2) / 12,
+        c̃=c̃_ising,
+        ncuts=2,
+        atol=1e-3,
+    )
+
+    # As in the CFT case, a slope that does not say its geometry yields no row.
+    @test isempty(relation_report((; dS_dlogℓ=log(2) / 6, c̃=c̃_ising)))
+    found = relation_report((; dS_dlogℓ=log(2) / 6, c̃=c̃_ising, ncuts=2))
+    @test only(found).relation isa InfiniteRandomnessEntanglementSlope
+    @test only(found).pass
+end
+
+@testset "c̃ is not c: the two slopes cannot be read for each other" begin
+    rel = InfiniteRandomnessEntanglementSlope()
+    @test variable_types(rel) == (EffectiveCentralCharge,)
+    @test EffectiveCentralCharge in quantities(rel)
+
+    # The fixed point is not conformal, so an infinite-randomness slope must not
+    # produce a CentralCharge row, nor a CFT slope an EffectiveCentralCharge one.
+    @test !(CentralCharge in quantities(rel))
+    @test !(EffectiveCentralCharge in quantities(CFTEntanglementSlope()))
+
+    # No dimension slot either: above 1D the entropy is an area law and the
+    # fixed point may not even be reached, so there is no family for `d` to
+    # index.  A future edit adding one would be claiming a generalisation.
+    @test !(SpatialDimension in quantities(rel))
+
+    # Same arithmetic, so the guard is the type and nothing else: a c̃ of ln 2/2
+    # and a c of ln 2/2 would give identical slopes, and only the name separates
+    # a random Ising chain from a CFT that happens to sit at that irrational c.
+    @test check(rel; dS_dlogℓ=log(2) / 6, c̃=log(2) / 2, ncuts=2, atol=1e-14)
+    @test check(
+        CFTEntanglementSlope(); dS_dlogℓ=log(2) / 6, c=log(2) / 2, ncuts=2, atol=1e-14
+    )
+end
+
 @testset "CFTEntanglementSlope is type-keyed like its cft.jl siblings" begin
     rel = CFTEntanglementSlope()
 

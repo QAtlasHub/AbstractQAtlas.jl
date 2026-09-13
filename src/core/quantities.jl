@@ -1527,6 +1527,21 @@ Central charge `c` of the critical theory's CFT.
 struct CentralCharge <: AbstractQuantity end
 export CentralCharge
 
+"""
+    EffectiveCentralCharge() <: AbstractQuantity
+
+Effective central charge `c̃` of an infinite-randomness fixed point (Refael &
+Moore, [RefaelMoore2004](@cite)).
+
+Not a [`CentralCharge`](@ref): the fixed point is not conformally invariant, so
+`c̃` is not fixed by a Virasoro algebra and is not restricted to the rational
+values a unitary CFT with `c < 1` may take.  It is named for the one thing it
+shares, the role in the entanglement law, where it enters exactly where `c`
+does (see [`InfiniteRandomnessEntanglementSlope`](@ref)).
+"""
+struct EffectiveCentralCharge <: AbstractQuantity end
+export EffectiveCentralCharge
+
 # ─── Topology ───────────────────────────────────────────────────────────
 
 """
