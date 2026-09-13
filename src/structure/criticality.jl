@@ -55,7 +55,8 @@ critical_scaling(::Type{SurfaceMagnetization}) = CriticalScaling(:β_s, +1)
 # inherits its quantity's law, and not as an approximation: at an
 # infinite-randomness fixed point the average is set by the density of locally
 # ordered rare regions, whose scaling form (IgloiMonthus2005 Eq. (A.19)) is
-# identical to the conventional Eq. (A.11).  `Typical{Q}` does not inherit; it
+# identical to the conventional Eq. (A.11), so `m` has the same properties in
+# both cases.  `Typical{Q}` does not inherit; it
 # has no power law at all, which `fss_size_exponent` says rather than guesses.
 critical_scaling(::Type{DisorderAveraged{Q}}) where {Q} = critical_scaling(Q)
 export critical_scaling, CriticalScaling
@@ -115,9 +116,9 @@ export singular_form
 
 # Which quantities keep their conventional power law once the disorder average
 # is taken at an infinite-randomness fixed point.  An ALLOW-list, so a quantity
-# added later is refused rather than assumed: the source justifies the average
-# only where the law is carried by the density of rare regions, which scales as
-# the conventional one does.  Eq. (A.25) is the counterexample the list exists
+# added later is refused rather than silently assumed: the source justifies the
+# average only where the law is carried by the density of LOCALLY ORDERED rare
+# regions, which scales as the conventional one does.  Eq. (A.25) is the counterexample the list exists
 # for, the averaged specific heat going as `L^{-d}` and not `L^{α/ν}`, which for
 # the 1D chain are -1 and 0.
 _average_keeps_power_law(::Type{<:AbstractQuantity}) = false

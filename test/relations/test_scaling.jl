@@ -560,8 +560,8 @@ end
 end
 
 @testset "one `d` everywhere, and the quantum form adds `z` itself" begin
-    # The 1D transverse-field Ising chain, with its OWN spatial dimension and
-    # its z. Every relation that takes a d now takes this one.
+    # The 1D transverse-field Ising chain, with its OWN spatial dimension and its
+    # z, which is the d every relation taking one reads.
     chain = (α=0 // 1, β=1 // 8, γ=7 // 4, δ=15 // 1, ν=1 // 1, η=1 // 4, d=1, z=1 // 1)
 
     # Hyperscaling holds in the quantum form at the chain's own d.
@@ -602,16 +602,23 @@ end
 
 @testset "`d` is a typed subject, so the graph can be asked what reads it" begin
     rs = relations_constraining(SpatialDimension())
+    # Every relation that takes a d, named. Listing a subset leaves the rest
+    # resting on the soft coverage ratio, which cannot see one missing entry.
+    @test length(rs) == 13
     for r in (
         Josephson(),
         QuantumHyperscaling(),
         GriffithsSusceptibility(),
+        GriffithsSpecificHeat(),
+        GriffithsAutocorrelation(),
         ActivatedMomentGrowth(),
+        ActivatedSusceptibility(),
         ActivatedSpecificHeat(),
         LargeSpinMoment(),
         OrderedGriffithsEnergyScale(),
         FixedPointDisorderStrength(),
         ConventionalFieldSusceptibility(),
+        ConventionalFieldSpecificHeat(),
     )
         @test r in rs
     end

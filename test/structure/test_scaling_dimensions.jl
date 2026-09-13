@@ -192,6 +192,20 @@ end
     @test_throws "d = " InfiniteRandomness(1 // 2, 2, 1 // 4, 0)
     # ψ = 1 is allowed: ν_typ collapses to 0, which is a statement, not an error
     @test critical_exponents(InfiniteRandomness(1 // 1, 2 // 1, 1 // 4, 1)).ν_typ == 0 // 1
+    # ...but past it ν_typ would go negative, and a correlation length has no
+    # negative exponent. The sweep cannot catch this: the three relations it runs
+    # are the formulas critical_exponents uses, so they are zero for any input.
+    @test_throws "ν_typ = ν(1-ψ) negative" InfiniteRandomness(3 // 2, 2 // 1, 1 // 4, 1)
+    # x_m outside (0, d) is the same kind of unphysical-but-finite input: below 0
+    # the order parameter diverges at criticality, at or above d the cluster's
+    # fractal dimension d - x_m stops being positive.
+    @test_throws "0 < x_m < d" InfiniteRandomness(1 // 2, 2 // 1, -1 // 4, 1)
+    @test_throws "0 < x_m < d" InfiniteRandomness(1 // 2, 2 // 1, 5 // 1, 1)
+    @test_throws "0 < x_m < d" InfiniteRandomness(1 // 2, 2 // 1, 1 // 1, 1)   # x_m == d
+    # Non-finite input is refused before any of the above can read it.
+    @test_throws "must be finite" InfiniteRandomness(Inf, 2.0, 0.25, 1.0)
+    @test_throws "must be finite" InfiniteRandomness(0.5, 2.0, NaN, 1.0)
+    @test_throws "must be finite" InfiniteRandomness(0.5, 2.0, 0.25, Inf)
 end
 
 @testset "a fixed point that carries `d` needs no second statement of it" begin
@@ -209,7 +223,11 @@ end
     @test !exponents_consistent(
         (critical_exponents(ScalingDimensions(1 // 1, 15 // 8, 2))); d=3
     )
-    # and the same for the activated side
-    s = InfiniteRandomness(1 // 2, 2 // 1, 1 // 4, 1)
-    @test exponent_residuals(s) == exponent_residuals(critical_exponents(s); d=1)
+    # and the same for the activated side, at every d in the sweep: pinning it at
+    # one fixture whose d happened to be 1 could not see whether the method reads
+    # `s.d` at all, since the right-hand side spells 1 as a literal.
+    for (ψ, ν, x_m, dd) in _IRFP_SETS
+        s = InfiniteRandomness(ψ, ν, x_m, dd)
+        @test exponent_residuals(s) == exponent_residuals(critical_exponents(s); d=dd)
+    end
 end

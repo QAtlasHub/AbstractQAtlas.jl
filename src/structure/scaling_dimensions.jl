@@ -22,7 +22,8 @@
 # `ScalingDimensions` is (∗).  `InfiniteRandomness` is the activated case, where
 # no finite `z` exists and `ψ` plays `y_t`'s role.  `d` is a FIELD of each and
 # not a per-call argument, because it is the one number a caller can get wrong
-# without the answer looking wrong.
+# without the answer looking wrong (worked example: the warning on
+# `InfiniteRandomness`).
 #
 # Hyperscaling caveat: (∗) carries the bare `b^{-d}`, so the derived set obeys
 # Josephson (and the `d` in `η`) by construction.  Above the upper critical
@@ -35,11 +36,10 @@
 
 The renormalization-group data of a continuous transition: the thermal and
 magnetic relevant eigenvalues `y_t`, `y_h` (the RG-flow exponents of the
-reduced temperature and the ordering field) and the spatial dimension `d` of
-the system this describes ([`SpatialDimension`](@ref)).  For a quantum critical
-point that system is the classical image, so a chain is described here by its
-2D image and `d = 2`; the chain's own `d = 1` is what
-[`InfiniteRandomness`](@ref) and [`HarrisCriterion`](@ref) take.
+reduced temperature and the ordering field) and the spatial dimension `d` of the
+system this describes, which at a quantum critical point is the classical image
+rather than the quantum system: see [`SpatialDimension`](@ref) for which is
+which.
 These are the two-and-a-bit numbers the whole equilibrium exponent set is a
 function of, via the homogeneity of the singular free energy
 `f_s(t,h) = b^{-d} f_s(b^{y_t}t, b^{y_h}h)` — see
@@ -152,10 +152,10 @@ exponent is derived by [`critical_exponents`](@ref).
     A random transverse-field Ising chain is `d = 1`.  Atlases hand out `d = 2`
     for its clean critical point's 2D classical image, so 2 is the number
     nearest to hand and it is wrong: `φ` comes out 3.618 rather than the golden
-    mean, unflagged.  Quenched disorder is constant along imaginary time, so it
-    lives in the chain's `d`, not the image's `d + z`
-    ([`SpatialDimension`](@ref)), and at an infinite-randomness fixed point
-    there is no finite `d + z` to confuse it with anyway.
+    mean 1.618, unflagged.  Which `d` belongs to which system is
+    [`SpatialDimension`](@ref); holding it in the struct makes that one decision
+    at construction rather than one per call, and at an infinite-randomness fixed
+    point there is no finite `d + z` to confuse it with anyway.
 
 Arguments are promoted to a common type; pass `Rational`s where the values are
 rational.  `ψ ≤ 0` is refused rather than accepted: it names a conventional
@@ -173,13 +173,25 @@ struct InfiniteRandomness{T<:Real}
     x_m::T
     d::T
     function InfiniteRandomness(ψ::T, ν::T, x_m::T, d::T) where {T<:Real}
-        ψ > 0 || error(
+        all(isfinite, (ψ, ν, x_m, d)) ||
+            error("InfiniteRandomness: every field must be finite; got ($ψ, $ν, $x_m, $d).")
+        0 < ψ || error(
             "InfiniteRandomness: ψ = $ψ is not an infinite-randomness fixed point. " *
             "ψ > 0 is what the name means; a fixed point with ψ = 0 has a finite " *
             "dynamical exponent and is parameterised by ScalingDimensions.",
         )
+        ψ <= 1 || error(
+            "InfiniteRandomness: ψ = $ψ > 1 would make ν_typ = ν(1-ψ) negative, and a " *
+            "correlation length has no negative exponent. ψ ∈ (0, 1].",
+        )
         ν > 0 || error("InfiniteRandomness: ν = $ν must be positive.")
         d > 0 || error("InfiniteRandomness: d = $d must be positive.")
+        0 < x_m < d || error(
+            "InfiniteRandomness: x_m = $x_m must satisfy 0 < x_m < d = $d. Below 0 the " *
+            "order parameter would diverge at criticality (β = ν·x_m < 0); at or above " *
+            "`d` the ordered cluster's fractal dimension d - x_m would not be positive, " *
+            "and φ = (d - x_m)/ψ would not be a growth exponent.",
+        )
         return new{T}(ψ, ν, x_m, d)
     end
 end
@@ -204,9 +216,12 @@ set; `d` does not, matching [`critical_exponents`](@ref)`(::ScalingDimensions)`.
 Use [`exponents_consistent`](@ref)`(s)` to sweep the registry without having to
 restate it.
 
-By construction the result satisfies [`OrderParameterDimension`](@ref),
+The result satisfies [`OrderParameterDimension`](@ref),
 [`TypicalCorrelationLength`](@ref) and [`ActivatedMomentGrowth`](@ref) with
-residual exactly zero, for any `s`.
+residual exactly zero for any `s`, which is a statement about the derivation and
+not a validation of it: those three ARE the formulas below.  What keeps an `s`
+physical is the constructor, which is why it checks `0 < x_m < d` and `ψ ≤ 1`
+rather than leaving them to a sweep that cannot see them.
 """
 function critical_exponents(s::InfiniteRandomness)
     ψ, ν, x_m, d = s.ψ, s.ν, s.x_m, s.d

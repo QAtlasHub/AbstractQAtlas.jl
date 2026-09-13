@@ -84,8 +84,9 @@ with [`also_constrains`](@ref), e.g.
 `quantities(SusceptibilityFDT()) == (Susceptibility, Magnetization)`: the typed
 `χ` plus the `Var(M)` association.  With no typed slot `@relation` emits no
 auto-method and this fallback runs, giving `also_constrains` alone, so a
-hand-declared link still works and a scaling or Maxwell relation, constraining
-parameters rather than named quantities, still reports `()`.  The reverse index
+hand-declared link still works; flattening this to `()` would drop such a link
+without saying so.  A scaling or Maxwell relation, constraining parameters
+rather than named quantities, declares none and so still reports `()`.  The reverse index
 is [`relations_constraining`](@ref).
 """
 quantities(r::AbstractRelation) = _merged_quantities(r)

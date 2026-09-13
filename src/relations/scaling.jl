@@ -78,16 +78,17 @@ the critical theory with its own exponent:
 [`Josephson`](@ref) about the same physics, taking the system's OWN `d` and `z`
 and summing them rather than the image's dimension pre-summed.  That is what
 makes one exponent table plus `(d, z)` answer both, with neither handed a number
-meaning the other's system.  `z = 0` recovers Josephson exactly, the classical
-limit in the only sense the formula has; no finite `z` exists at an
-infinite-randomness fixed point ([`ActivatedExponent`](@ref)), so neither form
-applies there.
+meaning the other's system.  `z = 0` reduces the formula to Josephson, which is
+algebra and not a limit any quantum critical point reaches (`Δ ∼ ξ^{-z}` would
+never close); Josephson's `d` for a quantum system is its image's, not this
+one's with `z` zeroed.  No finite `z` exists at an infinite-randomness fixed
+point ([`ActivatedExponent`](@ref)), so neither form applies there.
 
 Variables: `α`, `ν`, `d`, `z`.
 
-Reference: standard at a quantum critical point (Sachdev, *Quantum Phase
-Transitions*): the Euclidean action of a `d`-dimensional quantum system at
-`T = 0` lives in `d + z` directions.
+Reference: [Sachdev2011](@cite); the Euclidean action of a `d`-dimensional
+quantum system at `T = 0` lives in `d + z` EFFECTIVE directions, `z` being
+generally non-integer, so the count is scaling-theoretic and not geometric.
 """
 @relation :scaling QuantumHyperscaling(α, ν, d::SpatialDimension, z::DynamicalExponent) =
     2 - α - (d + z) * ν
@@ -280,7 +281,7 @@ log-energy one. For the 1D random transverse-field Ising chain
 
 Written multiplied through by `ψ`, keeping the residual affine in every variable.
 
-Reference: [IgloiMonthus2005](@cite) Eq. (A.21), §A.4, where `d − x_m` is
+Reference: [IgloiMonthus2005](@cite) Eq. (A.21), §A.3, where `d − x_m` is
 identified as the fractal dimension of the cluster.  The golden mean it returns
 for the RTFIC is that review's Eq. (3.18), §3.5, reached by a different route.
 
