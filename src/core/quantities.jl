@@ -1259,26 +1259,18 @@ export ScalingDimension
 """
     SpatialDimension() <: AbstractQuantity
 
-The number of spatial directions `d` of the system a law is about.  A COUNT,
-not an exponent, and not [`ScalingDimension`](@ref), which is an operator's
-`x` and happens to sit next to it here so the two are read together.
+The number of spatial directions `d` of the system a law is about.  A COUNT, and
+adjacent to [`ScalingDimension`](@ref), an operator's `x`, so the two are read
+together rather than confused.
 
-Every `d` in this package is this one: the spatial dimension of the system the
-relation describes.  What varies is WHICH system, and for a quantum critical
-point that is the trap:
-
-- Quenched disorder is constant along imaginary time, so it lives in the
-  quantum system's own `d`.  [`HarrisCriterion`](@ref) and every
-  infinite-randomness relation read that: a chain is `d = 1`.
-- Hyperscaling counts the directions of the critical theory.  The classical
-  image of a `d`-dimensional quantum critical point has `d + z` of them, so
-  [`Josephson`](@ref) applied to that image's exponent table takes ITS `d`
-  (a chain's image is 2D Ising, `d = 2`), and
-  [`QuantumHyperscaling`](@ref) is the form that takes the chain's own `d`
-  and `z` and adds them itself.
-
-For a classical system the two systems are the same one and the distinction
-does not arise.
+Every `d` in this package is this one.  What varies is WHICH system, and only a
+quantum critical point has two: quenched disorder is constant along imaginary
+time, so it lives in the chain's own `d = 1`, while the classical image whose
+exponent table an atlas hands out has `d + z = 2` directions.
+[`HarrisCriterion`](@ref) and the infinite-randomness relations read the first;
+[`Josephson`](@ref) applied to that image's table takes the second, and
+[`QuantumHyperscaling`](@ref) takes the first plus `z` and adds them itself.
+Classically there is one system and no distinction.
 """
 struct SpatialDimension <: AbstractQuantity end
 export SpatialDimension

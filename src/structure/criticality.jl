@@ -52,11 +52,10 @@ critical_scaling(::Type{CorrelationLength}) = CriticalScaling(:ν, -1)
 critical_scaling(::Type{SurfaceMagnetization}) = CriticalScaling(:β_s, +1)
 
 # The exponent table describes the ARITHMETIC mean, so a disorder average
-# inherits its quantity's law.  This is not an approximation: at an
-# infinite-randomness fixed point the average is set by the DENSITY of locally
+# inherits its quantity's law, and not as an approximation: at an
+# infinite-randomness fixed point the average is set by the density of locally
 # ordered rare regions, whose scaling form (IgloiMonthus2005 Eq. (A.19)) is
-# mathematically identical to the conventional one (Eq. (A.11)), so `m` has the
-# same properties in both cases.  `Typical{Q}` deliberately does not inherit: it
+# identical to the conventional Eq. (A.11).  `Typical{Q}` does not inherit; it
 # has no power law at all, which `fss_size_exponent` says rather than guesses.
 critical_scaling(::Type{DisorderAveraged{Q}}) where {Q} = critical_scaling(Q)
 export critical_scaling, CriticalScaling
@@ -116,12 +115,11 @@ export singular_form
 
 # Which quantities keep their conventional power law once the disorder average
 # is taken at an infinite-randomness fixed point.  An ALLOW-list, so a quantity
-# added later is refused rather than silently assumed: the source justifies the
-# average only where the law is carried by the density of locally ordered rare
-# regions, which scales as the conventional one does (IgloiMonthus2005 Eq. (A.19)
-# against Eq. (A.11)).  Eq. (A.25) is the counterexample the list exists for: the
-# disorder-averaged specific heat goes as `L^{-d}`, not as `L^{α/ν}`, and for the
-# 1D chain those are -1 and 0.
+# added later is refused rather than assumed: the source justifies the average
+# only where the law is carried by the density of rare regions, which scales as
+# the conventional one does.  Eq. (A.25) is the counterexample the list exists
+# for, the averaged specific heat going as `L^{-d}` and not `L^{α/ν}`, which for
+# the 1D chain are -1 and 0.
 _average_keeps_power_law(::Type{<:AbstractQuantity}) = false
 _average_keeps_power_law(::Type{<:AbstractMagnetization}) = true   # Eq. (A.19)
 _average_keeps_power_law(::Type{<:AbstractSusceptibility}) = true  # Eq. (A.25), χ ∼ L^{d-2x_m}/T
@@ -170,10 +168,10 @@ fss_size_exponent(SpontaneousMagnetization(); exponents=exps)  # −β/ν  (= �
 fss_size_exponent(CorrelationLength(); exponents=exps)         # +1    (ξ ∼ L)
 ```
 
-Throws when `exponents` carries a nonzero `ψ`, an infinite-randomness fixed
-point, unless the quantity says which reduction is meant and that reduction
-still has a power of `L`.  [`singular_form`](@ref) refuses on the same terms;
-`fss_peak` and `collapse_coordinates` inherit it through here.
+Throws on a nonzero `ψ` in `exponents`, an infinite-randomness fixed point,
+unless the quantity names its reduction and that reduction still has a power of
+`L`.  [`singular_form`](@ref) refuses alike; `fss_peak` and
+`collapse_coordinates` inherit it through here.
 """
 function fss_size_exponent(q::AbstractQuantity; exponents::NamedTuple)
     _refuse_activated_fss(q, exponents, "fss_size_exponent")

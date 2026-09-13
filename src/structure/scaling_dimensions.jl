@@ -1,46 +1,34 @@
-# structure/scaling_dimensions.jl: the RG origin of the critical exponents,
-# for the two kinds of fixed point this package can parameterise.
+# structure/scaling_dimensions.jl: the RG origin of the critical exponents, for
+# the two kinds of fixed point this package parameterises.
 #
-# Both follow one rule: DECLARE ONCE the independent data plus the spatial
-# dimension `d`, DERIVE EVERYTHING else.  `ScalingDimensions` is the clean
-# (or conventional random) case, two relevant eigenvalues; `InfiniteRandomness`
-# is the activated case, where no finite `z` exists and the defining exponent
-# is `ψ` instead.  `d` is a FIELD of each, not a per-call argument, because it
-# is the one number a caller can supply wrongly without the answer looking
-# wrong (see the warning on `InfiniteRandomness`).
-#
-# The four scaling laws in `relations/scaling.jl` (Rushbrooke, Widom,
-# Fisher, Josephson) are written there as CHECKABLE identities among a
-# supplied exponent set.  But they are not four independent physical
-# facts: they are ALL consequences of a single structural statement — that
-# the singular part of the free-energy density is a generalized
-# homogeneous function of the reduced temperature `t` and the ordering
-# field `h`,
+# The four scaling laws in `relations/scaling.jl` (Rushbrooke, Widom, Fisher,
+# Josephson) are written there as checkable identities among a supplied exponent
+# set, but they are not four independent facts.  All follow from one statement:
+# the singular free-energy density is a generalized homogeneous function,
 #
 #     f_s(t, h) = b^{-d} · f_s(b^{y_t} t, b^{y_h} h)                (∗)
 #
-# with just TWO relevant RG eigenvalues `y_t`, `y_h` and the spatial
-# dimension `d`.  Every equilibrium exponent is a fixed rational function
-# of `(y_t, y_h, d)`:
+# with two relevant eigenvalues and the spatial dimension.  Every equilibrium
+# exponent is then a fixed rational function of `(y_t, y_h, d)`,
 #
 #     ν = 1/y_t,  α = 2 − d/y_t,  β = (d − y_h)/y_t,
-#     γ = (2y_h − d)/y_t,  δ = y_h/(d − y_h),  η = d + 2 − 2y_h.
+#     γ = (2y_h − d)/y_t,  δ = y_h/(d − y_h),  η = d + 2 − 2y_h,
 #
-# Substituting these into the four laws, each collapses to `0` IDENTICALLY
-# in `(y_t, y_h, d)` — so `critical_exponents(ScalingDimensions(...))`
-# produces, by construction, a set that passes every scaling relation
-# exactly.  This is the structural root the axioms are derived from: DECLARE
-# ONCE (two eigenvalues + `d`), DERIVE EVERYTHING (the six exponents, hence
-# the four laws).  No exponent VALUE is stored here — the eigenvalues are an
-# input (measured, or read off an RG fixed point); the package owns only the
-# universal `(y_t, y_h, d) ↦ exponents` map.
+# and each law collapses to `0` identically in them.  That is the rule both
+# structs here follow: DECLARE ONCE the independent data plus `d`, DERIVE
+# EVERYTHING.  No exponent VALUE is stored; the inputs are measured or read off
+# a fixed point, and the package owns only the map.
 #
-# Hyperscaling caveat: equation (∗) carries the bare `b^{-d}`, so the derived
-# set satisfies the hyperscaling law (Josephson `2 − α = dν`, and the `d`
-# in `η`) by construction.  Above the upper critical dimension a dangerous
-# irrelevant variable spoils (∗) and the true (mean-field) exponents cease
-# to obey Josephson except exactly at `d = d_upper`; there the eigenvalue
-# parameterization no longer applies (see [`Josephson`](@ref)).
+# `ScalingDimensions` is (∗).  `InfiniteRandomness` is the activated case, where
+# no finite `z` exists and `ψ` plays `y_t`'s role.  `d` is a FIELD of each and
+# not a per-call argument, because it is the one number a caller can get wrong
+# without the answer looking wrong.
+#
+# Hyperscaling caveat: (∗) carries the bare `b^{-d}`, so the derived set obeys
+# Josephson (and the `d` in `η`) by construction.  Above the upper critical
+# dimension a dangerous irrelevant variable spoils (∗) and the true mean-field
+# exponents obey it only at `d = d_upper`, where this parameterization stops
+# applying (see [`Josephson`](@ref)).
 
 """
     ScalingDimensions(y_t, y_h, d)
@@ -139,19 +127,16 @@ export scaling_dimensions
 
 # ─── Infinite-randomness fixed points ────────────────────────────────────
 #
-# At an infinite-randomness fixed point the free energy is not a homogeneous
-# function of `(t, h)` with two eigenvalues: the dynamics is activated, no
-# finite `z` exists, and the scale that plays `y_t`'s role is `ψ`.  What
-# survives is the same DECLARE-ONCE structure with a different independent
-# set, `(ψ, ν, x_m)` plus `d`, from which the rest of the exponent table
-# follows through relations this package already states:
+# The free energy is no longer homogeneous in `(t, h)`: the dynamics is
+# activated and `ψ` replaces `y_t`.  The independent set is `(ψ, ν, x_m)` plus
+# `d`, and the rest follows through relations this package already states:
 #
 #     β     = ν·x_m                (OrderParameterDimension,   Eq. (A.11))
 #     ν_typ = ν·(1 − ψ)            (TypicalCorrelationLength,  Eq. (9.4))
 #     φ     = (d − x_m)/ψ          (ActivatedMomentGrowth,     Eq. (A.21))
 #
-# Surface exponents are NOT derivable from the bulk set, here as in the clean
-# case: `x_m^s` is independent data and is not carried.
+# Surface exponents are independent data here as in the clean case, so `x_m^s`
+# is not carried.
 
 """
     InfiniteRandomness(ψ, ν, x_m, d)
@@ -164,15 +149,13 @@ dynamical exponent, and the same contract: these are the inputs, every other
 exponent is derived by [`critical_exponents`](@ref).
 
 !!! warning "`d` is the chain's own dimension, not its classical image's"
-    A random transverse-field Ising chain is `d = 1` here.  Its clean critical
-    point maps to the 2D classical Ising model, and atlases hand out `d = 2`
-    for that table, so 2 is the number nearest to hand and it is the wrong one:
-    `φ` comes out 3.618 instead of the golden mean 1.618, and nothing flags it.
-    Quenched disorder is constant along imaginary time, so it lives in the
-    chain's `d`, not the image's `d + z` (see [`SpatialDimension`](@ref)).
-    Holding it in the struct makes that one decision at construction rather
-    than one per call.  There is no `d + z` to confuse it with anyway: `z` is
-    infinite at an infinite-randomness fixed point.
+    A random transverse-field Ising chain is `d = 1`.  Atlases hand out `d = 2`
+    for its clean critical point's 2D classical image, so 2 is the number
+    nearest to hand and it is wrong: `φ` comes out 3.618 rather than the golden
+    mean, unflagged.  Quenched disorder is constant along imaginary time, so it
+    lives in the chain's `d`, not the image's `d + z`
+    ([`SpatialDimension`](@ref)), and at an infinite-randomness fixed point
+    there is no finite `d + z` to confuse it with anyway.
 
 Arguments are promoted to a common type; pass `Rational`s where the values are
 rational.  `ψ ≤ 0` is refused rather than accepted: it names a conventional

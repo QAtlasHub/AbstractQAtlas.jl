@@ -52,16 +52,15 @@ Reference: [Fisher1964](@cite) (J. Math. Phys. **5**, 944).
 """
     Josephson <: AbstractRelation
 
-The Josephson (hyperscaling) identity `2 − α = d·ν`.  Valid below the
-upper critical dimension; at and above it, mean-field exponents satisfy
-it only at `d = d_upper` (e.g. `d = 4` for Ising).
+The Josephson (hyperscaling) identity `2 − α = d·ν`, for a CLASSICAL critical
+point, below the upper critical dimension; at and above it mean-field exponents
+satisfy it only at `d = d_upper` (`4` for Ising).
 
-Written for a CLASSICAL critical point, where `d` counts the directions of the
-system itself.  Applied to a quantum critical point it is still the right law
-for that point's classical image, so the `d` it wants is the image's: a chain
-maps to 2D Ising and takes `d = 2`, not 1.  Give it the chain's own `d` and it
-reports a violation, correctly, because classical hyperscaling is not what a
-quantum critical point obeys.  [`QuantumHyperscaling`](@ref) is that law.
+Its `d` counts the directions of the system it is about, so at a quantum
+critical point that is the classical IMAGE's: a chain maps to 2D Ising and takes
+`2`, not `1`.  Given the chain's own `d` it reports a violation, correctly,
+classical hyperscaling not being what a quantum critical point obeys.  That law
+is [`QuantumHyperscaling`](@ref).
 
 Reference: [Josephson1967](@cite) (Proc. Phys. Soc. **92**, 269, "Inequality for
 the specific heat: I. Derivation"), again an inequality first, `2 − α ≥ dν`.
@@ -71,27 +70,24 @@ the specific heat: I. Derivation"), again an inequality first, `2 − α ≥ dν
 """
     QuantumHyperscaling <: AbstractRelation
 
-Hyperscaling at a QUANTUM critical point, where imaginary time is a direction
-of the critical theory and scales with its own exponent:
+Hyperscaling at a QUANTUM critical point, where imaginary time is a direction of
+the critical theory with its own exponent:
 
 `2 − α = (d + z)·ν`.
 
-The same statement as [`Josephson`](@ref) about the same physics, differing in
-that it takes the quantum system's OWN `d` and its `z` and adds them, instead of
-taking the classical image's dimension already summed.  That is what makes the
-two safe to hold together: one exponent table plus `(d, z)` answers both, and
-neither has to be handed a number that means the other's system.
-
-`z = 0` recovers [`Josephson`](@ref) exactly, which is the classical limit in the
-only sense the formula has.  No finite `z` exists at an infinite-randomness fixed
-point ([`ActivatedExponent`](@ref)), so neither hyperscaling form applies there.
+[`Josephson`](@ref) about the same physics, taking the system's OWN `d` and `z`
+and summing them rather than the image's dimension pre-summed.  That is what
+makes one exponent table plus `(d, z)` answer both, with neither handed a number
+meaning the other's system.  `z = 0` recovers Josephson exactly, the classical
+limit in the only sense the formula has; no finite `z` exists at an
+infinite-randomness fixed point ([`ActivatedExponent`](@ref)), so neither form
+applies there.
 
 Variables: `α`, `ν`, `d`, `z`.
 
 Reference: standard at a quantum critical point (Sachdev, *Quantum Phase
-Transitions*); the `d + z` counting is the statement that the Euclidean action of
-a `d`-dimensional quantum system at `T = 0` lives in `d + z` effective
-directions.
+Transitions*): the Euclidean action of a `d`-dimensional quantum system at
+`T = 0` lives in `d + z` directions.
 """
 @relation :scaling QuantumHyperscaling(α, ν, d::SpatialDimension, z::DynamicalExponent) =
     2 - α - (d + z) * ν
@@ -229,15 +225,14 @@ what makes a continuously varying `z` measurable:
 
 `d(ln χ)/d(ln T) = −1 + d/z`.
 
-Divergent for `z > d`, finite for `z < d` — so the Griffiths phase has a line
-inside it, at `z = d`, across which `χ` stops diverging while nothing else
-happens. Written multiplied through by `z`, which keeps the residual affine in
-every variable (so generic `solve` works) and finite at `z = 0`.
+Divergent for `z > d` and finite for `z < d`, so the Griffiths phase has a line
+inside it at `z = d` across which `χ` stops diverging while nothing else happens.
+Multiplied through by `z`, which keeps the residual affine in every variable (so
+generic `solve` works) and finite at `z = 0`.
 
-Reads two more of Appendix A's equations unchanged, because they carry the same
-combination on other axes: the Griffiths gap DISTRIBUTION `P(ε) ∼ ε^{−1+d/z}`
-(Eq. (A.29)), which is the microscopic origin of the rest, and the field-driven
-`χ(H) ∼ H^{−1+d/z}` (Eq. (A.33)).
+The same combination on other axes is this relation too: the gap DISTRIBUTION
+`P(ε) ∼ ε^{−1+d/z}` (Eq. (A.29)), which is where the rest comes from, and the
+field-driven `χ(H) ∼ H^{−1+d/z}` (Eq. (A.33)).
 
 Reference: [IgloiMonthus2005](@cite) Eq. (4.56), §4.4.2, written there for the
 1D chain, and Eq. (A.32), §A.4.1 in `d` dimensions.  §9.1.2 states the
@@ -297,27 +292,24 @@ Variables: `φ`, `d`, `x_m`, `ψ`.
 
 # ─── Appendix A: the four scaling types of a random system ───────────────
 #
-# [IgloiMonthus2005](@cite) Appendix A gives the same menu of observables for
-# each kind of fixed point a random system can flow to: how the energy scale
-# tracks the size, how autocorrelations decay, and what the low-temperature
-# thermodynamics looks like.  The four answers are different in FORM, not just
-# in exponent value, which is what makes measuring one of them a classification
-# rather than a fit:
+# [IgloiMonthus2005](@cite) Appendix A gives one menu of observables per kind of
+# fixed point a random system can flow to.  The answers differ in FORM, not only
+# in exponent value, which is what makes measuring one a classification and not
+# a fit:
 #
-#   conventional random critical (A.2)  power of L,       power of t,   power of T
-#   infinite disorder            (A.3)  exponential in L, power of ln t, power of ln T
-#   Griffiths phase              (A.4)  power of L,       power of t,   power of T
-#   large spin                   (A.5)  power of L,       -            , Curie
+#              energy vs size    autocorrelation  low T
+#   (A.2) conventional random   power of L        power of t     power of T
+#   (A.3) infinite disorder     exponential in L  power of ln t  power of ln T
+#   (A.4) Griffiths             power of L        power of t     power of T
+#   (A.5) large spin            power of L        -              Curie
 #
-# The conventional and Griffiths columns agree in form and differ in which
-# exponent combination appears, so the relations below are separate objects.
-#
-# What is NOT here: an equation whose exponent combination already appears
-# above is the same relation on another axis, named in a docstring rather than
-# duplicated.  Eqs. (A.26) and (A.33) restate observables against a small
-# ordering field `H` instead of `T`; Eq. (A.29) is the Griffiths gap
-# DISTRIBUTION, not a field statement at all, but carries the same `-1+d/z`.
-# Only a NEW combination gets its own relation (Eq. (A.15)).
+# Rows (A.2) and (A.4) agree in form and differ in which exponent combination
+# appears, so they are separate objects.  Conversely, an equation whose
+# combination already appears is the same relation on another axis and is named
+# in a docstring instead: (A.26) and (A.33) restate observables against `H`
+# rather than `T`, and (A.29) is the Griffiths gap DISTRIBUTION, no field in it
+# at all, but carrying the same `-1+d/z`.  Only a new combination gets its own
+# relation, which is why (A.15) has one.
 
 """
     OrderParameterDimension <: AbstractRelation
