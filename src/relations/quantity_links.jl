@@ -27,6 +27,12 @@ also_constrains(::ParticleNumberResponse) = (GrandPotential,)  # grand-canonical
 also_constrains(::StaticFromDynamicalStructureFactor) = (DynamicalStructureFactor,)  # Sq = ∫S(q,ω)dω/2π (supplied)
 also_constrains(::ChernFromBerryCurvature) = (BerryCurvature,)  # topology: C = ∫Ω d²k/2π (supplied integral)
 also_constrains(::CFTEntanglementSlope) = (VonNeumannEntropy,)  # entanglement: dS/d(ln ℓ) (supplied derivative)
+also_constrains(::CFTEntanglementPBC) = (VonNeumannEntropy,)   # entanglement: S(ℓ) on a ring
+also_constrains(::CFTEntanglementOBC) = (VonNeumannEntropy,)   # entanglement: S(ℓ) at an open end
+function also_constrains(::OffCriticalEntanglementSaturation)
+    return (VonNeumannEntropy, CorrelationLength)
+end
+also_constrains(::HalvedChainEntropyDifference) = (VonNeumannEntropy,)  # ΔS of two lengths (supplied)
 also_constrains(::DynamicalScaling) = (MassGap,)            # scaling: d(lnΔ)/d(lnξ) (supplied)
 # The infinite-randomness block keys on the REDUCTIONS, not the clean quantity.
 # `Typical` and `DisorderAveraged` are separate quantities here precisely so a bag
@@ -38,6 +44,15 @@ also_constrains(::ActivatedDynamicalScaling) = (MassGap, Typical{MassGap})  # ψ
 also_constrains(::GriffithsExponentDivergence) = (DynamicalExponent,)  # an ensemble exponent, not a reduction
 also_constrains(::GriffithsSusceptibility) = (DisorderAveraged{Susceptibility},)  # rare regions ⇒ the average
 also_constrains(::GriffithsSpecificHeat) = (DisorderAveraged{SpecificHeat},)      # same
+# Refael-Moore and Iglói-Lin both state the DISORDER AVERAGE, and the average is
+# what carries the logarithm: a typical sample does not, so a bare key here would
+# claim the law for the wrong reduction.
+function also_constrains(::InfiniteRandomnessEntanglementSlope)
+    return (DisorderAveraged{VonNeumannEntropy},)
+end
+function also_constrains(::InfiniteRandomnessEntanglementPBC)
+    return (DisorderAveraged{VonNeumannEntropy},)
+end
 function also_constrains(::TypicalCorrelationLength)
     return (Typical{CorrelationLength}, DisorderAveraged{CorrelationLength})
 end

@@ -9,6 +9,10 @@ using AbstractQAtlas
 using AbstractQAtlas: residual, check, solve
 using LinearAlgebra, Random
 
+struct _UnknownBC <: AbstractQAtlas.BoundaryCondition end
+struct _HalfKnownBC <: AbstractQAtlas.BoundaryCondition end
+AbstractQAtlas.entanglement_cuts(::_HalfKnownBC, ::Region{<:Integer}) = 2
+
 @testset "Rényi-2 from purity: S_2 = −ln Tr ρ²" begin
     # pure state: purity 1, S_2 = 0
     @test solve(RenyiTwoPurity(), Val(:S2); purity=1.0) == 0.0
@@ -203,11 +207,15 @@ end
     @test entanglement_cuts(Infinite(), Region(5, 6, 9)) == 4
     @test entanglement_cuts(PBC(8), Region()) == 0
 
-    # A set with no adjacency is refused rather than guessed at, and so are
-    # sites the declared chain does not contain.
-    @test_throws ErrorException entanglement_cuts(OBC(8), Region("a", "b"))
-    @test_throws ErrorException entanglement_cuts(OBC(4), Region(3, 4, 5))
-    @test_throws ErrorException entanglement_cuts(OBC(), Region(1, 2))
+    # A set with no adjacency is refused rather than guessed at, and so are sites
+    # the declared chain does not contain, at BOTH ends: a bare `ErrorException`
+    # would not say the intended guard is the one that fired, and reordering them
+    # would swap the diagnoses without failing.
+    @test_throws "adjacency needs integer sites" entanglement_cuts(OBC(8), Region("a", "b"))
+    @test_throws "fall outside the chain" entanglement_cuts(OBC(4), Region(3, 4, 5))
+    @test_throws "fall outside the chain" entanglement_cuts(OBC(4), Region(0, 1, 2))
+    @test_throws "declares no chain length" entanglement_cuts(OBC(), Region(1, 2))
+    @test_throws "declares no chain length" entanglement_cuts(PBC(), Region(1, 2))
 end
 
 @testset "cft_entanglement_entropy reads ℓ and L off the Region and the bc" begin
@@ -225,14 +233,36 @@ end
     # The guard that matters: Eq. (3) is the END block of an open chain. The same
     # sixteen sites in the bulk have two cuts and are refused, rather than
     # silently returning the one-cut answer.
-    @test_throws ErrorException cft_entanglement_entropy(
+    @test_throws "block at an open end" cft_entanglement_entropy(
         OBC(N), Region(20:35...); c=c, c₁=c₁
     )
     @test entanglement_cuts(OBC(N), Region(20:35...)) == 2
 
     # And a ring block must be contiguous for Eq. (2) to be the right formula.
-    @test_throws ErrorException cft_entanglement_entropy(
+    @test_throws "contiguous block on a ring" cft_entanglement_entropy(
         PBC(N), Region(1, 2, 10, 11); c=c, c₁=c₁
+    )
+
+    # The boundary entropy has to be able to move the answer, or the term could
+    # be dropped without any test noticing. Being additive, it moves it exactly.
+    ln_g = log(sqrt(2))
+    @test cft_entanglement_entropy(OBC(N), A_end; c=c, c₁=c₁, ln_g=ln_g) - S_o ≈ ln_g atol =
+        1e-12
+    @test !isapprox(
+        cft_entanglement_entropy(OBC(N), A_end; c=c, c₁=c₁, ln_g=ln_g), S_o; atol=1e-6
+    )
+    # A ring has no boundary, so the argument must not reach the answer there.
+    @test cft_entanglement_entropy(PBC(N), A_ring; c=c, c₁=c₁, ln_g=ln_g) ≈ S_p atol = 1e-12
+
+    # The refusals reached through this function, not only through the cut count:
+    # an empty region, a region filling the system, and a gapped block on an
+    # infinite chain each have their own guard and none was being called.
+    @test_throws "region is empty" cft_entanglement_entropy(OBC(N), Region(); c=c, c₁=c₁)
+    @test_throws "this region has 0" cft_entanglement_entropy(
+        PBC(4), Region(1, 2, 3, 4); c=c, c₁=c₁
+    )
+    @test_throws "must have 2 cuts" cft_entanglement_entropy(
+        Infinite(), Region(5, 6, 9); c=c, c₁=c₁
     )
 
     # The thermodynamic limit is the small-ℓ end of the ring, approached from it.
@@ -320,6 +350,72 @@ end
     @test 2 * (c / 6) * log(ξ) ≈ (c / 3) * log(ξ) atol = 1e-12
 end
 
+@testset "the guards refuse what the raw relations cannot see" begin
+    # `sin` is periodic, so ℓ outside the chain aliases onto a legitimate answer
+    # rather than looking wrong: ℓ = 250 on L = 100 returned exactly the ℓ = 50
+    # value before the guard.
+    @test_throws "need 0 < ℓ < L" AbstractQAtlas.solve(
+        CFTEntanglementPBC(), Val(:S); c=0.5, L=100.0, ℓ=250.0, c₁=0.4785
+    )
+    @test AbstractQAtlas.solve(
+        CFTEntanglementPBC(), Val(:S); c=0.5, L=100.0, ℓ=50.0, c₁=0.4785
+    ) isa Real
+
+    # ℓ = L is not caught by a blow-up: `sin(float(π))` is 1.2e-16, so the answer
+    # was a large finite number set by rounding, where the truth is 0.
+    @test_throws "need 0 < ℓ < L" AbstractQAtlas.solve(
+        CFTEntanglementOBC(), Val(:S); c=0.5, L=100.0, ℓ=100.0, c₁=0.4785, ln_g=0.0
+    )
+
+    # Solving for the variables the guard reads is refused either way, since the
+    # residual is not affine in them; the guard does not remove a working route.
+    @test_throws Exception AbstractQAtlas.solve(
+        CFTEntanglementPBC(), Val(:ℓ); S=1.0, c=0.5, L=100.0, c₁=0.4
+    )
+
+    # Unsigned labels: `lo - 1` wraps to typemax and empties the range, which
+    # reported 0 cuts for a two-cut region.
+    @test entanglement_cuts(Infinite(), Region(UInt(0), UInt(1))) ==
+        entanglement_cuts(Infinite(), Region(0, 1)) ==
+        2
+    @test_throws "not a lattice index" entanglement_cuts(OBC(8), Region(true))
+
+    # A boundary condition with no branch must not read as an open chain. The cut
+    # count refuses it first, which is why `_HalfKnownBC` exists: it has adjacency
+    # but no closed form, the state a future edit reaches by teaching one function
+    # about a new boundary condition and not the other.
+    @test_throws "no adjacency defined" entanglement_cuts(_UnknownBC(), Region(1, 2))
+    @test_throws "no closed form registered" cft_entanglement_entropy(
+        _HalfKnownBC(), Region(1, 2); c=0.5, c₁=0.0
+    )
+
+    # The random ring's `f` is only a number to the relation, so the wrapper is
+    # what sees the geometry: it samples f at v = ℓ/L and refuses a non-positive
+    # value there.
+    @test_throws "L = -1024" AbstractQAtlas.solve(
+        InfiniteRandomnessEntanglementPBC(), Val(:S̄); c̃=0.25, L=-1024.0, f=-0.3, c₁′=0.3
+    )
+    conf(v) = sin(π * v) / π
+    S̄ = infinite_randomness_entanglement_entropy(
+        PBC(1024), Region(1:300...); c̃=log(2) / 2, c₁′=0.3, f=conf
+    )
+    @test check(
+        InfiniteRandomnessEntanglementPBC();
+        S̄=S̄,
+        c̃=log(2) / 2,
+        L=1024.0,
+        f=conf(300 / 1024),
+        c₁′=0.3,
+        atol=1e-12,
+    )
+    @test_throws "is not positive" infinite_randomness_entanglement_entropy(
+        PBC(1024), Region(1:300...); c̃=log(2) / 2, c₁′=0.3, f=(v -> 0.0)
+    )
+    @test_throws "has 4" infinite_randomness_entanglement_entropy(
+        PBC(64), Region(1, 2, 10, 11); c̃=log(2) / 2, c₁′=0.3, f=conf
+    )
+end
+
 @testset "the conformal chord is the one-harmonic case of the random one" begin
     c̃, c₁′, L, ℓ = log(2) / 2, 0.31, 1024.0, 300.0
 
@@ -373,18 +469,52 @@ end
     @test !(CentralCharge in quantities(rel))
     @test !(EffectiveCentralCharge in quantities(CFTEntanglementSlope()))
 
+    # The docstrings promise the entropy arrives through `also_constrains`, so the
+    # six new laws must be reachable from the quantity they bound. Without the
+    # registration they are silently absent from that lookup and the promise is
+    # prose only.
+    for r in (
+        CFTEntanglementPBC(),
+        CFTEntanglementOBC(),
+        OffCriticalEntanglementSaturation(),
+        HalvedChainEntropyDifference(),
+    )
+        @test VonNeumannEntropy in AbstractQAtlas.also_constrains(r)
+        @test any(x -> x isa typeof(r), relations_constraining(VonNeumannEntropy))
+    end
+
+    # The infinite-randomness pair keys on the REDUCTION, following the block in
+    # quantity_links.jl: both sources state the disorder average, and a typical
+    # sample carries no logarithm, so a bare key would claim the law for the
+    # wrong one.
+    for r in (InfiniteRandomnessEntanglementSlope(), InfiniteRandomnessEntanglementPBC())
+        @test AbstractQAtlas.also_constrains(r) == (DisorderAveraged{VonNeumannEntropy},)
+        @test !(VonNeumannEntropy in AbstractQAtlas.also_constrains(r))
+    end
+
     # No dimension slot either: above 1D the entropy is an area law and the
     # fixed point may not even be reached, so there is no family for `d` to
     # index.  A future edit adding one would be claiming a generalisation.
     @test !(SpatialDimension in quantities(rel))
 
-    # Same arithmetic, so the guard is the type and nothing else: a c̃ of ln 2/2
-    # and a c of ln 2/2 would give identical slopes, and only the name separates
-    # a random Ising chain from a CFT that happens to sit at that irrational c.
+    # The arithmetic is identical, so at the keyword surface nothing separates the
+    # two but which keyword the caller types: `name::Type` in `@relation` is
+    # bag-key metadata and the generated kernel's kwarg is untyped.
     @test check(rel; dS_dlogℓ=log(2) / 6, c̃=log(2) / 2, ncuts=2, atol=1e-14)
     @test check(
         CFTEntanglementSlope(); dS_dlogℓ=log(2) / 6, c=log(2) / 2, ncuts=2, atol=1e-14
     )
+
+    # The bag is where the separation is a guard rather than a naming convention:
+    # the same number keyed as a CentralCharge cannot reach the c̃ slot, so a CFT
+    # measurement never picks up the infinite-randomness law, nor the reverse.
+    b_cft = bag(CentralCharge => log(2) / 2)
+    b_irfp = bag(EffectiveCentralCharge => log(2) / 2)
+    slope = (; dS_dlogℓ=log(2) / 6, ncuts=2)
+    @test CFTEntanglementSlope() in applicable_relations(b_cft; slope...)
+    @test !any(r -> r isa typeof(rel), applicable_relations(b_cft; slope...))
+    @test rel in applicable_relations(b_irfp; slope...)
+    @test !any(r -> r isa CFTEntanglementSlope, applicable_relations(b_irfp; slope...))
 end
 
 @testset "CFTEntanglementSlope is type-keyed like its cft.jl siblings" begin

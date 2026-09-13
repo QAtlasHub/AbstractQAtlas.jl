@@ -4,6 +4,28 @@
 # entanglement against: the Rényi–purity link, the 1D-CFT logarithmic
 # growth that reads off the central charge, and Page's average-entropy
 # formula for a random pure state.
+#
+# Entropies here are in NATS. The entanglement literature usually counts bits,
+# `S = -Tr ρ log₂ ρ`, and the two differ by `ln 2`. A coefficient multiplying a
+# logarithm (`c`, `c̃`) is unaffected, since the base rescales entropy and
+# logarithm alike; an additive constant or a bare difference of entropies is not,
+# and that is where a transcribed formula silently gains or loses a factor.
+
+# The conformal chord the finite-size forms are stated in terms of. Shared so the
+# relations and the Region-typed layer above them cannot drift apart.
+_chord(L, ℓ) = (L / π) * sin(π * ℓ / L)
+
+# `sin` is periodic, so an ℓ outside the chain does not merely give a wrong number:
+# ℓ = 250 on L = 100 returns exactly the ℓ = 50 answer. And ℓ = L is not caught by a
+# blow-up either, since `sin(float(π))` is 1.2e-16 rather than 0, which turns into a
+# large finite value dominated by rounding. Both are refused.
+function _require_block(what::Symbol, L, ℓ)
+    return (L > 0 && 0 < ℓ < L) || error(
+        "$what: need 0 < ℓ < L, got ℓ = $ℓ on L = $L. Outside that range `sin(πℓ/L)` " *
+        "aliases onto a legitimate answer; at ℓ = L it is rounding noise, where the " *
+        "true entropy of the whole system is 0.",
+    )
+end
 
 """
     RenyiTwoPurity <: AbstractRelation
@@ -71,26 +93,23 @@ logarithm for an open chain, an open chain adds a boundary entropy, and its
 oscillating corrections are the stronger.  None of that is asserted here, and at
 a fixed point with no conformal map none of it follows from the slope.
 
-What matters is what does not change.  The fixed point is not conformally
-invariant, yet both the form and the geometry factor survive, so `ncuts` means
-what it means in [`CFTEntanglementSlope`](@ref) and only `c` becomes
-[`EffectiveCentralCharge`](@ref).  Refael and Moore's `2 ln √L` (Eq. 13) is that
+The fixed point is not conformally invariant, yet both the form and the geometry
+factor survive: `ncuts` means what it means in [`CFTEntanglementSlope`](@ref),
+and only `c` becomes [`EffectiveCentralCharge`](@ref).  Refael and Moore's `2 ln √L` (Eq. 13) is that
 same factor arriving from the RG: two cuts, each contributing `ln Γ` at
 `Γ = √L`.
 
-`S` is in nats, as there.  The source counts bits, so its slope is this one over
-`ln 2`; `c̃` is unchanged by the base, which rescales entropy and logarithm
-alike.  Random Ising is `c̃ = (ln 2)/2` either way, growing as
-`(ln 2/6) ln ℓ ≈ 0.1155 ln ℓ` across two cuts.
-
 `c̃` is measured per class, not derived: `(ln 2)/2` for the random transverse
-field Ising chain, `ln 2` for the random singlet phase of the Heisenberg and XX
-chains.  Both are `ln 2` times the pure value, which the source reports for
-every chain it treats while calling a general law only possible, so that is not
-a relation here.
+field Ising chain, which grows as `(ln 2/6) ln ℓ ≈ 0.1155 ln ℓ` across two cuts,
+and `ln 2` for the random singlet phase of the Heisenberg and XX chains.  Both
+are `ln 2` times the pure value, which the source reports for every chain it
+treats while calling a general law only possible, so that is not a relation
+here.  `c̃` is the same number in either base (see the file header).
 
 Variables: `dS_dlogℓ`, `c̃`, `ncuts`; the entropy arrives through the supplied
-derivative, hence [`also_constrains`](@ref).
+derivative, hence [`also_constrains`](@ref).  With a region and a boundary
+condition in hand, derive `ncuts` from [`entanglement_cuts`](@ref) rather than
+passing a literal.
 """
 @relation :entanglement InfiniteRandomnessEntanglementSlope(
     dS_dlogℓ, c̃::EffectiveCentralCharge, ncuts
@@ -105,9 +124,8 @@ rest of the chain": the count of adjacent site pairs with exactly one member in
 `A`, with `(N, 1)` adjacent under [`PBC`](@ref).
 
 This is the `ncuts` the entanglement relations take, derived instead of
-asserted.  Supplying it by hand is where the geometry is usually lost: a block
-in the bulk of an open chain has two cuts, not the one its boundary condition
-suggests.
+asserted; [`CFTEntanglementSlope`](@ref)'s table says what hand-supplying it
+gets wrong.
 
 [`Region`](@ref) is a set with no adjacency, so the sites must be integers and
 the chain length must come from `bc`; anything else is refused rather than
@@ -119,17 +137,22 @@ entanglement_cuts(OBC(8), Region(1, 2, 3))   # 1, it touches the end
 entanglement_cuts(OBC(8), Region(2, 3, 4))   # 2, the same block in the bulk
 ```
 """
-function entanglement_cuts(bc::BoundaryCondition, A::Region)
+function entanglement_cuts(bc::BoundaryCondition, A::Region{<:Integer})
     isempty(A) && return 0
-    sites = A.sites
-    eltype(sites) <: Integer || error(
-        "entanglement_cuts: adjacency needs integer sites; got $(eltype(sites)). " *
-        "Region is a set layer with no geometry, so pass `ncuts` directly instead.",
+    eltype(A.sites) === Bool && error(
+        "entanglement_cuts: Bool is an Integer but not a lattice index; got $(A.sites)."
     )
+    # Signed arithmetic: `lo - 1` on unsigned labels wraps to typemax and makes the
+    # range below empty, which would return 0 cuts for a region that has two.
+    sites = Set{Int}(Int(i) for i in A.sites)
     if bc isa Infinite
         lo, hi = minimum(sites), maximum(sites)
         return count(i -> (i in sites) != (i + 1 in sites), (lo - 1):hi)
     end
+    bc isa Union{OBC,PBC} || error(
+        "entanglement_cuts: no adjacency defined for $(typeof(bc)). Add a method here " *
+        "when a boundary condition is added, rather than letting it read as open.",
+    )
     N = bc.N
     N > 0 || error(
         "entanglement_cuts: $bc declares no chain length. Pass it as OBC(N) / PBC(N); " *
@@ -143,6 +166,17 @@ function entanglement_cuts(bc::BoundaryCondition, A::Region)
     n = count(i -> (i in sites) != (i + 1 in sites), 1:(N - 1))
     bc isa PBC && ((N in sites) != (1 in sites)) && (n += 1)
     return n
+end
+
+# `Region` is a set layer with no adjacency, so a non-integer label has no
+# neighbour to be separated from. Refused here rather than by a MethodError, which
+# would not say what to do instead.
+function entanglement_cuts(::BoundaryCondition, A::Region)
+    isempty(A) && return 0
+    return error(
+        "entanglement_cuts: adjacency needs integer sites; got $(eltype(A.sites)). " *
+        "Region is a set layer with no geometry, so pass `ncuts` directly instead.",
+    )
 end
 export entanglement_cuts
 
@@ -169,29 +203,72 @@ function cft_entanglement_entropy(
     ℓ = length(A)
     ℓ > 0 || error("cft_entanglement_entropy: the region is empty.")
     b = entanglement_cuts(bc, A)
-    bc isa Infinite && (
+    if bc isa Infinite
         b == 2 || error(
             "cft_entanglement_entropy: an infinite chain's block must have 2 cuts, " *
             "got $b; the region is not contiguous.",
         )
-    )
-    bc isa Infinite && return (c / 3) * log(ℓ) + c₁
-    N = bc.N
-    if bc isa PBC
+        return (c / 3) * log(ℓ) + c₁
+    elseif bc isa PBC
         b == 2 || error(
             "cft_entanglement_entropy: Eq. (2) is a contiguous block on a ring, " *
             "which has 2 cuts; this region has $b.",
         )
-        return (c / 3) * log((N / π) * sin(π * ℓ / N)) + c₁
+        return (c / 3) * log(_chord(bc.N, ℓ)) + c₁
+    elseif bc isa OBC
+        b == 1 || error(
+            "cft_entanglement_entropy: Eq. (3) is the block at an open end, which " *
+            "has 1 cut; this region has $b. A bulk block of an open chain has 2 and " *
+            "is not this formula.",
+        )
+        return (c / 6) * log(2 * _chord(bc.N, ℓ)) + ln_g + c₁ / 2
     end
-    b == 1 || error(
-        "cft_entanglement_entropy: Eq. (3) is the block at an open end, which has " *
-        "1 cut; this region has $b. A bulk block of an open chain has 2 and is not " *
-        "this formula.",
+    return error(
+        "cft_entanglement_entropy: no closed form registered for $(typeof(bc)). " *
+        "Add a branch when a boundary condition is added; falling through would " *
+        "hand back the open-chain answer for a geometry that is not one.",
     )
-    return (c / 6) * log((2N / π) * sin(π * ℓ / N)) + ln_g + c₁ / 2
 end
 export cft_entanglement_entropy
+
+"""
+    infinite_randomness_entanglement_entropy(bc::PBC, A::Region; c̃, c₁′, f) -> Real
+
+Disorder-averaged entropy of `A` in a random critical ring, in nats
+(Iglói & Lin, [IgloiLin2008](@cite), Eq. 24; see
+[`InfiniteRandomnessEntanglementPBC`](@ref)).
+
+`f` is the scaling function itself, a callable, evaluated here at `v = ℓ/L` taken
+from the region and the boundary condition.  The relation cannot do this: it
+receives only the number `f(v)`, so it cannot tell a scaling function from a
+typo, and a value near zero there returns a large negative entropy rather than
+an error.  Passing the function is what lets `v` be checked and `f` be sampled
+at the point the geometry actually picks.
+
+Only [`PBC`](@ref), because Eq. (24) is the ring.  A ring block is two cuts, and
+that is checked through [`entanglement_cuts`](@ref) as in
+[`cft_entanglement_entropy`](@ref).
+"""
+function infinite_randomness_entanglement_entropy(bc::PBC, A::Region; c̃::Real, c₁′::Real, f)
+    ℓ, N = length(A), bc.N
+    N > 0 || error("infinite_randomness_entanglement_entropy: $bc declares no length.")
+    0 < ℓ < N || error(
+        "infinite_randomness_entanglement_entropy: need 0 < ℓ < L, got ℓ = $ℓ on L = $N.",
+    )
+    b = entanglement_cuts(bc, A)
+    b == 2 || error(
+        "infinite_randomness_entanglement_entropy: Eq. (24) is a contiguous block on " *
+        "a ring, which has 2 cuts; this region has $b.",
+    )
+    v = ℓ / N
+    fv = f(v)
+    fv > 0 || error(
+        "infinite_randomness_entanglement_entropy: f($v) = $fv is not positive. The " *
+        "scaling function obeys f(v) → v as v → 0, so it is positive on 0 < v < 1.",
+    )
+    return (c̃ / 3) * log(N * fv) + c₁′
+end
+export infinite_randomness_entanglement_entropy
 
 """
     CFTEntanglementPBC <: AbstractRelation
@@ -201,14 +278,14 @@ Entanglement entropy of a block of `ℓ` sites in a critical ring of `L`
 
 `S = (c/3) ln[(L/π) sin(πℓ/L)] + c₁`.
 
-Two cuts, hence `c/3`.  `c₁` is not universal, and its value moves with the base
-the entropy is measured in; the source works in bits, and everything here is in
-nats, which rescales `S` and `c₁` together and leaves `c` alone.  As `ℓ ≪ L` the
-chord tends to `ℓ` and this becomes the infinite-chain
-`S = (c/3) ln ℓ + c₁` of Eq. (4).
+Two cuts, hence `c/3`.  `c₁` is not universal and moves with the base (see the
+file header).  As `ℓ ≪ L` the chord tends to `ℓ` and this becomes the
+infinite-chain `S = (c/3) ln ℓ + c₁` of Eq. (4).
 """
-@relation :entanglement CFTEntanglementPBC(S, c::CentralCharge, L, ℓ, c₁) =
-    S - (c / 3) * log((L / π) * sin(π * ℓ / L)) - c₁
+@relation :entanglement CFTEntanglementPBC(S, c::CentralCharge, L, ℓ, c₁) = begin
+    _require_block(:CFTEntanglementPBC, L, ℓ)
+    S - (c / 3) * log(_chord(L, ℓ)) - c₁
+end
 
 """
     CFTEntanglementOBC <: AbstractRelation
@@ -222,12 +299,13 @@ Three things separate this from [`CFTEntanglementPBC`](@ref), and only the
 first is the cut count: one cut gives `c/6`, the chord carries `2L/π` rather
 than `L/π`, and an open chain has a boundary entropy `ln g` (Affleck & Ludwig)
 that a ring does not.  `c₁` is the same constant as in the ring, entering
-halved.  So the boundary condition is not a factor on the slope, and reading one
-geometry's data with the other's formula misses the chord and the boundary term
-as well as the 2.
+halved, so reading one geometry's data with the other's formula misses all
+three.
 """
-@relation :entanglement CFTEntanglementOBC(S, c::CentralCharge, L, ℓ, c₁, ln_g) =
-    S - (c / 6) * log((2L / π) * sin(π * ℓ / L)) - ln_g - c₁ / 2
+@relation :entanglement CFTEntanglementOBC(S, c::CentralCharge, L, ℓ, c₁, ln_g) = begin
+    _require_block(:CFTEntanglementOBC, L, ℓ)
+    S - (c / 6) * log(2 * _chord(L, ℓ)) - ln_g - c₁ / 2
+end
 
 """
     OffCriticalEntanglementSaturation <: AbstractRelation
@@ -238,10 +316,8 @@ correlation length (Iglói & Lin, [IgloiLin2008](@cite), Eq. 5, valid for
 
 `S ≃ ncuts · (c/6) ln ξ`.
 
-The source writes the prefactor as `b`, "the number of boundary points between
-the subsystem and the rest of the chain", which is `ncuts` under another name:
-the same axis that counts cuts at criticality counts them here, with `ξ` in the
-place `ℓ` held.
+The source's `b` is `ncuts` (see [`entanglement_cuts`](@ref)): the same axis
+counts here, with `ξ` in the place `ℓ` held.
 """
 @relation :entanglement OffCriticalEntanglementSaturation(
     S, c::CentralCharge, ξ::CorrelationLength, ncuts
@@ -257,10 +333,10 @@ Central charge from two chain lengths rather than from a fit (Iglói & Lin,
 
 Exact on the conformal forms, since halving the chain shifts the chord by a
 factor of two and the non-universal `c₁` cancels: the estimator needs no
-constant, which is why the source uses it.  The `ln 2` is not decoration.  The
-source reads `ΔS = c/3` for a ring and `c/6` for an open chain because it counts
-bits, where `log₂ 2 = 1` absorbs it; in nats it does not, and dropping it returns
-`c ln 2` in place of `c`.  For the Ising chain that is `(ln 2)/2`, which is
+constant, which is why the source uses it.  The source reads `ΔS = c/3` for a
+ring and `c/6` for an open chain because it counts bits, where `log₂ 2 = 1`
+absorbs the factor; in nats it does not, and dropping it returns `c ln 2` for
+`c`.  For the Ising chain that is `(ln 2)/2`, which is
 exactly the effective central charge of the *random* Ising chain, so the slip is
 numerically indistinguishable from having measured a different fixed point.
 
@@ -280,7 +356,12 @@ infinite-randomness fixed point (Iglói & Lin, [IgloiLin2008](@cite), Eq. 24):
 
 `S̄ = (c̃/3) ln[L f(ℓ/L)] + c₁′`.
 
-`f` is supplied by the caller because it is not the conformal chord.  It is
+`f` is supplied by the caller because it is not the conformal chord.  Only its
+value arrives, not the function or the geometry, so nothing here can tell a
+scaling function from a typo: `L > 0` and `f > 0` are checked and a small
+positive `f` still returns a large negative entropy.  Use
+[`infinite_randomness_entanglement_entropy`](@ref), which takes `f` as a callable
+and the geometry as a [`Region`](@ref), when both are available.  It is
 reflection symmetric, `f(v) = f(1-v)`, tends to `v` as `v → 0`, and expands as
 `f(v) = Σₖ Aₖ sin((2k-1)πv)` subject to `Σₖ Aₖ(2k-1)π = 1`; the source notes
 that for a conformally invariant model **only the first term exists**.  Keeping
@@ -296,7 +377,14 @@ depends on it.
 """
 @relation :entanglement InfiniteRandomnessEntanglementPBC(
     S̄, c̃::EffectiveCentralCharge, L, f, c₁′
-) = S̄ - (c̃ / 3) * log(L * f) - c₁′
+) = begin
+    (L > 0 && f > 0) || error(
+        "InfiniteRandomnessEntanglementPBC: L = $L and f = $f must both be positive. " *
+        "`log(L*f)` is finite whenever their product is, so a negative pair returns " *
+        "an ordinary-looking number, and an f near zero returns a negative entropy.",
+    )
+    S̄ - (c̃ / 3) * log(L * f) - c₁′
+end
 
 """
     page_average_entropy(dA, dB) -> Float64
