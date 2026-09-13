@@ -129,6 +129,7 @@ end
 "Quantum information & entanglement: the entropy zoo, its inequalities, multipartite entanglement, measurement and topological entanglement entropy."
 module QuantumInformation
     using ..AbstractQAtlas
+    using ExperimentalAPI: @experimental
     include("relations/entanglement.jl")
 end
 
