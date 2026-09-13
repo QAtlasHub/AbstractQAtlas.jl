@@ -9,6 +9,8 @@ using AbstractQAtlas
 using AbstractQAtlas: residual, check, solve
 using LinearAlgebra, Random
 
+using ExperimentalAPI: ExperimentalAPI
+
 struct _UnknownBC <: AbstractQAtlas.BoundaryCondition end
 struct _HalfKnownBC <: AbstractQAtlas.BoundaryCondition end
 AbstractQAtlas.entanglement_cuts(::_HalfKnownBC, ::Region{<:Integer}) = 2
@@ -414,6 +416,23 @@ end
     @test_throws "has 4" infinite_randomness_entanglement_entropy(
         PBC(64), Region(1, 2, 10, 11); c̃=log(2) / 2, c₁′=0.3, f=conf
     )
+end
+
+@testset "only the unsettled half is marked experimental" begin
+    _QI = AbstractQAtlas.QuantumInformation
+
+    # Eq. (24) has no independent oracle here and `f` admits no bound, so the two
+    # names that carry it say so at runtime.
+    @test ExperimentalAPI.isexperimental(_QI, :InfiniteRandomnessEntanglementPBC)
+    @test ExperimentalAPI.isexperimental(_QI, :infinite_randomness_entanglement_entropy)
+
+    # The rest must NOT be marked. A flag on everything reports nothing, and these
+    # are anchored to published constants with discriminating tests above.
+    @test !ExperimentalAPI.isexperimental(_QI, :InfiniteRandomnessEntanglementSlope)
+    @test !ExperimentalAPI.isexperimental(_QI, :CFTEntanglementPBC)
+    @test !ExperimentalAPI.isexperimental(_QI, :CFTEntanglementOBC)
+    @test !ExperimentalAPI.isexperimental(_QI, :cft_entanglement_entropy)
+    @test !ExperimentalAPI.isexperimental(_QI, :entanglement_cuts)
 end
 
 @testset "the conformal chord is the one-harmonic case of the random one" begin
