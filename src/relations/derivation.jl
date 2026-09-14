@@ -501,8 +501,8 @@ function Base.show(io::IO, r::ConsistencyRow)
 end
 
 """
-    consistency_report(data::NamedTuple; atol = 0, rtol = 1e-8, domain = nothing)
-        -> Vector{ConsistencyRow}
+    consistency_report(data::NamedTuple; atol = 0, rtol = 1e-8, domain = nothing,
+                       exclude = ()) -> Vector{ConsistencyRow}
 
 Hold out each variable of `data` in turn and solve for it by every relation that
 reaches it from the rest, then report whether those answers agree with each other
@@ -520,12 +520,25 @@ One step deep, from the remaining knowns. Chaining would compare a derived numbe
 against another derived number, where a disagreement no longer names the relation
 that caused it.
 
-`domain` restricts which relations may be used, as in [`relation_report`](@ref).
-That is the knob that makes this usable where a variable NAME is shared by
-relations describing different systems: `S` means a ring's block in one relation
-and an open chain's end block in another, and a caller holding one number cannot
-satisfy both. Scope to the family whose names mean one thing, or supply data for
-one geometry only.
+What is checked is the ALGEBRA, not the semantics. The registry is one namespace
+and the report assumes a shared symbol is a shared quantity; where it is not, the
+routes disagree and the row names them, but the fault is in the question rather
+than in the identities. Two ways that happens, both measured:
+
+  * A name means different things in different relations. `S` is a ring's block
+    in one and an open chain's end block in another, so one number cannot satisfy
+    both. `d` is the same trap: the classical image's dimension in
+    [`Josephson`](@ref), the chain's own in [`HarrisCriterion`](@ref).
+  * A relation does not apply at the point the data describes. Classical 2D Ising
+    exponents agree over `:scaling` until `z` is added, at which point
+    [`QuantumHyperscaling`](@ref) joins the routes to `α` and four rows disagree.
+    It was excluded before only for want of an input, never for want of
+    applicability, and nothing here knows the difference.
+
+So a disagreement is a place to look, not a verdict. `domain` and `exclude` are
+how a caller states the scope the data belongs to: `domain` keeps one family,
+`exclude` drops named relations, and either is preferable to reading a row whose
+routes describe different physics.
 
 Agreement is `spread <= max(atol, rtol * scale)` with `scale` the largest
 magnitude present, so `rtol` reads as a relative tolerance on the answer.
@@ -536,12 +549,14 @@ all(r -> r.agree, consistency_report(ising2d; domain=:scaling))
 ```
 """
 function consistency_report(
-    data::NamedTuple; atol=0, rtol=1e-8, domain::Union{Nothing,Symbol}=nothing
+    data::NamedTuple; atol=0, rtol=1e-8, domain::Union{Nothing,Symbol}=nothing, exclude=()
 )
     out = ConsistencyRow[]
     steps = derivation_steps()
     domain === nothing ||
         (steps = filter(st -> AbstractQAtlas.domain(st.relation) === domain, steps))
+    isempty(exclude) ||
+        (steps = filter(st -> !(nameof(typeof(st.relation)) in exclude), steps))
     for target in keys(data)
         known = Dict{Symbol,Any}(k => v for (k, v) in pairs(data) if k !== target)
         got = Tuple{DerivationStep,Any}[]
@@ -569,13 +584,17 @@ end
 export consistency_report
 
 """
-    consistent(data::NamedTuple; atol = 0, rtol = 1e-8, domain = nothing) -> Bool
+    consistent(data::NamedTuple; atol = 0, rtol = 1e-8, domain = nothing,
+               exclude = ()) -> Bool
 
 Whether every row of [`consistency_report`](@ref) agrees. `true` when no variable
 is reachable at all, which is vacuous rather than a pass; read the report when
 that matters.
 """
-function consistent(data::NamedTuple; atol=0, rtol=1e-8, domain=nothing)
-    return all(r -> r.agree, consistency_report(data; atol=atol, rtol=rtol, domain=domain))
+function consistent(data::NamedTuple; atol=0, rtol=1e-8, domain=nothing, exclude=())
+    return all(
+        r -> r.agree,
+        consistency_report(data; atol=atol, rtol=rtol, domain=domain, exclude=exclude),
+    )
 end
 export consistent

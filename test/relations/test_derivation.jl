@@ -171,3 +171,32 @@ end
     @test isempty(consistency_report((; α=0.11)))
     @test consistent((; α=0.11))
 end
+
+@testset "applicability is not inferred, and the report says where it stopped" begin
+    # A classical exponent set agrees over `:scaling`. It does so because the
+    # relations that do not apply at a classical point happened to need an input
+    # that was absent, not because anything checked applicability.
+    classical = (; α=0 // 1, β=1 // 8, γ=7 // 4, δ=15 // 1, ν=1 // 1, η=1 // 4, d=2 // 1)
+    @test consistent(classical; domain=:scaling)
+
+    # Supplying `z`, which a classical point may perfectly well have, lets
+    # QuantumHyperscaling reach α from the same knowns, and four rows break. The
+    # identities are both right; `2 - α = (d + z)ν` simply is not a law at this
+    # point, and nothing in the registry says so.
+    withz = (; classical..., z=1 // 1)
+    broken = consistency_report(withz; domain=:scaling)
+    @test !all(r -> r.agree, broken)
+    α_row = only(filter(r -> r.target === :α, broken))
+    @test :QuantumHyperscaling in Set(nameof(typeof(s.relation)) for s in α_row.steps)
+    @test :Josephson in Set(nameof(typeof(s.relation)) for s in α_row.steps)
+
+    # `exclude` is how a caller states the scope, and with the quantum law out the
+    # same data is consistent again. That the answer turns on one exclusion is the
+    # point: the tool checks algebra, and the physics of which laws hold together
+    # is the caller's to declare.
+    @test consistent(withz; domain=:scaling, exclude=(:QuantumHyperscaling,))
+
+    # Excluding the wrong one does not rescue it, so the knob is not a way to make
+    # any data pass.
+    @test !consistent(withz; domain=:scaling, exclude=(:Fisher,))
+end
