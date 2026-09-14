@@ -216,22 +216,42 @@ end
 
     # Typed, those are separate nodes and cannot be compared with each other.
     @test VariableKey(InverseTemperature) != VariableKey(CentralCharge)
-    rows = consistency_report(bag(SpatialDimension => 2.0); α=0.0, ν=1.0)
-    @test only(rows).target == VariableKey(SpatialDimension)
-    @test only(rows).agree
-    @test :Josephson in Set(nameof(typeof(s.relation)) for s in only(rows).steps)
-
-    # And narrower for the same reason: a relation appears only through its typed
-    # slots, so the classical scaling identities, whose exponents are bare symbols,
-    # are absent here and are what the name-keyed report checks best. The two are
-    # complementary rather than one superseding the other.
-    @test isempty(variable_types(Rushbrooke()))
-    @test !any(st -> st.relation isa Rushbrooke, AbstractQAtlas.typed_derivation_steps())
-    ising2d = (; α=0 // 1, β=1 // 8, γ=7 // 4, δ=15 // 1, ν=1 // 1, η=1 // 4, d=2 // 1)
-    @test any(
-        r -> :Rushbrooke in Set(nameof(typeof(s.relation)) for s in r.steps),
-        consistency_report(ising2d; domain=:scaling),
+    ising_bag = bag(
+        SpecificHeatExponent => 0 // 1,
+        OrderParameterExponent => 1 // 8,
+        SusceptibilityExponent => 7 // 4,
+        CriticalIsothermExponent => 15 // 1,
+        CorrelationLengthExponent => 1 // 1,
+        AnomalousDimension => 1 // 4,
+        SpatialDimension => 2 // 1,
     )
+    rows = consistency_report(ising_bag)
+    @test length(rows) == 7
+    @test all(r -> r.agree, rows)
+    @test all(r -> r.spread == 0, rows)
+    @test Set(nameof(r.target.type) for r in rows) == Set([
+        :SpecificHeatExponent,
+        :OrderParameterExponent,
+        :SusceptibilityExponent,
+        :CriticalIsothermExponent,
+        :CorrelationLengthExponent,
+        :AnomalousDimension,
+        :SpatialDimension,
+    ])
+
+    # The classical identities reach the typed graph only because their exponents
+    # were given quantities of their own in this branch. Before that `Rushbrooke`
+    # had no typed slot and was absent here, which is what left `:β` the exponent
+    # and `:β` the inverse temperature sharing a node on the name-keyed side.
+    @test variable_types(Rushbrooke()) ==
+        (SpecificHeatExponent, OrderParameterExponent, SusceptibilityExponent)
+    @test any(st -> st.relation isa Rushbrooke, AbstractQAtlas.typed_derivation_steps())
+    @test any(r -> :Rushbrooke in Set(nameof(typeof(s.relation)) for s in r.steps), rows)
+
+    # The name-keyed report still reaches them too, and agrees, so typing narrowed
+    # nothing: the two now overlap on this family instead of being disjoint.
+    ising2d = (; α=0 // 1, β=1 // 8, γ=7 // 4, δ=15 // 1, ν=1 // 1, η=1 // 4, d=2 // 1)
+    @test consistent(ising2d; domain=:scaling)
 
     # Typing does not settle everything: `d` is one SpatialDimension by design, and
     # the classical image's dimension and the chain's own are the same node, so the
