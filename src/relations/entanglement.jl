@@ -308,10 +308,14 @@ depends on it.
 end
 
 @experimental """
-Eq. (24)'s scaling function is not settled here: `f` is caller-supplied, no
-independent oracle checks the form, and the only case pinned is its conformal
-one-harmonic reduction. No bound on `f` follows from the geometry either, so a
-positive but small value returns a negative entropy rather than a refusal
+Eq. (24)'s scaling function is not settled here. Reflection symmetry and the
+normalisation are checked where `f` is still a callable, in
+[`finite_size_entropy_report`](@ref); its FORM is not, and cannot be from here,
+since separating the higher harmonics needs a disorder average this package does
+not compute. The only form pinned is the one-harmonic reduction, which is
+[`CFTEntanglementPBC`](@ref). Reaching the relation directly bypasses both checks,
+`f` arriving as a number that can only be asked to be positive, so a small one
+returns a negative entropy
 """ InfiniteRandomnessEntanglementPBC
 
 """
