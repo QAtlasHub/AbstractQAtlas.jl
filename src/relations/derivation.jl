@@ -612,7 +612,11 @@ routes disagree and the row names them, but the fault is in the question rather
 than in the identities. Two ways that happens, both measured:
 
   * A name means different things in different relations, which the type-keyed
-    method below does not have.
+    method below does not have. `S` is a ring's block entropy in
+    [`CFTEntanglementPBC`](@ref) and an open chain's end block in
+    [`CFTEntanglementOBC`](@ref), so one number cannot satisfy both and an
+    unscoped report says they disagree. It is right to: the caller has described
+    a state that does not exist. `domain` is the remedy.
   * A relation does not apply at the point the data describes. Classical 2D Ising
     exponents agree over `:scaling` until `z` is added, at which point
     [`QuantumHyperscaling`](@ref) joins the routes to `α`. It was excluded before

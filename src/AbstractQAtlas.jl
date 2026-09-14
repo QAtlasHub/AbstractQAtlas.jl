@@ -129,6 +129,7 @@ end
 "Quantum information & entanglement: the entropy zoo, its inequalities, multipartite entanglement, measurement and topological entanglement entropy."
 module QuantumInformation
     using ..AbstractQAtlas
+    using ExperimentalAPI: @experimental
     include("relations/entanglement.jl")
 end
 
@@ -179,6 +180,10 @@ include("relations/quantity_links.jl")
 # region-keyed entanglement-entropy auto-discovery (needs the re-exported
 # Subadditivity / ArakiLieb + the Region set layer): region_report / region_check_all.
 include("relations/region_entropy.jl")
+
+# the SIZE twin of the above: reads a finite-size sweep out of a bag and hands the
+# supplied-derivative scaling relations their derivative — finite_size_scaling_report.
+include("relations/finite_size.jl")
 
 # the abstract typed-graph PARENT: one KnowledgeGraph{N} kernel (nodes, typed
 # edges, traversal, reachability, shortest-path, JSONL export) that every

@@ -14,7 +14,11 @@ AbstractQAtlas.domain(::_NonAffineDemo) = :test_only
 
 @testset "registry + traits" begin
     rels = all_relations()
-    @test length(rels) == 160        # +5 infinite-randomness (see :scaling below); +ActivatedDynamicalScaling, +TypicalBelowAverage, +AnnealedFreeEnergyBound; universal-only: model-specific (spin glass, Drude mobility, single-band Hall) moved to QAtlas; +LoschmidtRate; +8 universal bounds; +ElectricCurrentResponse
+    # The total is the sum of the per-domain counts below, so a relation declaring a
+    # domain that has no line here shows up as a mismatch in this number alone.
+    # Universal-only: the model-specific relations (spin glass, Drude mobility,
+    # single-band Hall) live in QAtlas.
+    @test length(rels) == 167
     @test allunique(typeof.(rels))
     @test length(all_relations(; domain=:scaling)) == 28   # +ActivatedDynamicalScaling, ActivatedFiniteSizeScaling, +14 Appendix-A scaling types, +WeinribHalperinExponent, +QuantumHyperscaling; +TypicalCorrelationLength, GriffithsExponentDivergence, GriffithsSusceptibility, GriffithsSpecificHeat, ActivatedMomentGrowth
     @test length(all_relations(; domain=:thermodynamic)) == 15
@@ -27,7 +31,7 @@ AbstractQAtlas.domain(::_NonAffineDemo) = :test_only
     @test length(all_relations(; domain=:holographic)) == 1   # BekensteinEntropyBound — the one non-quantum universal bound
     @test length(all_relations(; domain=:ensemble)) == 2
     @test length(all_relations(; domain=:fluctuation)) == 5   # +TypicalBelowAverage, +AnnealedFreeEnergyBound
-    @test length(all_relations(; domain=:entanglement)) == 25
+    @test length(all_relations(; domain=:entanglement)) == 32   # +InfiniteRandomnessEntanglementSlope, CFTEntanglementPBC/OBC, OffCriticalEntanglementSaturation, HalvedChainEntropyDifference, CFTEntanglementInfinite, InfiniteRandomnessEntanglementPBC
     @test length(all_relations(; domain=:wick)) == 2
     @test length(all_relations(; domain=:cft)) == 4
     @test isempty(all_relations(; domain=:spinglass))   # model-specific — lives in QAtlas now

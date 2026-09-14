@@ -9,6 +9,10 @@ using AbstractQAtlas
 using AbstractQAtlas: residual, check, solve
 using LinearAlgebra, Random
 
+using ExperimentalAPI: ExperimentalAPI
+
+struct _UnknownBC <: AbstractQAtlas.BoundaryCondition end
+
 @testset "Rényi-2 from purity: S_2 = −ln Tr ρ²" begin
     # pure state: purity 1, S_2 = 0
     @test solve(RenyiTwoPurity(), Val(:S2); purity=1.0) == 0.0
@@ -115,6 +119,555 @@ end
     discovered = relation_report((; dS_dlogℓ=1 / 3, c=1.0, ncuts=2))
     @test only(discovered).relation isa CFTEntanglementSlope
     @test only(discovered).pass
+end
+
+@testset "InfiniteRandomnessEntanglementSlope reproduces Refael-Moore" begin
+    # Refael & Moore 2004: c̃ = (ln 2)/2 for the random transverse-field Ising
+    # chain (Eq. 23) and ln 2 for the random singlet phase of the Heisenberg and
+    # XX chains (Eq. 19).
+    c̃_ising, c̃_singlet = log(2) / 2, log(2)
+
+    # Their published slopes, for a segment of a chain, which is two cuts.
+    @test check(
+        InfiniteRandomnessEntanglementSlope();
+        dS_dlogℓ=log(2) / 6,
+        c̃=c̃_ising,
+        ncuts=2,
+        atol=1e-14,
+    )
+    @test check(
+        InfiniteRandomnessEntanglementSlope();
+        dS_dlogℓ=log(2) / 3,
+        c̃=c̃_singlet,
+        ncuts=2,
+        atol=1e-14,
+    )
+
+    # Eqs. (19) and (23) are written in bits, `S = -Tr ρ log₂ ρ`, where the same
+    # two-cut slopes read 1/3 and 1/6 exactly.  Dividing by ln 2 must land there,
+    # or the relation is off by the base.
+    @test (log(2) / 3) / log(2) ≈ 1 / 3 atol = 1e-14
+    @test (log(2) / 6) / log(2) ≈ 1 / 6 atol = 1e-14
+
+    # Getting the cut count wrong is not a small error: read at one cut, the
+    # random Ising slope returns the random singlet value, so the two classes
+    # trade places.  This is the failure the `ncuts` axis exists to prevent.
+    @test solve(
+        InfiniteRandomnessEntanglementSlope(), Val(:c̃); dS_dlogℓ=log(2) / 6, ncuts=2
+    ) ≈ c̃_ising atol = 1e-14
+    @test solve(
+        InfiniteRandomnessEntanglementSlope(), Val(:c̃); dS_dlogℓ=log(2) / 6, ncuts=1
+    ) ≈ c̃_singlet atol = 1e-14
+
+    # A block at an open end is one cut: half the slope, ln 2/12 = 0.0578, not
+    # the ln 2/6 = 0.1155 of a segment.  The two must not be interchangeable.
+    @test check(
+        InfiniteRandomnessEntanglementSlope();
+        dS_dlogℓ=log(2) / 12,
+        c̃=c̃_ising,
+        ncuts=1,
+        atol=1e-14,
+    )
+    @test !check(
+        InfiniteRandomnessEntanglementSlope();
+        dS_dlogℓ=log(2) / 12,
+        c̃=c̃_ising,
+        ncuts=2,
+        atol=1e-3,
+    )
+
+    # As in the CFT case, a slope that does not say its geometry yields no row.
+    @test isempty(relation_report((; dS_dlogℓ=log(2) / 6, c̃=c̃_ising)))
+    found = relation_report((; dS_dlogℓ=log(2) / 6, c̃=c̃_ising, ncuts=2))
+    @test only(found).relation isa InfiniteRandomnessEntanglementSlope
+    @test only(found).pass
+end
+
+@testset "entanglement_cuts derives b from the Region and the boundary condition" begin
+    # A contiguous block has two cuts on a ring, and one only when it reaches an
+    # end of an open chain. The same sites give different answers, which is the
+    # whole reason the count cannot be read off the boundary condition.
+    @test entanglement_cuts(PBC(8), Region(2, 3, 4)) == 2
+    @test entanglement_cuts(OBC(8), Region(2, 3, 4)) == 2
+    @test entanglement_cuts(OBC(8), Region(1, 2, 3)) == 1
+    @test entanglement_cuts(OBC(8), Region(6, 7, 8)) == 1
+
+    # Filling the system leaves nothing to cut, on either boundary condition.
+    @test entanglement_cuts(PBC(4), Region(1, 2, 3, 4)) == 0
+    @test entanglement_cuts(OBC(4), Region(1, 2, 3, 4)) == 0
+
+    # The ring's wrap-around is a real adjacency: a block straddling it stays at
+    # two cuts, where an open chain would count the same sites as two blocks.
+    @test entanglement_cuts(PBC(8), Region(8, 1, 2)) == 2
+    @test entanglement_cuts(OBC(8), Region(8, 1, 2)) == 2
+    @test entanglement_cuts(PBC(8), Region(2, 3, 6, 7)) == 4
+
+    # An infinite chain needs no N: adjacency around the region is enough.
+    @test entanglement_cuts(Infinite(), Region(5, 6, 7)) == 2
+    @test entanglement_cuts(Infinite(), Region(5, 6, 9)) == 4
+    @test entanglement_cuts(PBC(8), Region()) == 0
+
+    # A set with no adjacency is refused rather than guessed at, and so are sites
+    # the declared chain does not contain, at BOTH ends: a bare `ErrorException`
+    # would not say the intended guard is the one that fired, and reordering them
+    # would swap the diagnoses without failing.
+    @test_throws "adjacency needs integer sites" entanglement_cuts(OBC(8), Region("a", "b"))
+    @test_throws "fall outside the chain" entanglement_cuts(OBC(4), Region(3, 4, 5))
+    @test_throws "fall outside the chain" entanglement_cuts(OBC(4), Region(0, 1, 2))
+    @test_throws "declares no chain length" entanglement_cuts(OBC(), Region(1, 2))
+    @test_throws "declares no chain length" entanglement_cuts(PBC(), Region(1, 2))
+end
+
+@testset "finite-size entropy: ring, open chain, and what separates them" begin
+    c, c₁, L = 1 / 2, 0.4785, 2048.0          # Ising; c₁ non-universal, cancels below
+
+    ring(ℓ, Lc=L) = (c / 3) * log((Lc / π) * sin(π * ℓ / Lc)) + c₁
+    open_(ℓ, Lc=L) = (c / 6) * log((2Lc / π) * sin(π * ℓ / Lc)) + 0.0 + c₁ / 2
+
+    @test check(CFTEntanglementPBC(); S=ring(512), c=c, L=L, ℓ=512, c₁=c₁, atol=1e-12)
+    # Iglói & Lin Table 1 measure g → 1 for the Ising chain, so `ln g` vanishes there.
+    @test check(
+        CFTEntanglementOBC(); S=open_(512), c=c, L=L, ℓ=512, c₁=c₁, ln_g=0.0, atol=1e-12
+    )
+
+    # A ring block far from filling the ring is the infinite chain: the chord
+    # tends to ℓ, so the two forms must agree, and increasingly so.
+    inf_chain(ℓ) = (c / 3) * log(ℓ) + c₁
+    @test abs(ring(8) - inf_chain(8)) < abs(ring(256) - inf_chain(256))
+    @test ring(8) ≈ inf_chain(8) atol = 2e-5
+
+    # The open chain is NOT the ring halved. Same (L, ℓ, c, c₁), and the gap is
+    # the chord's 2L/π against L/π; assuming a bare factor of two misses it.
+    @test !isapprox(open_(512), ring(512) / 2; atol=1e-6)
+    @test open_(512) - ring(512) / 2 ≈ (c / 6) * log(2) atol = 1e-12
+end
+
+@testset "HalvedChainEntropyDifference is exact on both boundary conditions" begin
+    c, c₁, L = 1 / 2, 0.4785, 4096.0
+    ring(ℓ, Lc) = (c / 3) * log((Lc / π) * sin(π * ℓ / Lc)) + c₁
+    open_(ℓ, Lc) = (c / 6) * log((2Lc / π) * sin(π * ℓ / Lc)) + c₁ / 2
+
+    # Derived from the two forms above, not assumed: halving shifts the chord by
+    # exactly two, and c₁ (and `ln g`) cancel, which is why no constant appears.
+    ΔS_ring = ring(L / 2, L) - ring(L / 4, L / 2)
+    ΔS_open = open_(L / 2, L) - open_(L / 4, L / 2)
+    @test check(HalvedChainEntropyDifference(); ΔS=ΔS_ring, c=c, ncuts=2, atol=1e-12)
+    @test check(HalvedChainEntropyDifference(); ΔS=ΔS_open, c=c, ncuts=1, atol=1e-12)
+
+    # The `ln 2` is load-bearing, and its absence is not merely a wrong number.
+    # The source reads ΔS = c/3 and c/6 because it counts bits; applying that to
+    # entropies in nats returns c·ln 2 rather than c.
+    @test solve(HalvedChainEntropyDifference(), Val(:c); ΔS=ΔS_ring, ncuts=2) ≈ c atol =
+        1e-12
+    @test ΔS_ring / (2 / 6) ≈ c * log(2) atol = 1e-12
+    @test !isapprox(ΔS_ring / (2 / 6), c; atol=1e-3)
+
+    # For the Ising chain that misreading lands exactly on the random chain's
+    # effective central charge, since c̃ = c ln 2 there: a clean chain measured
+    # in the wrong base is numerically an infinite-randomness one.
+    @test c * log(2) ≈ log(2) / 2 atol = 1e-15
+
+    # And the cut count still discriminates: the same difference read at the
+    # wrong count returns twice or half the central charge.
+    @test solve(HalvedChainEntropyDifference(), Val(:c); ΔS=ΔS_ring, ncuts=1) ≈ 2c atol =
+        1e-12
+end
+
+@testset "off-critical saturation counts the same boundary points" begin
+    c, ξ = 1 / 2, 40.0
+    # Iglói & Lin write the prefactor as `b`, the number of boundary points.
+    @test check(
+        OffCriticalEntanglementSaturation();
+        S=2 * (c / 6) * log(ξ),
+        c=c,
+        ξ=ξ,
+        ncuts=2,
+        atol=1e-12,
+    )
+    @test check(
+        OffCriticalEntanglementSaturation();
+        S=1 * (c / 6) * log(ξ),
+        c=c,
+        ξ=ξ,
+        ncuts=1,
+        atol=1e-12,
+    )
+    # ξ replaces ℓ: at ξ = ℓ the saturated value meets the critical logarithm.
+    @test 2 * (c / 6) * log(ξ) ≈ (c / 3) * log(ξ) atol = 1e-12
+end
+
+@testset "the guards refuse what the raw relations cannot see" begin
+    # `sin` is periodic, so ℓ outside the chain aliases onto a legitimate answer
+    # rather than looking wrong: ℓ = 250 on L = 100 returned exactly the ℓ = 50
+    # value before the guard.
+    @test_throws "need 0 < ℓ < L" AbstractQAtlas.solve(
+        CFTEntanglementPBC(), Val(:S); c=0.5, L=100.0, ℓ=250.0, c₁=0.4785
+    )
+    @test AbstractQAtlas.solve(
+        CFTEntanglementPBC(), Val(:S); c=0.5, L=100.0, ℓ=50.0, c₁=0.4785
+    ) isa Real
+
+    # ℓ = L is not caught by a blow-up: `sin(float(π))` is 1.2e-16, so the answer
+    # was a large finite number set by rounding, where the truth is 0.
+    @test_throws "need 0 < ℓ < L" AbstractQAtlas.solve(
+        CFTEntanglementOBC(), Val(:S); c=0.5, L=100.0, ℓ=100.0, c₁=0.4785, ln_g=0.0
+    )
+
+    # Solving for ℓ is refused, and by the guard rather than by affinity: `_solve`
+    # probes at ℓ = 0 first, so the domain check fires before the parabola test is
+    # reached. Pinned to the message, since a bare Exception cannot tell which.
+    @test_throws "need 0 < ℓ < L" AbstractQAtlas.solve(
+        CFTEntanglementPBC(), Val(:ℓ); S=1.0, c=0.5, L=100.0, c₁=0.4
+    )
+
+    # Unsigned labels: `lo - 1` wraps to typemax and empties the range, which
+    # reported 0 cuts for a two-cut region.
+    @test entanglement_cuts(Infinite(), Region(UInt(0), UInt(1))) ==
+        entanglement_cuts(Infinite(), Region(0, 1)) ==
+        2
+    @test_throws "not a lattice index" entanglement_cuts(OBC(8), Region(true))
+
+    # A boundary condition with no branch must not read as an open chain.
+    @test_throws "no adjacency defined" entanglement_cuts(_UnknownBC(), Region(1, 2))
+
+    # The random ring's `f` is only a number to the relation, so the sign guard is
+    # all it can offer; the geometry-aware sampling lives in the region sweep.
+    @test_throws "L = -1024" AbstractQAtlas.solve(
+        InfiniteRandomnessEntanglementPBC(), Val(:S̄); c̃=0.25, L=-1024.0, f=-0.3, c₁′=0.3
+    )
+end
+
+@testset "only the unsettled half is marked experimental" begin
+    _QI = AbstractQAtlas.QuantumInformation
+
+    # Eq. (24) has no independent oracle here and `f` admits no bound, so the two
+    # names that carry it say so at runtime.
+    @test ExperimentalAPI.isexperimental(_QI, :InfiniteRandomnessEntanglementPBC)
+
+    # The rest must NOT be marked. A flag on everything reports nothing, and these
+    # are anchored to published constants with discriminating tests above.
+    @test !ExperimentalAPI.isexperimental(_QI, :InfiniteRandomnessEntanglementSlope)
+    @test !ExperimentalAPI.isexperimental(_QI, :CFTEntanglementPBC)
+    @test !ExperimentalAPI.isexperimental(_QI, :CFTEntanglementOBC)
+    @test !ExperimentalAPI.isexperimental(_QI, :entanglement_cuts)
+end
+
+@testset "the conformal chord is the one-harmonic case of the random one" begin
+    c̃, c₁′, L, ℓ = log(2) / 2, 0.31, 1024.0, 300.0
+
+    # `Σₖ Aₖ(2k-1)π = 1` with a single harmonic forces A₁ = 1/π, and then
+    # `L f(ℓ/L)` is the conformal chord exactly.
+    A₁ = 1 / π
+    @test A₁ * (2 * 1 - 1) * π ≈ 1 atol = 1e-14
+    f_conformal(v) = A₁ * sin(π * v)
+    @test L * f_conformal(ℓ / L) ≈ (L / π) * sin(π * ℓ / L) atol = 1e-12
+
+    # So the random ring form with that f, read at c̃ → c, IS the ring form.
+    S = (c̃ / 3) * log(L * f_conformal(ℓ / L)) + c₁′
+    @test check(
+        InfiniteRandomnessEntanglementPBC();
+        S̄=S,
+        c̃=c̃,
+        L=L,
+        f=f_conformal(ℓ / L),
+        c₁′=c₁′,
+        atol=1e-12,
+    )
+    @test check(CFTEntanglementPBC(); S=S, c=c̃, L=L, ℓ=ℓ, c₁=c₁′, atol=1e-12)
+
+    # A second harmonic is what a random chain may carry and a conformal one may
+    # not, and it moves the entropy, so the two forms are not interchangeable
+    # once it is present.
+    A₃ = 0.02
+    f_two(v) = (1 - A₃ * 3π) / π * sin(π * v) + A₃ * sin(3π * v)
+    @test (1 - A₃ * 3π) / π * π + A₃ * 3π ≈ 1 atol = 1e-14   # normalisation held
+    S_two = (c̃ / 3) * log(L * f_two(ℓ / L)) + c₁′
+    @test !isapprox(S_two, S; atol=1e-4)
+    @test check(
+        InfiniteRandomnessEntanglementPBC();
+        S̄=S_two,
+        c̃=c̃,
+        L=L,
+        f=f_two(ℓ / L),
+        c₁′=c₁′,
+        atol=1e-12,
+    )
+    @test !check(CFTEntanglementPBC(); S=S_two, c=c̃, L=L, ℓ=ℓ, c₁=c₁′, atol=1e-4)
+end
+
+@testset "c̃ is not c: the two slopes cannot be read for each other" begin
+    rel = InfiniteRandomnessEntanglementSlope()
+    @test variable_types(rel) == (EffectiveCentralCharge,)
+    @test EffectiveCentralCharge in quantities(rel)
+
+    # The fixed point is not conformal, so an infinite-randomness slope must not
+    # produce a CentralCharge row, nor a CFT slope an EffectiveCentralCharge one.
+    @test !(CentralCharge in quantities(rel))
+    @test !(EffectiveCentralCharge in quantities(CFTEntanglementSlope()))
+
+    # The docstrings promise the entropy arrives through `also_constrains`, so the
+    # six new laws must be reachable from the quantity they bound. Without the
+    # registration they are silently absent from that lookup and the promise is
+    # prose only.
+    for r in (
+        CFTEntanglementPBC(),
+        CFTEntanglementOBC(),
+        OffCriticalEntanglementSaturation(),
+        HalvedChainEntropyDifference(),
+    )
+        @test VonNeumannEntropy in AbstractQAtlas.also_constrains(r)
+        @test any(x -> x isa typeof(r), relations_constraining(VonNeumannEntropy))
+    end
+
+    # The infinite-randomness pair keys on the REDUCTION, following the block in
+    # quantity_links.jl: both sources state the disorder average, and a typical
+    # sample carries no logarithm, so a bare key would claim the law for the
+    # wrong one.
+    for r in (InfiniteRandomnessEntanglementSlope(), InfiniteRandomnessEntanglementPBC())
+        @test AbstractQAtlas.also_constrains(r) == (DisorderAveraged{VonNeumannEntropy},)
+        @test !(VonNeumannEntropy in AbstractQAtlas.also_constrains(r))
+    end
+
+    # No dimension slot either: above 1D the entropy is an area law and the
+    # fixed point may not even be reached, so there is no family for `d` to
+    # index.  A future edit adding one would be claiming a generalisation.
+    @test !(SpatialDimension in quantities(rel))
+
+    # The arithmetic is identical, so at the keyword surface nothing separates the
+    # two but which keyword the caller types: `name::Type` in `@relation` is
+    # bag-key metadata and the generated kernel's kwarg is untyped.
+    @test check(rel; dS_dlogℓ=log(2) / 6, c̃=log(2) / 2, ncuts=2, atol=1e-14)
+    @test check(
+        CFTEntanglementSlope(); dS_dlogℓ=log(2) / 6, c=log(2) / 2, ncuts=2, atol=1e-14
+    )
+
+    # The bag is where the separation is a guard rather than a naming convention:
+    # the same number keyed as a CentralCharge cannot reach the c̃ slot, so a CFT
+    # measurement never picks up the infinite-randomness law, nor the reverse.
+    b_cft = bag(CentralCharge => log(2) / 2)
+    b_irfp = bag(EffectiveCentralCharge => log(2) / 2)
+    slope = (; dS_dlogℓ=log(2) / 6, ncuts=2)
+    @test CFTEntanglementSlope() in applicable_relations(b_cft; slope...)
+    @test !any(r -> r isa typeof(rel), applicable_relations(b_cft; slope...))
+    @test rel in applicable_relations(b_irfp; slope...)
+    @test !any(r -> r isa CFTEntanglementSlope, applicable_relations(b_irfp; slope...))
+end
+
+@testset "the open-chain form against exact diagonalisation and a published constant" begin
+    # The closed forms were otherwise checked only by retyping them in the test, so a
+    # prefactor transcribed wrongly from the source would be transcribed wrongly here
+    # too and nothing would notice. This anchors one of them outside that loop: the
+    # entropy comes from an exact free-fermion ground state computed here, and the
+    # constant it must reproduce is Iglói & Lin's own measured c₁.
+    c = 1 / 2
+    c₁_source = log(2) * 0.6904133      # Table 1, converted from their bits to nats
+
+    function covariance(N)
+        A = zeros(2N, 2N)
+        for j in 1:N
+            A[2j - 1, 2j] = -2.0
+        end
+        for j in 1:(N - 1)
+            A[2j, 2j + 1] = -2.0
+        end
+        A = A - transpose(A)
+        F = svd(A)
+        Γ = F.U * F.Vt
+        return (Γ .- transpose(Γ)) ./ 2
+    end
+    function ed_entropy(Γ, sites)
+        idx = vcat(([2j - 1, 2j] for j in sites)...)
+        ν = eigvals(Hermitian(im .* Γ[idx, idx]))
+        return free_fermion_entanglement_entropy([
+            (1 + real(x)) / 2 for x in ν if real(x) > 0
+        ])
+    end
+
+    N = 256
+    Γ = covariance(N)
+    # Read c₁ back THROUGH the relation, so the production chord is what is exercised.
+    recovered(ℓ) =
+        solve(CFTEntanglementOBC(), Val(:c₁); S=ed_entropy(Γ, 1:ℓ), c=c, L=N, ℓ=ℓ, ln_g=0.0)
+
+    @test recovered(64) ≈ c₁_source atol = 0.01
+    @test recovered(32) ≈ c₁_source atol = 0.01
+
+    # The gap is a finite-size correction, so it has to shrink with ℓ, which a wrong
+    # constant would not do.
+    @test abs(recovered(64) - c₁_source) < abs(recovered(16) - c₁_source)
+
+    # And the anchor discriminates: dropping the 2 from the open chain's `2L/π` moves
+    # the recovered constant by 0.11, twenty times the residual finite-size error, so
+    # this test would fail on that transcription rather than absorb it.
+    wrong(ℓ) = 2 * (ed_entropy(Γ, 1:ℓ) - (c / 6) * log((N / π) * sin(π * ℓ / N)))
+    @test abs(wrong(64) - c₁_source) > 0.1
+end
+
+@testset "every route from an entropy to c returns the same c" begin
+    # `related_quantities(CentralCharge)` carries five distinct edges to
+    # VonNeumannEntropy, so one measurement can be read for `c` five ways. Each was
+    # only ever checked against its own hand-written fixture; here they are made to
+    # agree with each other, which no single relation can satisfy alone. A coefficient
+    # mistyped in one of them is denied by the other four even where its own test
+    # still passes.
+    c, c₁, N = 1 / 2, 0.4785, 4096.0
+    chord(L, ℓ) = (L / π) * sin(π * ℓ / L)
+    ring(ℓ, L=N) = (c / 3) * log(chord(L, ℓ)) + c₁
+    open_(ℓ, L=N) = (c / 6) * log(2 * chord(L, ℓ)) + c₁ / 2
+    line(ℓ) = (c / 3) * log(ℓ) + c₁
+
+    # A ring: the closed form and the two-length difference.
+    c_pbc = solve(CFTEntanglementPBC(), Val(:c); S=ring(1024), L=N, ℓ=1024, c₁=c₁)
+    c_halved_ring = solve(
+        HalvedChainEntropyDifference(),
+        Val(:c);
+        ΔS=ring(N / 2) - ring(N / 4, N / 2),
+        ncuts=2,
+    )
+    @test c_pbc ≈ c atol = 1e-12
+    @test c_halved_ring ≈ c atol = 1e-12
+
+    # An open chain: same two routes, one cut, and the boundary entropy in the way.
+    c_obc = solve(
+        CFTEntanglementOBC(), Val(:c); S=open_(1024), L=N, ℓ=1024, c₁=c₁, ln_g=0.0
+    )
+    c_halved_open = solve(
+        HalvedChainEntropyDifference(),
+        Val(:c);
+        ΔS=open_(N / 2) - open_(N / 4, N / 2),
+        ncuts=1,
+    )
+    @test c_obc ≈ c atol = 1e-12
+    @test c_halved_open ≈ c atol = 1e-12
+
+    # An infinite chain: the closed form and the slope through two blocks.
+    c_inf = solve(CFTEntanglementInfinite(), Val(:c); S=line(300), ℓ=300, c₁=c₁)
+    c_slope = solve(
+        CFTEntanglementSlope(),
+        Val(:c);
+        dS_dlogℓ=(line(300) - line(100)) / (log(300) - log(100)),
+        ncuts=2,
+    )
+    @test c_inf ≈ c atol = 1e-12
+    @test c_slope ≈ c atol = 1e-12
+
+    # Off criticality the same c is read from a length that is not the region's.
+    ξ = 40.0
+    c_sat = solve(
+        OffCriticalEntanglementSaturation(), Val(:c); S=2 * (c / 6) * log(ξ), ξ=ξ, ncuts=2
+    )
+    @test c_sat ≈ c atol = 1e-12
+
+    # All six routes agree to machine precision, which is the claim; the spread a
+    # single mistyped coefficient would open is a factor of two, not 1e-12.
+    routes = [c_pbc, c_halved_ring, c_obc, c_halved_open, c_inf, c_slope, c_sat]
+    @test maximum(routes) - minimum(routes) < 1e-12
+
+    # The spread a single wrong coefficient opens, for scale: the same ring datum
+    # read at one cut instead of two returns 2c, so the routes would disagree by c
+    # rather than by 1e-12.
+    @test solve(
+        HalvedChainEntropyDifference(),
+        Val(:c);
+        ΔS=ring(N / 2) - ring(N / 4, N / 2),
+        ncuts=1,
+    ) ≈ 2c atol = 1e-12
+
+    # And the ring becomes the infinite chain where its chord does: the two closed
+    # forms are one law, not two that happen to agree at one point.
+    @test ring(8) ≈ line(8) atol = 2e-5
+    @test abs(ring(8) - line(8)) < abs(ring(512) - line(512))
+end
+
+@testset "both routes to the effective central charge agree" begin
+    # The random side has two edges to EffectiveCentralCharge, and the ring form must
+    # reduce to the slope on the same data rather than being a second unrelated law.
+    c̃, c₁′, L = log(2) / 2, 0.31, 2048.0
+    conf(v) = sin(π * v) / π
+    ring̃(ℓ) = (c̃ / 3) * log(L * conf(ℓ / L)) + c₁′
+    linẽ(ℓ) = (c̃ / 3) * log(ℓ) + c₁′
+
+    c̃_ring = solve(
+        InfiniteRandomnessEntanglementPBC(),
+        Val(:c̃);
+        S̄=ring̃(512),
+        L=L,
+        f=conf(512 / L),
+        c₁′=c₁′,
+    )
+    c̃_slope = solve(
+        InfiniteRandomnessEntanglementSlope(),
+        Val(:c̃);
+        dS_dlogℓ=(linẽ(300) - linẽ(100)) / (log(300) - log(100)),
+        ncuts=2,
+    )
+    @test c̃_ring ≈ c̃ atol = 1e-12
+    @test c̃_slope ≈ c̃ atol = 1e-12
+    @test c̃_ring ≈ c̃_slope atol = 1e-12
+
+    # The two networks must not meet: the same numbers read through the clean route
+    # give a different constant, which is the whole reason c̃ is its own quantity.
+    @test !isapprox(
+        solve(
+            CFTEntanglementSlope(),
+            Val(:c);
+            dS_dlogℓ=(linẽ(300) - linẽ(100)) / (log(300) - log(100)),
+            ncuts=2,
+        ),
+        1 / 2;
+        atol=1e-6,
+    )
+end
+
+@testset "the graph edges are real, and say which traversal can use them" begin
+    # Every edge these relations add must name a relation that genuinely links the
+    # two quantities, or the graph is advertising a route that is not there.
+    edges = related_quantities(CentralCharge)
+    named = Set(e.detail for e in edges)
+    for r in (
+        "CFTEntanglementPBC",
+        "CFTEntanglementOBC",
+        "CFTEntanglementSlope",
+        "HalvedChainEntropyDifference",
+        "OffCriticalEntanglementSaturation",
+    )
+        @test r in named
+    end
+    @test any(
+        e ->
+            e.detail == "OffCriticalEntanglementSaturation" &&
+            CorrelationLength in (e.from, e.to),
+        edges,
+    )
+
+    # The edge is a statement about the law, not a promise that `derive` can walk
+    # it. The entropy enters as a supplied slot and lives in a bag under a region,
+    # so the type-keyed derivation has nothing to match and says so rather than
+    # guessing. `CFTEntanglementSlope` behaves the same way, and has since before
+    # these relations existed.
+    c, c₁, N = 0.5, 0.4785, 4096.0
+    b = bag(VonNeumannEntropy => (c / 3) * log((N / π) * sin(π * 1024 / N)) + c₁)
+    @test isempty(setdiff(derivable(b; L=N, ℓ=1024.0, c₁=c₁), keys(b)))
+    @test_throws "not reachable from the bag" derive(CentralCharge, b; L=N, ℓ=1024.0, c₁=c₁)
+
+    # `finite_size_entropy_report` is the traversal that does reach them, off the
+    # region-keyed entry the bag actually holds, and it agrees with the direct
+    # solve: the same data passes there and returns c here.
+    breg = bag(
+        entanglement_entropy(Region(1:1024...)) =>
+            (c / 3) * log((N / π) * sin(π * 1024 / N)) + c₁,
+        CentralCharge => c,
+    )
+    rows = finite_size_entropy_report(breg, PBC(Int(N)); c₁=c₁, atol=1e-12)
+    @test only(rows).pass
+    @test solve(
+        CFTEntanglementPBC(),
+        Val(:c);
+        S=(c / 3) * log((N / π) * sin(π * 1024 / N)) + c₁,
+        L=N,
+        ℓ=1024,
+        c₁=c₁,
+    ) ≈ c atol = 1e-12
 end
 
 @testset "CFTEntanglementSlope is type-keyed like its cft.jl siblings" begin

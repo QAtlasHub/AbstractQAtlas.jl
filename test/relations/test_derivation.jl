@@ -486,3 +486,20 @@ end
         :CriticalAutocorrelation, :ActivatedAutocorrelation, :GriffithsAutocorrelation
     ])
 end
+
+@testset "a shared variable name is not a shared quantity" begin
+    # The registry is one namespace and `S` is a ring's block in one relation and an
+    # open chain's end block in another. One number cannot be both, so an unscoped
+    # report says they disagree, correctly: the caller has supplied a state that does
+    # not exist. `domain` is the remedy, and this pins that it is needed rather than
+    # leaving a future reader to discover it from a puzzling row.
+    c, c₁, N, ℓ = 0.5, 0.4785, 4096.0, 1024.0
+    ring = (c / 3) * log((N / π) * sin(π * ℓ / N)) + c₁
+    mixed = (; S=ring, c=c, L=N, ℓ=ℓ, c₁=c₁, ncuts=2, ln_g=0.0)
+    row = only(filter(r -> r.target === :S, consistency_report(mixed)))
+    @test length(row.steps) >= 2
+    @test !row.agree
+
+    # Scoped to the one geometry the number belongs to, the same data is consistent.
+    @test solve(CFTEntanglementPBC(), Val(:S); c=c, L=N, ℓ=ℓ, c₁=c₁) ≈ ring atol = 1e-12
+end
