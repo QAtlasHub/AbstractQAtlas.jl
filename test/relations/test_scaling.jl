@@ -604,7 +604,7 @@ end
     rs = relations_constraining(SpatialDimension())
     # Every relation that takes a d, named. Listing a subset leaves the rest
     # resting on the soft coverage ratio, which cannot see one missing entry.
-    @test length(rs) == 13
+    @test length(rs) == 14
     for r in (
         Josephson(),
         QuantumHyperscaling(),
@@ -619,6 +619,7 @@ end
         FixedPointDisorderStrength(),
         ConventionalFieldSusceptibility(),
         ConventionalFieldSpecificHeat(),
+        StrongSelfAveraging(),
     )
         @test r in rs
     end
