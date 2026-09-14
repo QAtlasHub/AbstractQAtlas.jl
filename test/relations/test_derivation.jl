@@ -366,3 +366,15 @@ end
         @test get(Dict(variable_slots(r)), sym, nothing) === nothing
     end
 end
+
+@testset "family tags cannot be shadowed by a relation name" begin
+    # `law_family` returns a Symbol and the default is the relation's own name, so the
+    # hand-assigned tags share a namespace with every relation in the registry. A tag
+    # that collides would silently absorb that relation as an "alternative", and one
+    # member matching would then excuse it, turning a real inconsistency into an
+    # agreement. Nothing in the type system prevents it, so it is asserted here.
+    names = Set(nameof(typeof(r)) for r in all_relations())
+    tags = Set(law_family(r) for r in all_relations() if law_family(r) ∉ names)
+    @test !isempty(tags)                       # the explicit families exist at all
+    @test isempty(intersect(tags, names))      # and none is also a relation name
+end

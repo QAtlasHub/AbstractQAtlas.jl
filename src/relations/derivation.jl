@@ -534,11 +534,17 @@ One held-out variable and every route back to it: the `target`, a `Symbol` on th
 name-keyed report and a [`VariableKey`](@ref) on the type-keyed one, the value it
 was held out at, the `steps` that reproduced it, their `values`, the `spread` over
 those values and the held-out one, and whether they `agree`.
+
+`steps` holds whichever step the report actually walked, [`DerivationStep`](@ref)
+or `TypedStep`, rather than translating one into the other: a `TypedStep`'s output
+is a quantity type and a `DerivationStep`'s is the relation's own variable symbol,
+so rewriting the first as the second would produce a step that cannot be replayed
+through [`solve`](@ref).
 """
 struct ConsistencyRow
     target::Union{Symbol,VariableKey}
     held_out::Any
-    steps::Vector{DerivationStep}
+    steps::Union{Vector{DerivationStep},Vector{TypedStep}}
     values::Vector{Any}
     spread::Float64
     agree::Bool
@@ -549,8 +555,8 @@ function Base.show(io::IO, r::ConsistencyRow)
     return print(
         io,
         r.agree ? "agree" : "DISAGREE",
-        " :",
-        r.target,
+        " ",
+        r.target isa Symbol ? ":" * string(r.target) : string(r.target),
         " over ",
         length(r.steps),
         " route(s), spread ",
@@ -716,13 +722,7 @@ function consistency_report(
             ConsistencyRow(
                 target,
                 held,
-                DerivationStep[
-                    DerivationStep(
-                        st.relation,
-                        nameof(st.output.type),
-                        Tuple(nameof(i.type) for i in st.inputs),
-                    ) for (st, _) in got
-                ],
+                TypedStep[st for (st, _) in got],
                 vals,
                 spread,
                 _families_satisfied(got, held, max(atol, rtol * maximum(abs, everything))),
