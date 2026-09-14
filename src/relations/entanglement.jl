@@ -20,7 +20,7 @@ _chord(L, ℓ) = (L / π) * sin(π * ℓ / L)
 # blow-up either, since `sin(float(π))` is 1.2e-16 rather than 0, which turns into a
 # large finite value dominated by rounding. Both are refused.
 function _require_block(what::Symbol, L, ℓ)
-    return (L > 0 && 0 < ℓ < L) || error(
+    return 0 < ℓ < L || error(
         "$what: need 0 < ℓ < L, got ℓ = $ℓ on L = $L. Outside that range `sin(πℓ/L)` " *
         "aliases onto a legitimate answer; at ℓ = L it is rounding noise, where the " *
         "true entropy of the whole system is 0.",
@@ -77,27 +77,23 @@ Moore, [RefaelMoore2004](@cite)):
 
 `dS/d(ln ℓ) = ncuts · c̃/6`.
 
-There is no `d` slot because there is no family to index.  Above one dimension
-the entropy obeys an area law rather than a logarithm, and whether an
-infinite-randomness fixed point is reached at all is model-dependent and settled
-only numerically: the random transverse-field Ising model reaches one in `d ≥ 2`
-while the random Heisenberg antiferromagnet does not (Iglói & Monthus,
-[IgloiMonthus2005](@cite), Sec. 9).  A `d` argument would advertise a
-generalisation that does not exist.
+No `d` slot, because there is no family to index: above one dimension the entropy
+obeys an area law, and whether the fixed point is reached at all is
+model-dependent and settled only numerically, the random transverse-field Ising
+model reaching one in `d ≥ 2` where the random Heisenberg antiferromagnet does not
+([IgloiMonthus2005](@cite), Sec. 9).
 
-The claim is the leading slope, not the finite-size form.  `ncuts` fixes how
-many cuts contribute, which is what separates a ring from an open end, but it
-does not carry the rest of what a boundary changes: the chord argument that
-turns `ln ℓ` into `ln[(L/π) sin(πℓ/L)]` has a different prefactor inside the
-logarithm for an open chain, an open chain adds a boundary entropy, and its
-oscillating corrections are the stronger.  None of that is asserted here, and at
-a fixed point with no conformal map none of it follows from the slope.
+The claim is the leading slope, not the finite-size form: see
+[`CFTEntanglementPBC`](@ref) and [`CFTEntanglementOBC`](@ref) for what else a
+boundary changes, none of which follows from a slope at a fixed point with no
+conformal map.
 
 The fixed point is not conformally invariant, yet both the form and the geometry
 factor survive: `ncuts` means what it means in [`CFTEntanglementSlope`](@ref),
-and only `c` becomes [`EffectiveCentralCharge`](@ref).  Refael and Moore's `2 ln √L` (Eq. 13) is that
-same factor arriving from the RG: two cuts, each contributing `ln Γ` at
-`Γ = √L`.
+and only `c` becomes [`EffectiveCentralCharge`](@ref).  Refael and Moore's `2 ln √L` (Eq. 13) is that same
+factor arriving from the RG, two cuts each contributing at `Γ = √L`; the source
+corrects that equation's rate three sentences later, and it is the two, which
+survives into Eq. (19), that is being leaned on here.
 
 `c̃` is measured per class, not derived: `(ln 2)/2` for the random transverse
 field Ising chain, which grows as `(ln 2/6) ln ℓ ≈ 0.1155 ln ℓ` across two cuts,
@@ -283,20 +279,18 @@ infinite-randomness fixed point (Iglói & Lin, [IgloiLin2008](@cite), Eq. 24):
 
 `S̄ = (c̃/3) ln[L f(ℓ/L)] + c₁′`.
 
-`f` is supplied by the caller because it is not the conformal chord.  Only its
-value arrives, not the function or the geometry, so nothing here can tell a
-scaling function from a typo: `L > 0` and `f > 0` are checked and a small
-positive `f` still returns a large negative entropy.  Reached through
-[`finite_size_entropy_report`](@ref), `f` is a callable sampled at `v = ℓ/L`
-taken from the region, which is where that can be seen.  It is
-reflection symmetric, `f(v) = f(1-v)`, tends to `v` as `v → 0`, and expands as
-`f(v) = Σₖ Aₖ sin((2k-1)πv)` subject to `Σₖ Aₖ(2k-1)π = 1`; the source notes
-that for a conformally invariant model **only the first term exists**.  Keeping
-just `k = 1` forces `A₁ = 1/π` from that normalisation and returns
-`L f = (L/π) sin(πℓ/L)`, which is [`CFTEntanglementPBC`](@ref) exactly.  So the
-difference between a critical chain and a random one at finite size is not the
-coefficient alone, as it is for the slope: the higher harmonics are absent in
-the first case and present in the second.
+`f` is caller-supplied and is not the conformal chord.  It is reflection
+symmetric, tends to `v` as `v → 0`, and expands as `f(v) = Σₖ Aₖ sin((2k-1)πv)`
+under `Σₖ Aₖ(2k-1)π = 1`, where the source notes that a conformally invariant
+model has **only the first term**.  Keeping `k = 1` forces `A₁ = 1/π` and returns
+`L f = (L/π) sin(πℓ/L)`, which is [`CFTEntanglementPBC`](@ref) exactly, so at
+finite size the two differ by the higher harmonics and not by the coefficient
+alone.
+
+Only the value of `f` reaches the relation, so `L > 0` and `f > 0` are all it can
+check and a small positive `f` still returns a large negative entropy; reached
+through [`finite_size_entropy_report`](@ref), `f` is a callable sampled at
+`v = ℓ/L` from the region, which is where that is visible.
 
 `c̃ = (ln 2)/2` is reported universal here in a stronger sense than the slope
 alone requires, being independent of the form of the disorder, while `c₁′`

@@ -313,9 +313,10 @@ end
         CFTEntanglementOBC(), Val(:S); c=0.5, L=100.0, ℓ=100.0, c₁=0.4785, ln_g=0.0
     )
 
-    # Solving for the variables the guard reads is refused either way, since the
-    # residual is not affine in them; the guard does not remove a working route.
-    @test_throws Exception AbstractQAtlas.solve(
+    # Solving for ℓ is refused, and by the guard rather than by affinity: `_solve`
+    # probes at ℓ = 0 first, so the domain check fires before the parabola test is
+    # reached. Pinned to the message, since a bare Exception cannot tell which.
+    @test_throws "need 0 < ℓ < L" AbstractQAtlas.solve(
         CFTEntanglementPBC(), Val(:ℓ); S=1.0, c=0.5, L=100.0, c₁=0.4
     )
 
@@ -450,6 +451,56 @@ end
     @test !any(r -> r isa typeof(rel), applicable_relations(b_cft; slope...))
     @test rel in applicable_relations(b_irfp; slope...)
     @test !any(r -> r isa CFTEntanglementSlope, applicable_relations(b_irfp; slope...))
+end
+
+@testset "the open-chain form against exact diagonalisation and a published constant" begin
+    # The closed forms were otherwise checked only by retyping them in the test, so a
+    # prefactor transcribed wrongly from the source would be transcribed wrongly here
+    # too and nothing would notice. This anchors one of them outside that loop: the
+    # entropy comes from an exact free-fermion ground state computed here, and the
+    # constant it must reproduce is Iglói & Lin's own measured c₁.
+    c = 1 / 2
+    c₁_source = log(2) * 0.6904133      # Table 1, converted from their bits to nats
+
+    function covariance(N)
+        A = zeros(2N, 2N)
+        for j in 1:N
+            A[2j - 1, 2j] = -2.0
+        end
+        for j in 1:(N - 1)
+            A[2j, 2j + 1] = -2.0
+        end
+        A = A - transpose(A)
+        F = svd(A)
+        Γ = F.U * F.Vt
+        return (Γ .- transpose(Γ)) ./ 2
+    end
+    function ed_entropy(Γ, sites)
+        idx = vcat(([2j - 1, 2j] for j in sites)...)
+        ν = eigvals(Hermitian(im .* Γ[idx, idx]))
+        return free_fermion_entanglement_entropy([
+            (1 + real(x)) / 2 for x in ν if real(x) > 0
+        ])
+    end
+
+    N = 256
+    Γ = covariance(N)
+    # Read c₁ back THROUGH the relation, so the production chord is what is exercised.
+    recovered(ℓ) =
+        solve(CFTEntanglementOBC(), Val(:c₁); S=ed_entropy(Γ, 1:ℓ), c=c, L=N, ℓ=ℓ, ln_g=0.0)
+
+    @test recovered(64) ≈ c₁_source atol = 0.01
+    @test recovered(32) ≈ c₁_source atol = 0.01
+
+    # The gap is a finite-size correction, so it has to shrink with ℓ, which a wrong
+    # constant would not do.
+    @test abs(recovered(64) - c₁_source) < abs(recovered(16) - c₁_source)
+
+    # And the anchor discriminates: dropping the 2 from the open chain's `2L/π` moves
+    # the recovered constant by 0.11, twenty times the residual finite-size error, so
+    # this test would fail on that transcription rather than absorb it.
+    wrong(ℓ) = 2 * (ed_entropy(Γ, 1:ℓ) - (c / 6) * log((N / π) * sin(π * ℓ / N)))
+    @test abs(wrong(64) - c₁_source) > 0.1
 end
 
 @testset "CFTEntanglementSlope is type-keyed like its cft.jl siblings" begin

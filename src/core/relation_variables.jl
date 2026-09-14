@@ -224,8 +224,21 @@ b = bag(at_size(Typical(MassGap()), 16) => 1e-2,
 
 The twin of [`entanglement_entropy`](@ref) for the size axis: it writes the key
 directly, because the size belongs to the measurement and not to the quantity.
+A quantity that already needs a support of its own, [`RenyiEntropy`](@ref) under
+[`OrderSupport`](@ref), is refused rather than silently losing it.
 """
-at_size(q::AbstractQuantity, L) = VariableKey(typeof(q), SizeSupport(L))
+function at_size(q::AbstractQuantity, L)
+    # `typeof` erases a field, so a quantity whose identity lives in one would key
+    # two different measurements to one slot. `RenyiEntropy(2)` and `RenyiEntropy(3)`
+    # at the same size collide loudly, and at different sizes fuse into a sweep that
+    # never existed. Supports do not compose here, so the pair is refused.
+    variable_support(q) isa Global || error(
+        "at_size: $(typeof(q)) already keys under $(variable_support(q)), and a key " *
+        "carries one support. Size and $(nameof(typeof(variable_support(q)))) cannot " *
+        "be combined, so this measurement has no slot to go in.",
+    )
+    return VariableKey(typeof(q), SizeSupport(L))
+end
 at_size(@nospecialize(Q::Type), L) = VariableKey(Q, SizeSupport(L))
 export at_size
 

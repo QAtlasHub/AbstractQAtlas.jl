@@ -463,21 +463,20 @@ end
     ring(ℓ) = (c / 3) * log((N / π) * sin(π * ℓ / N)) + c₁
 
     # The point of the layer: a bag built the ordinary way reaches the relations,
-    # with ℓ, L and the cut count derived rather than passed. Before it existed,
-    # `applicable_relations` on this bag returned nothing at all.
+    # with ℓ, L and the cut count derived rather than passed.
     b = bag(
         entanglement_entropy(Region(1:32...)) => ring(32),
         entanglement_entropy(Region(5:20...)) => ring(16),
         CentralCharge => c,
     )
-    rows = finite_size_entropy_report(b, PBC(N); c₁=c₁)
+    rows = finite_size_entropy_report(b, PBC(N); c₁=c₁, atol=1e-12)
     @test length(rows) == 2
     @test all(r -> r.pass, rows)
     @test all(r -> r.relation isa CFTEntanglementPBC, rows)
 
     # A wrong entropy has to fail, or passing says nothing.
     bad = bag(entanglement_entropy(Region(1:32...)) => ring(32) + 0.1, CentralCharge => c)
-    @test !only(finite_size_entropy_report(bad, PBC(N); c₁=c₁)).pass
+    @test !only(finite_size_entropy_report(bad, PBC(N); c₁=c₁, atol=1e-12)).pass
 
     # Only the geometry each equation was derived for is matched, and the rest is
     # skipped rather than answered: four cuts on a ring, and no adjacency at all.
@@ -486,22 +485,22 @@ end
         entanglement_entropy(Region("a", "b")) => 1.0,
         CentralCharge => c,
     )
-    @test isempty(finite_size_entropy_report(mixed, PBC(N); c₁=c₁))
+    @test isempty(finite_size_entropy_report(mixed, PBC(N); c₁=c₁, atol=1e-12))
 
     # The same sixteen sites match at an open end and not in the bulk, which is
     # the distinction the cut count exists for.
     at_end = bag(entanglement_entropy(Region(1:16...)) => 0.0, CentralCharge => c)
     in_bulk = bag(entanglement_entropy(Region(20:35...)) => 0.0, CentralCharge => c)
-    @test length(finite_size_entropy_report(at_end, OBC(N); c₁=c₁)) == 1
-    @test only(finite_size_entropy_report(at_end, OBC(N); c₁=c₁)).relation isa
+    @test length(finite_size_entropy_report(at_end, OBC(N); c₁=c₁, atol=1e-12)) == 1
+    @test only(finite_size_entropy_report(at_end, OBC(N); c₁=c₁, atol=1e-12)).relation isa
         CFTEntanglementOBC
-    @test isempty(finite_size_entropy_report(in_bulk, OBC(N); c₁=c₁))
+    @test isempty(finite_size_entropy_report(in_bulk, OBC(N); c₁=c₁, atol=1e-12))
 
     # An infinite chain has no L to supply and gets Eq. (4).
     binf = bag(
         entanglement_entropy(Region(1:8...)) => (c / 3) * log(8) + c₁, CentralCharge => c
     )
-    inf_rows = finite_size_entropy_report(binf, Infinite(); c₁=c₁)
+    inf_rows = finite_size_entropy_report(binf, Infinite(); c₁=c₁, atol=1e-12)
     @test only(inf_rows).relation isa CFTEntanglementInfinite
     @test only(inf_rows).pass
 
@@ -515,7 +514,7 @@ end
     # An empty report must mean "nothing matched", so a boundary condition with no
     # form is refused rather than quietly returning one.
     @test_throws "no finite-size form registered" finite_size_entropy_report(
-        b, _NoFormBC(); c₁=c₁
+        b, _NoFormBC(); c₁=c₁, atol=1e-12
     )
 end
 
@@ -527,12 +526,12 @@ end
     b = bag(entanglement_entropy(Region(1:300...)) => S̄(300), EffectiveCentralCharge => c̃)
     # `f` is a callable here, so the sweep samples it at the point the geometry
     # picks rather than trusting a number the caller computed.
-    rows = finite_size_entropy_report(b, PBC(N); c₁=0.0, f=conf, c₁′=c₁′)
+    rows = finite_size_entropy_report(b, PBC(N); c₁=0.0, f=conf, c₁′=c₁′, atol=1e-12)
     @test only(rows).relation isa InfiniteRandomnessEntanglementPBC
     @test only(rows).pass
 
     # Without the scaling function the random form cannot be instantiated at all.
-    @test isempty(finite_size_entropy_report(b, PBC(N); c₁=0.0, c₁′=c₁′))
+    @test isempty(finite_size_entropy_report(b, PBC(N); c₁=0.0, c₁′=c₁′, atol=1e-12))
 
     # A bag carrying both charges is checked against both laws, which is how the
     # clean and the random readings of one measurement are told apart.
@@ -543,7 +542,7 @@ end
     )
     kinds = [
         nameof(typeof(r.relation)) for
-        r in finite_size_entropy_report(both, PBC(N); c₁=0.0, f=conf, c₁′=c₁′)
+        r in finite_size_entropy_report(both, PBC(N); c₁=0.0, f=conf, c₁′=c₁′, atol=1e-12)
     ]
     @test Set(kinds) == Set([:CFTEntanglementPBC, :InfiniteRandomnessEntanglementPBC])
 end
@@ -557,7 +556,7 @@ end
         entanglement_entropy(Region(1:64...)) => S(64),
         CentralCharge => c,
     )
-    rows = finite_size_entropy_report(b, Infinite(); c₁=c₁)
+    rows = finite_size_entropy_report(b, Infinite(); c₁=c₁, atol=1e-12)
     slopes = filter(r -> r.relation isa CFTEntanglementSlope, rows)
 
     # `S` is affine in `ln ℓ` here, so the secant is the derivative and the rows
@@ -575,7 +574,7 @@ end
     )
     @test !any(
         r -> r.relation isa CFTEntanglementSlope,
-        finite_size_entropy_report(bring, PBC(64); c₁=c₁),
+        finite_size_entropy_report(bring, PBC(64); c₁=c₁, atol=1e-12),
     )
 
     # The same measurement read at the other fixed point has to fail, or the two
@@ -585,7 +584,7 @@ end
         entanglement_entropy(Region(1:32...)) => S(32),
         EffectiveCentralCharge => log(2) / 2,
     )
-    r = only(finite_size_entropy_report(birfp, Infinite(); c₁=0.0))
+    r = only(finite_size_entropy_report(birfp, Infinite(); c₁=0.0, atol=1e-12))
     @test r.relation isa InfiniteRandomnessEntanglementSlope
     @test !r.pass
 
@@ -598,7 +597,7 @@ end
         entanglement_entropy(Region(1:32...)) => S̃(32),
         EffectiveCentralCharge => c̃,
     )
-    @test only(finite_size_entropy_report(bok, Infinite(); c₁=0.0)).pass
+    @test only(finite_size_entropy_report(bok, Infinite(); c₁=0.0, atol=1e-12)).pass
 end
 
 @testset "a correlation length in the bag reaches the saturated form" begin
@@ -610,7 +609,7 @@ end
     )
     kinds = Dict(
         nameof(typeof(r.relation)) => r.pass for
-        r in finite_size_entropy_report(b, PBC(N); c₁=0.4785)
+        r in finite_size_entropy_report(b, PBC(N); c₁=0.4785, atol=1e-12)
     )
 
     # Off criticality the entropy sits on ξ, so the critical form fails and the
@@ -627,6 +626,46 @@ end
     )
     @test !any(
         r -> r.relation isa OffCriticalEntanglementSaturation,
-        finite_size_entropy_report(small, PBC(N); c₁=0.4785),
+        finite_size_entropy_report(small, PBC(N); c₁=0.4785, atol=1e-12),
+    )
+end
+
+@testset "the sweep refuses what it cannot pick, and what cannot be saturated" begin
+    c, c₁, ξ = 0.5, 0.4785, 12.0
+
+    # Two regions of one length carry one abscissa, and which a secant used would be
+    # decided by Dict iteration order. That is a refusal, not a silent choice.
+    tie = bag(
+        entanglement_entropy(Region(1:4...)) => 0.5,
+        entanglement_entropy(Region(101:104...)) => 0.9,
+        entanglement_entropy(Region(1:16...)) => 1.1,
+        CentralCharge => c,
+    )
+    @test_throws "no abscissa" finite_size_entropy_report(tie, Infinite(); c₁=c₁)
+
+    # The saturated form needs both sides of the cut to be bulk, since the source
+    # writes it for an infinite chain. A ring minus one site clears `ℓ > ξ` by a wide
+    # margin, and its complement is a single site, which cannot hold the entropy the
+    # row would otherwise pass.
+    N = 2000
+    almost_all = bag(
+        entanglement_entropy(Region(setdiff(1:N, [1000])...)) => 2 * (c / 6) * log(ξ),
+        CentralCharge => c,
+        CorrelationLength => ξ,
+    )
+    @test !any(
+        r -> r.relation isa OffCriticalEntanglementSaturation,
+        finite_size_entropy_report(almost_all, PBC(N); c₁=c₁, atol=1e-12),
+    )
+
+    # A block with bulk on both sides is still matched, so the guard is not blanket.
+    bulk = bag(
+        entanglement_entropy(Region(1:200...)) => 2 * (c / 6) * log(ξ),
+        CentralCharge => c,
+        CorrelationLength => ξ,
+    )
+    @test any(
+        r -> r.relation isa OffCriticalEntanglementSaturation && r.pass,
+        finite_size_entropy_report(bulk, PBC(N); c₁=c₁, atol=1e-12),
     )
 end

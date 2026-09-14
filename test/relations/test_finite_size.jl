@@ -18,6 +18,11 @@ using Test
     @test at_size(Typical(MassGap()), 16) == at_size(Typical(MassGap()), 16)
     @test at_size(Typical(MassGap()), 16) != at_size(Typical(MassGap()), 32)
     @test at_size(MassGap, 16) == at_size(MassGap(), 16)
+
+    # A key carries one support, so a quantity that already needs its own cannot also
+    # be keyed by size: `typeof` erases the order, and two Rényi entropies at
+    # different sizes would otherwise fuse into a sweep that never existed.
+    @test_throws "cannot" at_size(RenyiEntropy(2.0), 16)
 end
 
 @testset "an activated sweep returns ψ exactly, and a conventional reading of it fails" begin
@@ -28,7 +33,7 @@ end
     b = bag(
         (at_size(Typical(MassGap()), L) => Δ(L) for L in sizes)..., ActivatedExponent => ψ
     )
-    rows = finite_size_scaling_report(b)
+    rows = finite_size_scaling_report(b; atol=1e-12)
 
     # Four consecutive pairs from five sizes, and the secant is the derivative
     # exactly on this form, not to within a fit tolerance.
@@ -66,7 +71,7 @@ end
     Ω(L) = 0.7 * L^(-z)
     sizes = (8, 16, 32, 64)
     b = bag((at_size(MassGap(), L) => Ω(L) for L in sizes)..., DynamicalExponent => z)
-    rows = finite_size_scaling_report(b)
+    rows = finite_size_scaling_report(b; atol=1e-12)
     @test length(rows) == 3
     @test all(r -> r.relation isa ConventionalFiniteSizeEnergy, rows)
     @test all(r -> r.pass, rows)
@@ -79,7 +84,7 @@ end
         ActivatedExponent => 0.5,
     )
     kinds = Dict{Symbol,Vector{Bool}}()
-    for r in finite_size_scaling_report(both)
+    for r in finite_size_scaling_report(both; atol=1e-12)
         push!(get!(kinds, nameof(typeof(r.relation)), Bool[]), r.pass)
     end
     @test all(kinds[:ConventionalFiniteSizeEnergy])
@@ -93,14 +98,28 @@ end
         ActivatedExponent => 0.5,
     )
     # The average of a gap at an infinite-randomness fixed point is set by the rare
-    # regions, so a secant off it is not ψ. Refused rather than skipped: skipping
-    # would leave a caller wondering where their rows went.
-    @test_throws "set by the rare regions" finite_size_scaling_report(avg)
+    # regions, so a secant off it is not ψ and no activated row is built from it.
+    @test isempty(finite_size_scaling_report(avg))
 
     bare = bag(
         (at_size(MassGap(), L) => Δ(L) for L in (16, 32))..., ActivatedExponent => 0.5
     )
-    @test_throws "say which this is" finite_size_scaling_report(bare)
+    @test isempty(finite_size_scaling_report(bare))
+
+    # Skipped, not refused, and that is the difference that matters on a real bag:
+    # typical and average gaps side by side is the normal shape of an
+    # infinite-randomness study, and the average must not cost the typical its rows.
+    together = bag(
+        (at_size(Typical(MassGap()), L) => Δ(L) for L in (16, 32))...,
+        (at_size(DisorderAveraged(MassGap()), L) => 0.4 / L for L in (16, 32))...,
+        ActivatedExponent => 0.5,
+        DynamicalExponent => 1.0,
+    )
+    rows = finite_size_scaling_report(together)
+    kinds = Set((nameof(typeof(r.relation)), r.quantity) for r in rows)
+    @test (:ActivatedFiniteSizeScaling, Typical{MassGap}) in kinds
+    @test (:ConventionalFiniteSizeEnergy, DisorderAveraged{MassGap}) in kinds
+    @test !((:ActivatedFiniteSizeScaling, DisorderAveraged{MassGap}) in kinds)
 
     # Without ψ the same averaged sweep is read conventionally, no refusal: the
     # guard is about the activated law, not about averages.
@@ -143,4 +162,23 @@ end
             ),
         ),
     ) == 1
+end
+
+@testset "rtol is the knob measured data needs, and atol alone is not" begin
+    # A real sweep does not land on the law exactly. `atol = 0`, the package default,
+    # calls a 1% deviation a violation; `rtol` asks the question the caller means,
+    # which is whether the secant is near ψ on ψ's own scale.
+    ψ = 0.5
+    noisy = Dict(16 => exp(-1.3 * 16^0.5), 32 => exp(-1.3 * 32^0.505))
+    b = bag(
+        (at_size(Typical(MassGap()), L) => noisy[L] for L in (16, 32))...,
+        ActivatedExponent => ψ,
+    )
+    @test !only(finite_size_scaling_report(b)).pass
+    @test only(finite_size_scaling_report(b; rtol=0.1)).pass
+    @test !only(finite_size_scaling_report(b; rtol=1e-6)).pass
+
+    # rtol is taken against the exponent, so it means the same thing at any ψ.
+    r = only(finite_size_scaling_report(b))
+    @test abs(r.residual) > 1e-8
 end

@@ -1,4 +1,4 @@
-# relations/region_entropy.jl — auto-discovery over the REGIONS present in a bag
+# relations/region_entropy.jl: auto-discovery over the REGIONS present in a bag
 # (design §5/§8b, Phase-2): the entropy inequalities, and the finite-size forms
 # that read a critical chain's central charge off the same entries.
 #
@@ -398,9 +398,16 @@ struct RegionFiniteSizeRow
 end
 export RegionFiniteSizeRow
 
+# Sites `entanglement_cuts` can count on: nonempty, integer-labelled and not Bool,
+# which is an Integer but not a lattice index. Shared, so the two sweeps below
+# cannot admit a region the other skips.
+function _countable_region(A::Region)
+    return !isempty(A) && eltype(A.sites) <: Integer && eltype(A.sites) !== Bool
+end
+
 function _finite_size_row!(out, rel, regions::Tuple, vars, atol)
     r = residual(rel; vars...)
-    push!(out, RegionFiniteSizeRow(rel, regions, r, isapprox(r, zero(r); atol=atol)))
+    push!(out, RegionFiniteSizeRow(rel, regions, r, _passes(rel, r, atol)))
     return out
 end
 function _finite_size_row!(out, rel, A::Region, vars, atol)
@@ -488,10 +495,13 @@ function finite_size_entropy_report(
         end
         # Off criticality the entropy stops following ℓ and sits on ξ instead, so
         # this is matched wherever a correlation length is in the bag and the region
-        # is the larger of the two. The source states it for ξ ≪ ℓ, and a row taken
-        # near ξ ≈ ℓ is expected to fail rather than be excluded by a cutoff chosen
-        # here.
-        if c !== nothing && ξ !== nothing && ℓ > ξ
+        # is the larger of the two. Both sides of the cut, since the source writes it
+        # as `S∞`: each cut saturates independently only if the complement is bulk
+        # too, and a ring minus one site otherwise reports a pass on an entropy that
+        # exceeds what a one-site subsystem can hold. The source states it for ξ ≪ ℓ,
+        # and a row near ξ ≈ ℓ is expected to fail rather than be cut off by a
+        # threshold chosen here.
+        if c !== nothing && ξ !== nothing && ℓ > ξ && (bc isa Infinite || bc.N - ℓ > ξ)
             _finite_size_row!(
                 out, OffCriticalEntanglementSaturation(), A, (; S, c, ξ, ncuts=n), atol
             )
@@ -518,8 +528,17 @@ function _slope_rows(ents, bc::BoundaryCondition, c, c̃, atol)
     ]
     length(pts) >= 2 || return out
     sort!(pts; by=first)
+    # Two regions of one length carry one abscissa, and which of them a secant used
+    # would be decided by the order a Dict happened to iterate in. The law says their
+    # entropies agree, so a bag holding both is either redundant or inconsistent, and
+    # either way this cannot pick.
+    for ((ℓ1, A1, _), (ℓ2, A2, _)) in zip(pts, pts[2:end])
+        ℓ1 == ℓ2 && error(
+            "finite_size_entropy_report: $A1 and $A2 both have length $ℓ1, so a slope " *
+            "through them has no abscissa. Keep one, or give them distinct lengths.",
+        )
+    end
     for ((ℓ1, A1, S1), (ℓ2, A2, S2)) in zip(pts, pts[2:end])
-        ℓ1 == ℓ2 && continue
         slope = (S2 - S1) / (log(ℓ2) - log(ℓ1))
         c === nothing || _finite_size_row!(
             out, CFTEntanglementSlope(), (A1, A2), (; dS_dlogℓ=slope, c, ncuts=2), atol
