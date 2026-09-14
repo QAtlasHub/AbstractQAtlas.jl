@@ -117,7 +117,7 @@ Variables: `Cp`, `Cv`, `T`, `v`, `α`, `κT`.
     Cp::IsobaricSpecificHeat,
     Cv::SpecificHeat,
     T::Temperature,
-    v,
+    v::Volume,
     α::ThermalExpansionCoefficient,
     κT::IsothermalCompressibility,
 ) = (Cp - Cv) - T * v * α^2 / κT

@@ -52,6 +52,78 @@ Concrete exponents are introduced when the criticality domain migrates.
 """
 abstract type AbstractExponent end
 export AbstractExponent
+# The concrete exponents the parent above was waiting for. A `VariableKey` is a
+# they were. A `VariableKey` is a type, so `β` the order-parameter exponent and
+# `β` the inverse temperature were one node in the symbol graph while being two
+# quantities: MEASURED, nineteen relations produce `:β` and sixteen of them mean
+# the temperature. `α` was likewise shared with the Rényi index and `γ` with the
+# topological entanglement entropy. Typing the scaling side separates them without
+# touching the others, since only the thirteen `:scaling` relations are annotated.
+
+"""
+    SpecificHeatExponent() <: AbstractQuantity
+
+`α`, the specific heat's divergence at a critical point, `c ∼ |t|^{-α}`.
+"""
+struct SpecificHeatExponent <: AbstractExponent end
+export SpecificHeatExponent
+
+"""
+    OrderParameterExponent() <: AbstractQuantity
+
+`β`, the order parameter's vanishing, `m ∼ (-t)^β`.  Not
+[`InverseTemperature`](@ref), which wears the same letter across most of this
+registry.
+"""
+struct OrderParameterExponent <: AbstractExponent end
+export OrderParameterExponent
+
+"""
+    SusceptibilityExponent() <: AbstractQuantity
+
+`γ`, the susceptibility's divergence, `χ ∼ |t|^{-γ}`.
+"""
+struct SusceptibilityExponent <: AbstractExponent end
+export SusceptibilityExponent
+
+"""
+    CriticalIsothermExponent() <: AbstractQuantity
+
+`δ`, the critical isotherm's shape, `m ∼ h^{1/δ}` at `t = 0`.
+"""
+struct CriticalIsothermExponent <: AbstractExponent end
+export CriticalIsothermExponent
+
+"""
+    CorrelationLengthExponent() <: AbstractQuantity
+
+`ν`, the correlation length's divergence, `ξ ∼ |t|^{-ν}`.  The exponent, where
+[`CorrelationLength`](@ref) is the length itself.
+"""
+struct CorrelationLengthExponent <: AbstractExponent end
+export CorrelationLengthExponent
+
+"""
+    AnomalousDimension() <: AbstractQuantity
+
+`η`, the correlation function's decay at criticality, `G(r) ∼ r^{-(d-2+η)}`.
+"""
+struct AnomalousDimension <: AbstractExponent end
+export AnomalousDimension
+
+"""
+    LargeSpinExponent() <: AbstractQuantity
+
+`ζ` of the large-spin fixed point, where the effective moment GROWS under
+renormalization ([IgloiMonthus2005](@cite), §A.5).  A random-walk argument on the
+signs of the couplings gives `ζ = 1/2`.
+
+Not the correlation-matrix eigenvalue that wears the same letter in
+[`EntanglementSpectrumCorrelation`](@ref); one is an exponent and the other an
+occupation in `(0, 1)`.
+"""
+struct LargeSpinExponent <: AbstractExponent end
+export LargeSpinExponent
 
 """
     RelationVariable
@@ -184,6 +256,77 @@ Base.:(==)(a::OrderSupport, b::OrderSupport) = a.order == b.order
 Base.hash(a::OrderSupport, h::UInt) = hash(a.order, hash(:OrderSupport, h))
 Base.show(io::IO, s::OrderSupport) = print(io, "order ", s.order)
 export OrderSupport
+
+"""
+    SizeSupport(L) <: Support
+
+The support of a quantity measured on a FINITE SYSTEM of linear size `L`, where
+the size is what distinguishes one measurement from another.
+
+The size twin of [`OrderSupport`](@ref), and required for the same reason: a
+[`VariableKey`](@ref) is `(type, support)`, so without it a finite-size sweep
+cannot even be written down. MEASURED, on the present bag:
+
+    bag(Typical(MassGap()) => 1e-2, Typical(MassGap()) => 1e-4)
+    # ERROR: bag: duplicate key VariableKey(Typical{MassGap}). Two entries claim
+    # the same identity slot; if they are different quantities, one of them needs
+    # a support that says so.
+
+Build the key with [`at_size`](@ref).
+"""
+struct SizeSupport{T} <: Support
+    size::T
+end
+Base.:(==)(a::SizeSupport, b::SizeSupport) = a.size == b.size
+Base.hash(a::SizeSupport, h::UInt) = hash(a.size, hash(:SizeSupport, h))
+Base.show(io::IO, s::SizeSupport) = print(io, "L = ", s.size)
+export SizeSupport
+
+"""
+    at_size(q::AbstractQuantity, L) -> VariableKey
+    at_size(::Type{<:AbstractQuantity}, L) -> VariableKey
+
+The bag key for `q` measured on a system of size `L`, so one bag can hold a whole
+finite-size sweep:
+
+```julia
+b = bag(at_size(Typical(MassGap()), 16) => 1e-2,
+        at_size(Typical(MassGap()), 32) => 1e-4)
+```
+
+The twin of [`entanglement_entropy`](@ref) for the size axis: it writes the key
+directly, because the size belongs to the measurement and not to the quantity.
+A quantity that already needs a support of its own is refused rather than
+silently losing it.
+"""
+function at_size(q::AbstractQuantity, L)
+    L isa Real && isfinite(L) ||
+        error("at_size: a size must be a finite real, got $L::$(typeof(L)).")
+    # `typeof` erases a field, so a quantity whose identity lives in one would key
+    # two different measurements to one slot. `RenyiEntropy(2)` and `RenyiEntropy(3)`
+    # at the same size collide loudly, and at different sizes fuse into a sweep that
+    # never existed. Supports do not compose here, so the pair is refused.
+    variable_support(q) isa Global || error(
+        "at_size: $(typeof(q)) already keys under $(variable_support(q)), and a key " *
+        "carries one support. Size and $(nameof(typeof(variable_support(q)))) cannot " *
+        "be combined, so this measurement has no slot to go in.",
+    )
+    return VariableKey(typeof(q), SizeSupport(L))
+end
+function at_size(@nospecialize(Q::Type), L)
+    L isa Real && isfinite(L) ||
+        error("at_size: a size must be a finite real, got $L::$(typeof(L)).")
+    # The instance method's guard applies here too: a type whose instances key under
+    # a support of their own would lose it just as silently through this spelling.
+    Q <: AbstractQuantity &&
+        !(variable_support(Q()) isa Global) &&
+        error(
+            "at_size: $Q keys under $(variable_support(Q())), and a key carries one " *
+            "support, so this measurement has no slot to go in.",
+        )
+    return VariableKey(Q, SizeSupport(L))
+end
+export at_size
 
 """
     variable_support(v) -> Support

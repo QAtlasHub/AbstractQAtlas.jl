@@ -633,5 +633,7 @@ end
         @test !(r in rs)
     end
     @test SpatialDimension() isa AbstractQuantity
-    @test variable_types(QuantumHyperscaling()) == (SpatialDimension, DynamicalExponent)
+    @test variable_types(QuantumHyperscaling()) == (
+        SpecificHeatExponent, CorrelationLengthExponent, SpatialDimension, DynamicalExponent
+    )
 end

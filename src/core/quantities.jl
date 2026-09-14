@@ -1477,6 +1477,25 @@ struct ActivatedExponent <: AbstractQuantity end
 export ActivatedExponent
 
 """
+    CorrelationMatrixEigenvalue() <: AbstractQuantity
+
+`ζ ∈ (0, 1)`, an eigenvalue of a Gaussian state's correlation matrix, which is
+the Fermi-Dirac occupation of one single-particle entanglement mode (Peschel,
+[Peschel2003](@cite)).  See [`EntanglementSpectrumCorrelation`](@ref).
+"""
+struct CorrelationMatrixEigenvalue <: AbstractQuantity end
+export CorrelationMatrixEigenvalue
+
+"""
+    EntanglementSpectrumLevel() <: AbstractQuantity
+
+`ε`, one eigenvalue of the quadratic entanglement Hamiltonian, paired with a
+[`CorrelationMatrixEigenvalue`](@ref) by `ε = ln((1 - ζ)/ζ)`.
+"""
+struct EntanglementSpectrumLevel <: AbstractQuantity end
+export EntanglementSpectrumLevel
+
+"""
     DisorderStrength() <: AbstractQuantity
 
 The strength of quenched disorder `D`, the broadness of the coupling
