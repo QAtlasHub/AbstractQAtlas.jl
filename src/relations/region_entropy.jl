@@ -414,6 +414,29 @@ function _finite_size_row!(out, rel, A::Region, vars, atol)
     return _finite_size_row!(out, rel, (A,), vars, atol)
 end
 
+# Two consequences of Eq. (24)'s `f(v) = Σₖ Aₖ sin((2k-1)πv)` under
+# `Σₖ Aₖ(2k-1)π = 1`, neither needing a coefficient: the basis is symmetric about
+# `v = 1/2`, and the normalisation is `f'(0) = 1`.  The FORM is not checked, the
+# higher harmonics being exactly what a disorder average would be needed to see.
+function _check_scaling_function(f)
+    for v in (0.1, 0.25, 0.4)
+        a, m = f(v), f(1 - v)
+        isapprox(a, m; rtol=1e-8, atol=1e-12) || error(
+            "finite_size_entropy_report: f($v) = $a but f($(1 - v)) = $m, so the " *
+            "scaling function is not symmetric about v = 1/2 and is not in Eq. (24)'s " *
+            "family.",
+        )
+    end
+    v = 1e-5
+    slope = f(v) / v
+    isapprox(slope, 1; atol=1e-6) || error(
+        "finite_size_entropy_report: f(v)/v → $slope, not 1, so the scaling function " *
+        "breaks Eq. (24)'s normalisation. A constant factor shifts ln[L f] into c₁′ " *
+        "and passes; f is the dimensionless sin(πv)/π, not the chord.",
+    )
+    return nothing
+end
+
 """
     finite_size_entropy_report(b::Bag, bc::BoundaryCondition; c₁, kwargs...)
         -> Vector{RegionFiniteSizeRow}
@@ -449,29 +472,6 @@ b = bag(entanglement_entropy(Region(1:32...)) => 1.06, CentralCharge => 0.5)
 finite_size_entropy_report(b, PBC(64); c₁=0.4785)
 ```
 """
-# Two consequences of Eq. (24)'s `f(v) = Σₖ Aₖ sin((2k-1)πv)` under
-# `Σₖ Aₖ(2k-1)π = 1`, neither needing a coefficient: the basis is symmetric about
-# `v = 1/2`, and the normalisation is `f'(0) = 1`.  The FORM is not checked, the
-# higher harmonics being exactly what a disorder average would be needed to see.
-function _check_scaling_function(f)
-    for v in (0.1, 0.25, 0.4)
-        a, m = f(v), f(1 - v)
-        isapprox(a, m; rtol=1e-8, atol=1e-12) || error(
-            "finite_size_entropy_report: f($v) = $a but f($(1 - v)) = $m, so the " *
-            "scaling function is not symmetric about v = 1/2 and is not in Eq. (24)'s " *
-            "family.",
-        )
-    end
-    v = 1e-5
-    slope = f(v) / v
-    isapprox(slope, 1; atol=1e-6) || error(
-        "finite_size_entropy_report: f(v)/v → $slope, not 1, so the scaling function " *
-        "breaks Eq. (24)'s normalisation. A constant factor shifts ln[L f] into c₁′ " *
-        "and passes; f is the dimensionless sin(πv)/π, not the chord.",
-    )
-    return nothing
-end
-
 function finite_size_entropy_report(
     b::Bag, bc::BoundaryCondition; c₁::Real, ln_g::Real=0, f=nothing, c₁′::Real=0, atol=1e-8
 )
