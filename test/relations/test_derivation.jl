@@ -259,3 +259,42 @@ end
     @test SpatialDimension in variable_types(Josephson())
     @test SpatialDimension in variable_types(QuantumHyperscaling())
 end
+
+@testset "alternatives are grouped, so a law that does not apply is not a contradiction" begin
+    # Iglói and Monthus state one menu of observables per fixed-point type, so the
+    # conventional and the activated susceptibility are two readings of one quantity
+    # and never both true. `law_family` records which compete.
+    @test law_family(Josephson()) === law_family(QuantumHyperscaling())
+    @test law_family(ConventionalFieldSusceptibility()) ===
+        law_family(ActivatedSusceptibility()) ===
+        law_family(GriffithsSusceptibility())
+    @test law_family(ConventionalFiniteSizeEnergy()) ===
+        law_family(ActivatedFiniteSizeScaling())
+    # A law with no alternative is alone, so nothing that had no family gained one.
+    @test law_family(Rushbrooke()) === :Rushbrooke
+    @test law_family(Widom()) !== law_family(Fisher())
+
+    classical = (; α=0 // 1, β=1 // 8, γ=7 // 4, δ=15 // 1, ν=1 // 1, η=1 // 4, d=2 // 1)
+    withz = (; classical..., z=1 // 1)
+    bad = filter(r -> !r.agree, consistency_report(withz; domain=:scaling))
+
+    # Before grouping this broke four rows. Three of them had an applicable
+    # alternative in the family, Josephson beside QuantumHyperscaling, and a family
+    # holds when one member does.
+    @test length(bad) == 1
+    @test only(bad).target === :z
+
+    # The one that remains is the boundary: `z` is reached only by the law that does
+    # not apply, so its family has a single member and there is nothing to stand in.
+    # No grouping fixes that; `exclude` is the caller saying so.
+    @test Set(nameof(typeof(s.relation)) for s in only(bad).steps) ==
+        Set([:QuantumHyperscaling])
+    @test consistent(withz; domain=:scaling, exclude=(:QuantumHyperscaling,))
+
+    # Grouping must not soften the check. A wrong exponent is denied as widely as
+    # before, and a family whose members all miss is still caught.
+    wrongγ = (; α=0.0, β=0.125, γ=1.75 * 1.05, δ=15.0, ν=1.0, η=0.25, d=2.0)
+    @test count(r -> !r.agree, consistency_report(wrongγ; domain=:scaling)) == 6
+    wrongα = (; α=0.9, β=0.125, γ=1.75, δ=15.0, ν=1.0, η=0.25, d=2.0, z=1.0)
+    @test !consistent(wrongα; domain=:scaling)
+end

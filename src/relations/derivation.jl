@@ -471,6 +471,63 @@ export DerivationStep,
 # on itself, and it is what a hand-written cross-check does one target at a time.
 
 """
+    law_family(rel::AbstractRelation) -> Symbol
+
+The set of ALTERNATIVES a relation belongs to: laws for one observable at
+different fixed points, of which at most one holds at a given point.
+
+Iglói and Monthus state the same menu of observables once per fixed-point type,
+[IgloiMonthus2005](@cite) §A.2 conventional, §A.3 infinite-disorder, §A.4
+Griffiths, so `χ ∼ |t|^{-γ}` at Eq. (A.15) and the activated form at Eq. (A.25)
+are two readings of one quantity and never both true. Grouping them keeps
+[`consistency_report`](@ref) from calling that a contradiction: within a family
+one member matching is the family satisfied, while across families every route
+must agree, which is where a real inconsistency shows.
+
+Defaults to the relation's own name, so a law with no alternative is alone in its
+family and is compared with everything as before.
+"""
+law_family(@nospecialize(r::AbstractRelation)) = nameof(typeof(r))
+export law_family
+
+# A family holds if ANY of its members reproduces the held-out value, its members
+# being alternatives of which at most one applies. Every family must hold, so a
+# law with no alternative still has to agree on its own.
+function _families_satisfied(got, held, tol)
+    fams = Dict{Symbol,Bool}()
+    for (st, v) in got
+        f = law_family(st.relation)
+        fams[f] = get(fams, f, false) || abs(float(real(v)) - float(real(held))) <= tol
+    end
+    return all(values(fams))
+end
+
+# The Appendix-A menu, one family per observable. Section numbers are on each
+# relation's own docstring; what is recorded here is only which of them compete.
+for (fam, rels) in (
+    :hyperscaling => (:Josephson, :QuantumHyperscaling),
+    :finite_size_energy => (
+        :ConventionalFiniteSizeEnergy,
+        :ActivatedFiniteSizeScaling,
+        :OrderedGriffithsEnergyScale,
+    ),
+    :autocorrelation =>
+        (:CriticalAutocorrelation, :ActivatedAutocorrelation, :GriffithsAutocorrelation),
+    :susceptibility_scaling => (
+        :ConventionalFieldSusceptibility,
+        :ActivatedSusceptibility,
+        :GriffithsSusceptibility,
+    ),
+    :specific_heat_scaling =>
+        (:ConventionalFieldSpecificHeat, :ActivatedSpecificHeat, :GriffithsSpecificHeat),
+    :dynamical_scaling => (:DynamicalScaling, :ActivatedDynamicalScaling),
+)
+    for r in rels
+        @eval law_family(::$r) = $(QuoteNode(fam))
+    end
+end
+
+"""
     ConsistencyRow
 
 One held-out variable and every route back to it: the `target`, a `Symbol` on the
@@ -576,7 +633,12 @@ function consistency_report(
         push!(
             out,
             ConsistencyRow(
-                target, data[target], [st for (st, _) in got], vals, spread, spread <= tol
+                target,
+                data[target],
+                [st for (st, _) in got],
+                vals,
+                spread,
+                _families_satisfied(got, data[target], tol),
             ),
         )
     end
@@ -663,7 +725,7 @@ function consistency_report(
                 ],
                 vals,
                 spread,
-                spread <= max(atol, rtol * maximum(abs, everything)),
+                _families_satisfied(got, held, max(atol, rtol * maximum(abs, everything))),
             ),
         )
     end
