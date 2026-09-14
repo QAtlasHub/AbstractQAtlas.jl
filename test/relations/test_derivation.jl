@@ -298,3 +298,41 @@ end
     wrongα = (; α=0.9, β=0.125, γ=1.75, δ=15.0, ν=1.0, η=0.25, d=2.0, z=1.0)
     @test !consistent(wrongα; domain=:scaling)
 end
+
+@testset "no untyped symbol carries two meanings across the registry" begin
+    # The name-keyed graph makes one node per SYMBOL, so a letter that means two
+    # quantities is a node that compares them. `β` was the exemplar, the exponent
+    # against the inverse temperature; typing the scaling side split it. This is the
+    # standing sweep that keeps the next one from arriving unnoticed: a symbol
+    # appearing across three or more domains with no relation typing it anywhere.
+    bysym = Dict{Symbol,Set{Symbol}}()
+    typedsym = Dict{Symbol,Set{Any}}()
+    for r in all_relations()
+        d = AbstractQAtlas.domain(r)
+        slots = Dict(variable_slots(r))
+        for v in variables(r)
+            push!(get!(bysym, v, Set{Symbol}()), d)
+            k = get(slots, v, nothing)
+            k === nothing || push!(get!(typedsym, v, Set{Any}()), k)
+        end
+    end
+    bare = Set(
+        s for (s, ds) in bysym if length(ds) >= 3 && isempty(get(typedsym, s, Set()))
+    )
+
+    # `ω` is a frequency in every one of its domains, so one node is the right
+    # answer there. An allow-list rather than a threshold, so a new letter is
+    # refused until someone says which quantity it is.
+    @test bare == Set([:ω])
+
+    # `ζ` was the one this sweep found: an eigenvalue of a Gaussian correlation
+    # matrix in `EntanglementSpectrumCorrelation` and the large-spin exponent in
+    # `LargeSpinMoment`, two quantities with nothing to do with each other.
+    @test LargeSpinExponent in variable_types(LargeSpinMoment())
+    @test CorrelationMatrixEigenvalue in variable_types(EntanglementSpectrumCorrelation())
+    @test LargeSpinExponent !== CorrelationMatrixEigenvalue
+
+    # And the exemplar stays split.
+    @test OrderParameterExponent in variable_types(Rushbrooke())
+    @test !(InverseTemperature in variable_types(Rushbrooke()))
+end

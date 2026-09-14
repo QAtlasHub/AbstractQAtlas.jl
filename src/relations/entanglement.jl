@@ -613,7 +613,9 @@ matrix fixes `ρ_A` via Wick's theorem ([`wick_contraction`](@ref)).
 
 Variables: `ε`, `ζ`.
 """
-@relation :entanglement EntanglementSpectrumCorrelation(ε, ζ) = ε - log((1 - ζ) / ζ)
+@relation :entanglement EntanglementSpectrumCorrelation(
+    ε::EntanglementSpectrumLevel, ζ::CorrelationMatrixEigenvalue
+) = ε - log((1 - ζ) / ζ)
 
 """
     free_fermion_entanglement_entropy(ζ) -> Float64

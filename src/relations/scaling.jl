@@ -576,8 +576,9 @@ Reference: [IgloiMonthus2005](@cite) Eqs. (A.37) and (A.38), §A.5; the 1D
 instance is Eqs. (8.6)-(8.8), §8.2, where `ζ = 1/2` and `κ = 0.22(1)` is
 measured, giving `z = 1/(2κ)`.
 """
-@relation :scaling LargeSpinMoment(κ, d::SpatialDimension, ζ, z::DynamicalExponent) =
-    κ * z - d * ζ
+@relation :scaling LargeSpinMoment(
+    κ, d::SpatialDimension, ζ::LargeSpinExponent, z::DynamicalExponent
+) = κ * z - d * ζ
 
 """
     ConventionalFieldSusceptibility <: AbstractRelation
