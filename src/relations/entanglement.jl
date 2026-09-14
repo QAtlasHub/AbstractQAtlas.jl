@@ -224,6 +224,12 @@ than `L/π`, and an open chain has a boundary entropy `ln g` (Affleck & Ludwig)
 that a ring does not.  `c₁` is the same constant as in the ring, entering
 halved, so reading one geometry's data with the other's formula misses all
 three.
+
+`ln g` and `c₁` reach the residual only as the sum `ln g + c₁/2`, and neither
+depends on `ℓ`, so open-chain data cannot separate them at any number of block
+sizes: a caller who fits `c₁` against this relation learns `2 ln g + c₁` and
+nothing more.  `c₁` has to come from the ring or the infinite chain, which is
+what "the same constant as in the ring" is for.
 """
 @relation :entanglement CFTEntanglementOBC(S, c::CentralCharge, L, ℓ, c₁, ln_g) = begin
     _require_block(:CFTEntanglementOBC, L, ℓ)

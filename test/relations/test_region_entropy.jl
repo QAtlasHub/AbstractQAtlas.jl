@@ -491,10 +491,38 @@ end
     # the distinction the cut count exists for.
     at_end = bag(entanglement_entropy(Region(1:16...)) => 0.0, CentralCharge => c)
     in_bulk = bag(entanglement_entropy(Region(20:35...)) => 0.0, CentralCharge => c)
-    @test length(finite_size_entropy_report(at_end, OBC(N); c₁=c₁, atol=1e-12)) == 1
-    @test only(finite_size_entropy_report(at_end, OBC(N); c₁=c₁, atol=1e-12)).relation isa
+    @test length(finite_size_entropy_report(at_end, OBC(N); c₁=c₁, ln_g=0.0, atol=1e-12)) ==
+        1
+    @test only(finite_size_entropy_report(at_end, OBC(N); c₁=c₁, ln_g=0.0, atol=1e-12)).relation isa
         CFTEntanglementOBC
-    @test isempty(finite_size_entropy_report(in_bulk, OBC(N); c₁=c₁, atol=1e-12))
+    @test isempty(finite_size_entropy_report(in_bulk, OBC(N); c₁=c₁, ln_g=0.0, atol=1e-12))
+
+    # `ln g` and `c₁/2` are a fixed sum, so the open chain cannot tell them apart at
+    # any number of block sizes. Pinned, because a report that passes on both readings
+    # of the same data must not be read as having checked either one.
+    lng, N_ = 0.3, 256
+    obc(ℓ) = (c / 6) * log((2 * N_ / π) * sin(π * ℓ / N_)) + lng + c₁ / 2
+    two_blocks = bag(
+        entanglement_entropy(Region(1:16...)) => obc(16),
+        entanglement_entropy(Region(1:64...)) => obc(64),
+        CentralCharge => c,
+    )
+    truth = finite_size_entropy_report(two_blocks, OBC(N_); c₁=c₁, ln_g=lng, atol=1e-12)
+    shifted = finite_size_entropy_report(
+        two_blocks, OBC(N_); c₁=2 * lng + c₁, ln_g=0.0, atol=1e-12
+    )
+    @test length(truth) == 2
+    @test all(r -> r.pass, truth)
+    @test all(r -> r.pass, shifted)
+    @test [r.residual for r in truth] ≈ [r.residual for r in shifted] atol = 1e-14
+
+    # And the default that would have made that silent is gone: an open chain has to
+    # say what its boundary entropy is, even when the answer is zero.
+    @test_throws "an open chain needs `ln_g`" finite_size_entropy_report(
+        two_blocks, OBC(N_); c₁=c₁, atol=1e-12
+    )
+    # A ring never reads it, so nothing is asked there.
+    @test finite_size_entropy_report(two_blocks, PBC(N_); c₁=c₁, atol=1e-12) isa Vector
 
     # An infinite chain has no L to supply and gets Eq. (4).
     binf = bag(
