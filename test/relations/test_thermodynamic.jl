@@ -199,9 +199,12 @@ end
     @test quantities(SpecificHeatFDT()) == (SpecificHeat, Energy)            # Var(E) → Energy
     @test quantities(SusceptibilityFDT()) == (Susceptibility, Magnetization) # Var(M) → Magnetization
     @test quantities(SpecificHeatFromEntropy()) == (SpecificHeat, ThermalEntropy)
+    #  joined when `v` was typed: the molar volume is a quantity the
+    # relation reads, and the graph now says so instead of it being a bare symbol.
     @test Set(quantities(HeatCapacityDifference())) == Set((
         IsobaricSpecificHeat,
         SpecificHeat,
+        Volume,
         ThermalExpansionCoefficient,
         IsothermalCompressibility,
     ))                                                              # gains α, κT (now typed)

@@ -456,7 +456,8 @@ The Tsallis entropy from the moment `Tr ρ^q` (q ≠ 1; Tsallis, [Tsallis1988](@
 
 Variables: `Sq`, `moment` = `Tr ρ^q`, `q`.
 """
-@relation :entanglement TsallisEntropyMoment(Sq, moment, q) = Sq - (1 - moment) / (q - 1)
+@relation :entanglement TsallisEntropyMoment(Sq::TsallisEntropy, moment, q) =
+    Sq - (1 - moment) / (q - 1)
 
 """
     MutualInformationDefinition <: AbstractRelation
@@ -568,7 +569,9 @@ tying the [`MeasurementEntropy`](@ref) to the [`RelativeEntropy`](@ref)
 
 Variables: `S_meas` = `S(Δρ)`, `S` = `S(ρ)`, `S_rel` = `S(ρ‖Δρ)`.
 """
-@relation :entanglement MeasurementEntropyRelative(S_meas, S, S_rel) = (S_meas - S) - S_rel
+@relation :entanglement MeasurementEntropyRelative(
+    S_meas::MeasurementEntropy, S::VonNeumannEntropy, S_rel::RelativeEntropy
+) = (S_meas - S) - S_rel
 
 """
     MarkovEntropyDefinition <: AbstractRelation
@@ -667,7 +670,7 @@ The tangle is the squared concurrence (Wootters, [Wootters1998](@cite)),
 
 Variables: `τ`, `C`.
 """
-@relation :entanglement ConcurrenceTangle(τ, C) = τ - C^2
+@relation :entanglement ConcurrenceTangle(τ::Tangle, C::Concurrence) = τ - C^2
 
 """
     Monogamy <: AbstractInequality
@@ -728,5 +731,6 @@ alternating tripartite sum (`γ > 0` ⇒ topological order).
 
 Variables: `γ`, `S_A`, `S_B`, `S_C`, `S_AB`, `S_BC`, `S_CA`, `S_ABC`.
 """
-@relation :entanglement KitaevPreskillTEE(γ, S_A, S_B, S_C, S_AB, S_BC, S_CA, S_ABC) =
-    (S_A + S_B + S_C - S_AB - S_BC - S_CA + S_ABC) + γ
+@relation :entanglement KitaevPreskillTEE(
+    γ::TopologicalEntanglementEntropy, S_A, S_B, S_C, S_AB, S_BC, S_CA, S_ABC
+) = (S_A + S_B + S_C - S_AB - S_BC - S_CA + S_ABC) + γ

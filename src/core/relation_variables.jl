@@ -52,6 +52,78 @@ Concrete exponents are introduced when the criticality domain migrates.
 """
 abstract type AbstractExponent end
 export AbstractExponent
+# The concrete exponents the parent above was waiting for. A `VariableKey` is a
+# they were. A `VariableKey` is a type, so `β` the order-parameter exponent and
+# `β` the inverse temperature were one node in the symbol graph while being two
+# quantities: MEASURED, nineteen relations produce `:β` and sixteen of them mean
+# the temperature. `α` was likewise shared with the Rényi index and `γ` with the
+# topological entanglement entropy. Typing the scaling side separates them without
+# touching the others, since only the thirteen `:scaling` relations are annotated.
+
+"""
+    SpecificHeatExponent() <: AbstractQuantity
+
+`α`, the specific heat's divergence at a critical point, `c ∼ |t|^{-α}`.
+"""
+struct SpecificHeatExponent <: AbstractExponent end
+export SpecificHeatExponent
+
+"""
+    OrderParameterExponent() <: AbstractQuantity
+
+`β`, the order parameter's vanishing, `m ∼ (-t)^β`.  Not
+[`InverseTemperature`](@ref), which wears the same letter across most of this
+registry.
+"""
+struct OrderParameterExponent <: AbstractExponent end
+export OrderParameterExponent
+
+"""
+    SusceptibilityExponent() <: AbstractQuantity
+
+`γ`, the susceptibility's divergence, `χ ∼ |t|^{-γ}`.
+"""
+struct SusceptibilityExponent <: AbstractExponent end
+export SusceptibilityExponent
+
+"""
+    CriticalIsothermExponent() <: AbstractQuantity
+
+`δ`, the critical isotherm's shape, `m ∼ h^{1/δ}` at `t = 0`.
+"""
+struct CriticalIsothermExponent <: AbstractExponent end
+export CriticalIsothermExponent
+
+"""
+    CorrelationLengthExponent() <: AbstractQuantity
+
+`ν`, the correlation length's divergence, `ξ ∼ |t|^{-ν}`.  The exponent, where
+[`CorrelationLength`](@ref) is the length itself.
+"""
+struct CorrelationLengthExponent <: AbstractExponent end
+export CorrelationLengthExponent
+
+"""
+    AnomalousDimension() <: AbstractQuantity
+
+`η`, the correlation function's decay at criticality, `G(r) ∼ r^{-(d-2+η)}`.
+"""
+struct AnomalousDimension <: AbstractExponent end
+export AnomalousDimension
+
+"""
+    LargeSpinExponent() <: AbstractQuantity
+
+`ζ` of the large-spin fixed point, where the effective moment GROWS under
+renormalization ([IgloiMonthus2005](@cite), §A.5).  A random-walk argument on the
+signs of the couplings gives `ζ = 1/2`.
+
+Not the correlation-matrix eigenvalue that wears the same letter in
+[`EntanglementSpectrumCorrelation`](@ref); one is an exponent and the other an
+occupation in `(0, 1)`.
+"""
+struct LargeSpinExponent <: AbstractExponent end
+export LargeSpinExponent
 
 """
     RelationVariable
@@ -224,10 +296,12 @@ b = bag(at_size(Typical(MassGap()), 16) => 1e-2,
 
 The twin of [`entanglement_entropy`](@ref) for the size axis: it writes the key
 directly, because the size belongs to the measurement and not to the quantity.
-A quantity that already needs a support of its own, [`RenyiEntropy`](@ref) under
-[`OrderSupport`](@ref), is refused rather than silently losing it.
+A quantity that already needs a support of its own is refused rather than
+silently losing it.
 """
 function at_size(q::AbstractQuantity, L)
+    L isa Real && isfinite(L) ||
+        error("at_size: a size must be a finite real, got $L::$(typeof(L)).")
     # `typeof` erases a field, so a quantity whose identity lives in one would key
     # two different measurements to one slot. `RenyiEntropy(2)` and `RenyiEntropy(3)`
     # at the same size collide loudly, and at different sizes fuse into a sweep that
@@ -239,7 +313,19 @@ function at_size(q::AbstractQuantity, L)
     )
     return VariableKey(typeof(q), SizeSupport(L))
 end
-at_size(@nospecialize(Q::Type), L) = VariableKey(Q, SizeSupport(L))
+function at_size(@nospecialize(Q::Type), L)
+    L isa Real && isfinite(L) ||
+        error("at_size: a size must be a finite real, got $L::$(typeof(L)).")
+    # The instance method's guard applies here too: a type whose instances key under
+    # a support of their own would lose it just as silently through this spelling.
+    Q <: AbstractQuantity &&
+        !(variable_support(Q()) isa Global) &&
+        error(
+            "at_size: $Q keys under $(variable_support(Q())), and a key carries one " *
+            "support, so this measurement has no slot to go in.",
+        )
+    return VariableKey(Q, SizeSupport(L))
+end
 export at_size
 
 """

@@ -40,6 +40,23 @@ using AbstractQAtlas:
     z = 0.3 - 0.8im
     @test residual(AdvancedRetardedConjugate(); GA=conj(z), GR=z) == 0
     @test !check(AdvancedRetardedConjugate(); GA=z, GR=z)   # z ≠ conj(z) for complex z
+
+    # `solve` reads a relation's linearity in a variable off three probe points, and a
+    # conjugation passes that test: it is additive, and on real points it is the
+    # identity. So this relation used to hand back the CONJUGATE of the answer when
+    # asked for GR, and no test saw it, because the comparison took the real part
+    # first. It is refused now, at the one slot that is genuinely antilinear.
+    @test_throws "complex-linear" solve(AdvancedRetardedConjugate(), Val(:GR); GA=z)
+
+    # Not the whole relation, though: it IS complex-linear in GA, and that slot must
+    # keep working and keep being right. A guard that refused both would be trading a
+    # wrong answer for a missing one.
+    @test solve(AdvancedRetardedConjugate(), Val(:GA); GR=z) == conj(z)
+    @test residual(AdvancedRetardedConjugate(); GA=conj(z), GR=z) == 0
+
+    # And on real data conjugation IS the identity, so there is nothing to refuse and
+    # the answer was never wrong. The guard fires on the data that can expose it.
+    @test solve(AdvancedRetardedConjugate(), Val(:GR); GA=2.5) == 2.5
 end
 
 @testset "FDT is a CONSEQUENCE of KMS + the RAK identities" begin

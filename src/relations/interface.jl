@@ -392,6 +392,20 @@ function _solve(rel::AbstractRelation, ::Val{X}; kwargs...) where {X}
         "probe) — define a specialized _solve(::$(typeof(rel)), ::Val{:$X}; ...) " *
         "for this variable",
     )
+    # Real probes cannot see a conjugation: `conj` is additive and real-homogeneous,
+    # so an antilinear relation passes the parabola test above and then returns the
+    # conjugate of the answer. One imaginary probe separates them, and it is only
+    # asked for where the residual is complex, so real relations keep their types.
+    if any(r -> r isa Complex, (r0, r1, r2))
+        ri = at(im)
+        isfinite(abs(ri)) && abs(ri - (r0 + im * (r1 - r0))) <= 1e-8 * max(abs(r0), 1) ||
+            error(
+                "solve: $(typeof(rel)) is additive but not complex-linear in :$X, so a " *
+                "probe cannot invert it: a conjugation reads as affine on real points " *
+                "and returns the conjugate of the answer. Define a specialized " *
+                "_solve(::$(typeof(rel)), ::Val{:$X}; ...).",
+            )
+    end
     b = r1 - r0
     iszero(b) && error("solve: $(typeof(rel)) does not depend on :$X")
     return -r0 / b

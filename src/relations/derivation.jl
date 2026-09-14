@@ -478,7 +478,7 @@ different fixed points, of which at most one holds at a given point.
 
 Iglói and Monthus state the same menu of observables once per fixed-point type,
 [IgloiMonthus2005](@cite) §A.2 conventional, §A.3 infinite-disorder, §A.4
-Griffiths, so `χ ∼ |t|^{-γ}` at Eq. (A.15) and the activated form at Eq. (A.25)
+Griffiths, so the field-driven `χ(H)` at Eq. (A.15) and the activated form at Eq. (A.25)
 are two readings of one quantity and never both true. Grouping them keeps
 [`consistency_report`](@ref) from calling that a contradiction: within a family
 one member matching is the family satisfied, while across families every route
@@ -493,11 +493,33 @@ export law_family
 # A family holds if ANY of its members reproduces the held-out value, its members
 # being alternatives of which at most one applies. Every family must hold, so a
 # law with no alternative still has to agree on its own.
-function _families_satisfied(got, held, tol)
+# Nothing checked is not agreement.
+function _refuse_vacuous(rows)
+    isempty(rows) && error(
+        "consistent: no variable was reachable, so nothing was checked. Either the " *
+        "data reaches no relation, `domain` or `exclude` removed them all, or every " *
+        "candidate route threw and was dropped. Call consistency_report to see.",
+    )
+    return nothing
+end
+
+function _families_satisfied(got, held, atol, rtol)
+    h = held
     fams = Dict{Symbol,Bool}()
     for (st, v) in got
+        x = v
+        # Per route, against its own scale and the held value's. A row-wide scale would
+        # let one wild route widen the tolerance for every other route competing for the
+        # same target, so a large `z` feeding one candidate could excuse an unrelated
+        # wrong one.
+        # `abs` of a complex difference, not of the real parts: the Keldysh identities
+        # are statements about the imaginary part alone, and `GA = conj(GR)` cannot be
+        # told from `GA = GR` by a real comparison. Non-finite scales are dropped, or
+        # one infinity would set the tolerance to infinity and accept anything.
+        scale = maximum(x -> isfinite(x) ? abs(x) : 0.0, (h, x))
+        ok = isfinite(abs(x - h)) && abs(x - h) <= max(atol, rtol * scale)
         f = law_family(st.relation)
-        fams[f] = get(fams, f, false) || abs(float(real(v)) - float(real(held))) <= tol
+        fams[f] = get(fams, f, false) || ok
     end
     return all(values(fams))
 end
@@ -534,11 +556,17 @@ One held-out variable and every route back to it: the `target`, a `Symbol` on th
 name-keyed report and a [`VariableKey`](@ref) on the type-keyed one, the value it
 was held out at, the `steps` that reproduced it, their `values`, the `spread` over
 those values and the held-out one, and whether they `agree`.
+
+`steps` holds whichever step the report actually walked, [`DerivationStep`](@ref)
+or `TypedStep`, rather than translating one into the other: a `TypedStep`'s output
+is a quantity type and a `DerivationStep`'s is the relation's own variable symbol,
+so rewriting the first as the second would produce a step that cannot be replayed
+through [`solve`](@ref).
 """
 struct ConsistencyRow
     target::Union{Symbol,VariableKey}
     held_out::Any
-    steps::Vector{DerivationStep}
+    steps::Union{Vector{DerivationStep},Vector{TypedStep}}
     values::Vector{Any}
     spread::Float64
     agree::Bool
@@ -549,8 +577,8 @@ function Base.show(io::IO, r::ConsistencyRow)
     return print(
         io,
         r.agree ? "agree" : "DISAGREE",
-        " :",
-        r.target,
+        " ",
+        r.target isa Symbol ? ":" * string(r.target) : string(r.target),
         " over ",
         length(r.steps),
         " route(s), spread ",
@@ -583,23 +611,30 @@ and the report assumes a shared symbol is a shared quantity; where it is not, th
 routes disagree and the row names them, but the fault is in the question rather
 than in the identities. Two ways that happens, both measured:
 
-  * A name means different things in different relations. `S` is a ring's block
-    in one and an open chain's end block in another, so one number cannot satisfy
-    both. `d` is the same trap: the classical image's dimension in
-    [`Josephson`](@ref), the chain's own in [`HarrisCriterion`](@ref).
+  * A name means different things in different relations, which the type-keyed
+    method below does not have. `S` is a ring's block entropy in
+    [`CFTEntanglementPBC`](@ref) and an open chain's end block in
+    [`CFTEntanglementOBC`](@ref), so one number cannot satisfy both and an
+    unscoped report says they disagree. It is right to: the caller has described
+    a state that does not exist. `domain` is the remedy.
   * A relation does not apply at the point the data describes. Classical 2D Ising
     exponents agree over `:scaling` until `z` is added, at which point
-    [`QuantumHyperscaling`](@ref) joins the routes to `α` and four rows disagree.
-    It was excluded before only for want of an input, never for want of
-    applicability, and nothing here knows the difference.
+    [`QuantumHyperscaling`](@ref) joins the routes to `α`. It was excluded before
+    only for want of an input, never for want of applicability, and nothing here
+    knows the difference.
 
 So a disagreement is a place to look, not a verdict. `domain` and `exclude` are
 how a caller states the scope the data belongs to: `domain` keeps one family,
 `exclude` drops named relations, and either is preferable to reading a row whose
 routes describe different physics.
 
-Agreement is `spread <= max(atol, rtol * scale)` with `scale` the largest
-magnitude present, so `rtol` reads as a relative tolerance on the answer.
+A row agrees when every family does, and a family does when one of its members
+lands within `max(atol, rtol * scale)` of the held-out value, `scale` being the
+larger of that value's magnitude and the route's own. Judged against the held-out
+value rather than between routes, because a family's members are alternatives and
+are expected to differ; and per route rather than per row, so one large candidate
+cannot widen the tolerance for the others. `spread` is reported beside it as the
+range the routes actually covered, and is not what `agree` is computed from.
 
 ```julia
 ising2d = (; α=0//1, β=1//8, γ=7//4, δ=15//1, ν=1//1, η=1//4, d=2//1)
@@ -629,7 +664,6 @@ function consistency_report(
         all(v -> v isa Number, vals) && data[target] isa Number || continue
         everything = vcat(float.(real.(vals)), float(real(data[target])))
         spread = maximum(everything) - minimum(everything)
-        tol = max(atol, rtol * maximum(abs, everything))
         push!(
             out,
             ConsistencyRow(
@@ -638,7 +672,7 @@ function consistency_report(
                 [st for (st, _) in got],
                 vals,
                 spread,
-                _families_satisfied(got, data[target], tol),
+                _families_satisfied(got, data[target], atol, rtol),
             ),
         )
     end
@@ -650,15 +684,18 @@ export consistency_report
     consistent(data::NamedTuple; atol = 0, rtol = 1e-8, domain = nothing,
                exclude = ()) -> Bool
 
-Whether every row of [`consistency_report`](@ref) agrees. `true` when no variable
-is reachable at all, which is vacuous rather than a pass; read the report when
-that matters.
+Whether every row of [`consistency_report`](@ref) agrees.
+
+An empty report is refused rather than returned as `true`. Nothing to check is not
+a pass, and the ways to reach it are quiet ones: a misspelled `domain`, an
+`exclude` that removed the last route, or an input outside a relation's domain,
+where the solve throws and the step is dropped. Read
+[`consistency_report`](@ref) directly when a vacuous answer is what you want.
 """
 function consistent(data::NamedTuple; atol=0, rtol=1e-8, domain=nothing, exclude=())
-    return all(
-        r -> r.agree,
-        consistency_report(data; atol=atol, rtol=rtol, domain=domain, exclude=exclude),
-    )
+    rows = consistency_report(data; atol=atol, rtol=rtol, domain=domain, exclude=exclude)
+    _refuse_vacuous(rows)
+    return all(r -> r.agree, rows)
 end
 export consistent
 
@@ -677,12 +714,11 @@ order-parameter exponent in `Rushbrooke` and the inverse temperature in
 type of its own. The typed known-set is aliasing-aware too, so a bag never holds
 `InverseTemperature` and `Temperature` at once.
 
-Narrower for the same reason. Only the 109 of 167 relations carrying at least one
+Narrower for the same reason. Only the 111 of 160 relations carrying at least one
 typed slot appear at all, and a relation is present only through those slots, so
-the classical scaling identities, whose exponents are bare symbols, are absent
-here and are exactly what the name-keyed report checks best. Run both: this one
-for what it can see, that one where a caller can vouch that a shared name is a
-shared quantity.
+a route through an untyped variable is invisible here and visible to the
+name-keyed method. Run both: this one for what it can see soundly, that one where
+a caller can vouch that a shared name is a shared quantity.
 
 Neither knows applicability; see the `NamedTuple` method.
 """
@@ -698,6 +734,12 @@ function consistency_report(
     for target in sort!(collect(keys(b)); by=k -> string(k.type))
         held = b[target]
         held isa Number || continue
+        # `typed_derivation_steps` builds every step at `Global`, so a bag entry keyed
+        # under a `SizeSupport` or an `OrderSupport` has no route here and comparing one
+        # against a Global-derived value would reopen the collision those supports exist
+        # to prevent: a size-free relation would read as a route to a size-specific
+        # measurement.
+        target.support isa Global || continue
         known = delete!(copy(b), target)
         got = Tuple{TypedStep,Any}[]
         for st in steps
@@ -716,16 +758,10 @@ function consistency_report(
             ConsistencyRow(
                 target,
                 held,
-                DerivationStep[
-                    DerivationStep(
-                        st.relation,
-                        nameof(st.output.type),
-                        Tuple(nameof(i.type) for i in st.inputs),
-                    ) for (st, _) in got
-                ],
+                TypedStep[st for (st, _) in got],
                 vals,
                 spread,
-                _families_satisfied(got, held, max(atol, rtol * maximum(abs, everything))),
+                _families_satisfied(got, held, atol, rtol),
             ),
         )
     end
@@ -737,4 +773,8 @@ end
 
 Whether every row of the type-keyed [`consistency_report`](@ref) agrees.
 """
-consistent(b::Bag; kwargs...) = all(r -> r.agree, consistency_report(b; kwargs...))
+function consistent(b::Bag; kwargs...)
+    rows = consistency_report(b; kwargs...)
+    _refuse_vacuous(rows)
+    return all(r -> r.agree, rows)
+end
