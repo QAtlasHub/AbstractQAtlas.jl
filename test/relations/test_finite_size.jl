@@ -3,6 +3,7 @@
 
 using AbstractQAtlas
 using Test
+using Logging
 
 @testset "SizeSupport is what makes a finite-size sweep expressible" begin
     # Without a support the sizes collide, and the bag says so rather than keeping
@@ -181,4 +182,45 @@ end
     # rtol is taken against the exponent, so it means the same thing at any ψ.
     r = only(finite_size_scaling_report(b))
     @test abs(r.residual) > 1e-8
+end
+
+@testset "outputlevel says why a row is absent, which silence cannot" begin
+    # A skipped row and a row that was never possible look identical in the output:
+    # both are nothing. These three branches are the only place the difference is
+    # stated, and an `@info` is a format string, so it is wrong until it has run.
+    ψ, z = 0.5, 2.0
+
+    # A value that is not positive has no `ln Ω`, so the conventional secant has
+    # nowhere to stand. Reported, not silently dropped.
+    flat = bag(
+        at_size(MassGap, 16) => 1.0e-2, at_size(MassGap, 32) => 0.0, DynamicalExponent => z
+    )
+    @test_logs (:info, r"is not positive, so ln Ω has nowhere to stand") match_mode = :any finite_size_scaling_report(
+        flat; outputlevel=1
+    )
+    @test isempty(finite_size_scaling_report(flat; outputlevel=0))
+
+    # The activated law is the TYPICAL gap's. The average is set by rare regions and
+    # carries a power of `L`, so fitting it to `L^ψ` would return a number that means
+    # nothing; the reason is named rather than the row just missing.
+    avg = bag(
+        (at_size(DisorderAveraged(MassGap()), L) => exp(-1.3 * L^ψ) for L in (16, 32))...,
+        ActivatedExponent => ψ,
+    )
+    @test_logs (:info, r"the average is set by the rare regions") match_mode = :any finite_size_scaling_report(
+        avg; outputlevel=1
+    )
+
+    # And a quantity claiming no reduction at all is refused for a different reason,
+    # so the two are not one message with a shared excuse.
+    bare = bag(
+        (at_size(MassGap, L) => exp(-1.3 * L^ψ) for L in (16, 32))...,
+        ActivatedExponent => ψ,
+    )
+    @test_logs (:info, r"it says no reduction") match_mode = :any finite_size_scaling_report(
+        bare; outputlevel=1
+    )
+
+    # Silent by default: the diagnostics are a knob, not the return path.
+    @test_logs min_level = Logging.Info finite_size_scaling_report(avg)
 end
