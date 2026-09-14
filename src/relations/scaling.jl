@@ -302,7 +302,10 @@ for the RTFIC is that review's Eq. (3.18), §3.5, reached by a different route.
 Variables: `φ`, `d`, `x_m`, `ψ`.
 """
 @relation :scaling ActivatedMomentGrowth(
-    φ, d::SpatialDimension, x_m::ScalingDimension, ψ::ActivatedExponent
+    φ::ActivatedMomentExponent,
+    d::SpatialDimension,
+    x_m::ScalingDimension,
+    ψ::ActivatedExponent,
 ) = φ * ψ - (d - x_m)
 
 # ─── Appendix A: the four scaling types of a random system ───────────────
@@ -577,7 +580,10 @@ instance is Eqs. (8.6)-(8.8), §8.2, where `ζ = 1/2` and `κ = 0.22(1)` is
 measured, giving `z = 1/(2κ)`.
 """
 @relation :scaling LargeSpinMoment(
-    κ, d::SpatialDimension, ζ::LargeSpinExponent, z::DynamicalExponent
+    κ::LargeSpinMomentExponent,
+    d::SpatialDimension,
+    ζ::LargeSpinExponent,
+    z::DynamicalExponent,
 ) = κ * z - d * ζ
 
 """

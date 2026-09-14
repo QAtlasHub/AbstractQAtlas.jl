@@ -491,10 +491,36 @@ end
     # the distinction the cut count exists for.
     at_end = bag(entanglement_entropy(Region(1:16...)) => 0.0, CentralCharge => c)
     in_bulk = bag(entanglement_entropy(Region(20:35...)) => 0.0, CentralCharge => c)
-    @test length(finite_size_entropy_report(at_end, OBC(N); c₁=c₁, atol=1e-12)) == 1
-    @test only(finite_size_entropy_report(at_end, OBC(N); c₁=c₁, atol=1e-12)).relation isa
+    @test length(finite_size_entropy_report(at_end, OBC(N); c₁=c₁, ln_g=0.0, atol=1e-12)) ==
+        1
+    @test only(finite_size_entropy_report(at_end, OBC(N); c₁=c₁, ln_g=0.0, atol=1e-12)).relation isa
         CFTEntanglementOBC
-    @test isempty(finite_size_entropy_report(in_bulk, OBC(N); c₁=c₁, atol=1e-12))
+    @test isempty(finite_size_entropy_report(in_bulk, OBC(N); c₁=c₁, ln_g=0.0, atol=1e-12))
+
+    # Pinned because a report that passes on both readings of the same data must not
+    # be read as having checked either one.
+    lng, N_ = 0.3, 256
+    obc(ℓ) = (c / 6) * log((2 * N_ / π) * sin(π * ℓ / N_)) + lng + c₁ / 2
+    two_blocks = bag(
+        entanglement_entropy(Region(1:16...)) => obc(16),
+        entanglement_entropy(Region(1:64...)) => obc(64),
+        CentralCharge => c,
+    )
+    truth = finite_size_entropy_report(two_blocks, OBC(N_); c₁=c₁, ln_g=lng, atol=1e-12)
+    shifted = finite_size_entropy_report(
+        two_blocks, OBC(N_); c₁=2 * lng + c₁, ln_g=0.0, atol=1e-12
+    )
+    @test length(truth) == 2
+    @test all(r -> r.pass, truth)
+    @test all(r -> r.pass, shifted)
+    @test [r.residual for r in truth] ≈ [r.residual for r in shifted] atol = 1e-14
+
+    # And the negative control the pair needs: a reading that does NOT preserve the
+    # sum is a different physical claim and is refused. Without this the block shows
+    # that two equivalent readings agree and never that an inequivalent one does not.
+    off = finite_size_entropy_report(two_blocks, OBC(N_); c₁=c₁, ln_g=lng + 0.01, atol=1e-9)
+    @test !any(r -> r.pass, off)
+    @test all(r -> isapprox(r.residual, -0.01; atol=1e-12), off)
 
     # An infinite chain has no L to supply and gets Eq. (4).
     binf = bag(

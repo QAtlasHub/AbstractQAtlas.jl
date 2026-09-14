@@ -61,7 +61,7 @@ export AbstractExponent
 # touching the others, since only the thirteen `:scaling` relations are annotated.
 
 """
-    SpecificHeatExponent() <: AbstractQuantity
+    SpecificHeatExponent() <: AbstractExponent
 
 `α`, the specific heat's divergence at a critical point, `c ∼ |t|^{-α}`.
 """
@@ -69,7 +69,7 @@ struct SpecificHeatExponent <: AbstractExponent end
 export SpecificHeatExponent
 
 """
-    OrderParameterExponent() <: AbstractQuantity
+    OrderParameterExponent() <: AbstractExponent
 
 `β`, the order parameter's vanishing, `m ∼ (-t)^β`.  Not
 [`InverseTemperature`](@ref), which wears the same letter across most of this
@@ -79,7 +79,7 @@ struct OrderParameterExponent <: AbstractExponent end
 export OrderParameterExponent
 
 """
-    SusceptibilityExponent() <: AbstractQuantity
+    SusceptibilityExponent() <: AbstractExponent
 
 `γ`, the susceptibility's divergence, `χ ∼ |t|^{-γ}`.
 """
@@ -87,7 +87,7 @@ struct SusceptibilityExponent <: AbstractExponent end
 export SusceptibilityExponent
 
 """
-    CriticalIsothermExponent() <: AbstractQuantity
+    CriticalIsothermExponent() <: AbstractExponent
 
 `δ`, the critical isotherm's shape, `m ∼ h^{1/δ}` at `t = 0`.
 """
@@ -95,7 +95,7 @@ struct CriticalIsothermExponent <: AbstractExponent end
 export CriticalIsothermExponent
 
 """
-    CorrelationLengthExponent() <: AbstractQuantity
+    CorrelationLengthExponent() <: AbstractExponent
 
 `ν`, the correlation length's divergence, `ξ ∼ |t|^{-ν}`.  The exponent, where
 [`CorrelationLength`](@ref) is the length itself.
@@ -104,7 +104,7 @@ struct CorrelationLengthExponent <: AbstractExponent end
 export CorrelationLengthExponent
 
 """
-    AnomalousDimension() <: AbstractQuantity
+    AnomalousDimension() <: AbstractExponent
 
 `η`, the correlation function's decay at criticality, `G(r) ∼ r^{-(d-2+η)}`.
 """
@@ -112,7 +112,7 @@ struct AnomalousDimension <: AbstractExponent end
 export AnomalousDimension
 
 """
-    LargeSpinExponent() <: AbstractQuantity
+    LargeSpinExponent() <: AbstractExponent
 
 `ζ` of the large-spin fixed point, where the effective moment GROWS under
 renormalization ([IgloiMonthus2005](@cite), §A.5).  A random-walk argument on the
@@ -124,6 +124,41 @@ occupation in `(0, 1)`.
 """
 struct LargeSpinExponent <: AbstractExponent end
 export LargeSpinExponent
+
+"""
+    LargeSpinMomentExponent() <: AbstractExponent
+
+`κ` of the large-spin fixed point, by which the effective moment grows as the
+energy scale falls, `S_eff ∼ Ω^{-κ}` ([IgloiMonthus2005](@cite), §A.5, with §8.2
+the 1D instance).  Tied to the other two by [`LargeSpinMoment`](@ref),
+`κ = dζ/z`, which is how a measured `κ` gives the dynamical exponent when `ζ` is
+known.
+
+Named for its fixed point rather than for the physics, like
+[`LargeSpinExponent`](@ref) beside it: the infinite-disorder fixed point has a
+moment exponent too, [`ActivatedMomentExponent`](@ref), and "effective moment"
+alone does not say which.
+
+Not the thermal conductivity that wears the same letter in
+[`WiedemannFranz`](@ref) and [`ThermoelectricFigureOfMerit`](@ref).
+"""
+struct LargeSpinMomentExponent <: AbstractExponent end
+export LargeSpinMomentExponent
+
+"""
+    ActivatedMomentExponent() <: AbstractExponent
+
+`φ` of the infinite-disorder fixed point, where the moment grows in the logarithm
+of the energy scale rather than a power of it, `μ ∼ |ln Ω|^φ`
+([IgloiMonthus2005](@cite), §A.3).  Pinned by [`ActivatedMomentGrowth`](@ref),
+`φψ = d - x_m`.
+
+The activated twin of [`LargeSpinMomentExponent`](@ref).  It is bookkeeping
+rather than a separately measured number, which is a statement about how it is
+obtained and not about whether it is a quantity of its own.
+"""
+struct ActivatedMomentExponent <: AbstractExponent end
+export ActivatedMomentExponent
 
 """
     RelationVariable

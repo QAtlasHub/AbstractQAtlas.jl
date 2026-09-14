@@ -479,7 +479,17 @@ The central charge is read from the bag, as `CentralCharge` and, when a random
 critical chain is being checked, `EffectiveCentralCharge`; the latter also needs
 `f`, the scaling function, and its own constant `c₁′`.  The non-universal
 constants are arguments because they are not quantities: `c₁`, and `ln_g` for
-the boundary entropy an open chain carries.
+the boundary entropy an open chain carries.  `ln_g` and `c₁` enter
+[`CFTEntanglementOBC`](@ref) only as a sum, so no number of block sizes separates
+them; see that relation.
+
+A single region is usually not evidence that `c` or `c̃` is right.  The four
+logarithmic forms each carry one free constant, so with one row that constant can
+be chosen after the fact to zero the residual for ANY central charge, and what
+passes is the mutual consistency of the triple rather than the charge.  Two or
+more block sizes are what make the charge falsifiable there.  The exceptions are
+the forms with no constant to spend, [`OffCriticalEntanglementSaturation`](@ref)
+and the slope relations, where one row does constrain the charge.
 
 A region whose sites are not integers is skipped, having no adjacency to count
 cuts with. A region of integer sites lying off the chain `bc` declares is not

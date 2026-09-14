@@ -394,6 +394,23 @@ end
     @test CorrelationMatrixEigenvalue in variable_types(EntanglementSpectrumCorrelation())
     @test LargeSpinExponent !== CorrelationMatrixEigenvalue
 
+    # `κ` in the same relation shares its letter with the thermal conductivity in two
+    # transport relations. As with `:F`, the name-keyed node stays shared; the type
+    # is what separates them once a bag is involved.
+    @test LargeSpinMomentExponent in variable_types(LargeSpinMoment())
+    @test VariableKey(LargeSpinMomentExponent) != VariableKey(ThermalConductivity)
+    @test ThermalConductivity in
+        Set(AbstractQAtlas._family(T) for T in variable_types(WiedemannFranz()))
+
+    # Each fixed point has its own moment exponent and they are not the same number:
+    # a power of Ω at the large-spin one, a power of |ln Ω| at the infinite-disorder
+    # one. Naming either of them for the physics alone would take the other's name.
+    @test ActivatedMomentExponent in variable_types(ActivatedMomentGrowth())
+    @test LargeSpinMomentExponent !== ActivatedMomentExponent
+    @test isempty(
+        filter(t -> t === nothing, last.(variable_slots(ActivatedMomentGrowth())))
+    )
+
     # And the exemplar stays split.
     @test OrderParameterExponent in variable_types(Rushbrooke())
     @test !(InverseTemperature in variable_types(Rushbrooke()))

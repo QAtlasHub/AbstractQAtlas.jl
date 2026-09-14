@@ -109,20 +109,19 @@ end
     # The genuinely GENERIC quantum relations stay symbol-keyed, and should: their
     # variables do not name quantities. `RobertsonUncertainty(ΔA, ΔB, comm)` is about
     # two arbitrary observables; `MandelstamTammBound(τ, ΔE)` about a time and an
-    # energy spread; `EhrenfestMomentum`/`Position` about expectation values of
-    # whichever operator. Typing those would need quantities that do not exist and
-    # arguably should not.
+    # energy spread; `EhrenfestPosition` about `d⟨x⟩/dt = ⟨p⟩/m` for whichever
+    # operator. Typing those would need quantities that do not exist and arguably
+    # should not.
     #
     # `LiebRobinsonBound` used to be in this list and is not any more. Its `v_LR` is
-    # not a generic symbol — it IS a named quantity, `LiebRobinsonVelocity` — so
-    # typing it makes the inequality discoverable from the quantity
+    # not a generic symbol, it IS a named quantity, `LiebRobinsonVelocity`, so typing
+    # it makes the inequality discoverable from the quantity
     # (`relations_constraining`), which is the whole point of the type-keyed front
     # door. Its other slot, `v`, stays untyped: that is a measured information
     # velocity, and nothing names it yet.
     @test all(
         r -> isempty(variable_types(r)),
         (
-            EhrenfestMomentum(),
             EhrenfestPosition(),
             HellmannFeynman(),
             RobertsonUncertainty(),
@@ -131,6 +130,20 @@ end
             EnergyVarianceEigenstate(),
         ),
     )
+
+    # `⟨F⟩` is not a generic expectation value, it is a force. Four relations write
+    # `F` and they mean three things: the free energy in `FreeEnergyLegendre` and
+    # `GrandPotentialLegendre`, the cloning fidelity in `CloningFidelityBound`, and
+    # this. The name-keyed graph still puts all four at one node and always will,
+    # `variables` being deliberately unchanged by typing; what a type buys is that
+    # the bag-keyed graph does not. `CloningFidelityBound`'s `F` stays bare under the
+    # `@bound` convention that types the ceiling and not the measured side.
+    @test variable_types(EhrenfestMomentum()) == (Force,)
+    @test quantities(EhrenfestMomentum()) == (Force,)
+    @test VariableKey(Force) != VariableKey(FreeEnergy)
+    @test check(EhrenfestMomentum(), bag(Force => -0.8); dp_dt=-0.8, atol=1e-12)
+    @test !check(EhrenfestMomentum(), bag(Force => 0.8); dp_dt=-0.8, atol=1e-9)
+    @test EhrenfestMomentum() in relations_constraining(Force)
 end
 
 @testset "LiebRobinsonBound is keyed on LiebRobinsonVelocity" begin

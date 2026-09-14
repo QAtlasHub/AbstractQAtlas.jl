@@ -210,7 +210,7 @@ struct ParticleNumber <: AbstractQuantity end
 export ParticleNumber
 
 """
-    LatentHeat() <: AbstractQuantity
+    LatentHeat() <: AbstractThermalPotential
 
 The latent heat `L = T ΔS` of a first-order transition — the entropy
 jump across the phase boundary times the temperature.  Enters the
@@ -276,6 +276,20 @@ The potential-energy expectation `⟨V⟩` — the `V` of the virial theorem
 """
 struct PotentialEnergy <: AbstractThermalPotential end
 export PotentialEnergy
+
+"""
+    Force() <: AbstractQuantity
+
+The mean force `⟨F⟩ = −⟨∂V/∂x⟩`, which [`EhrenfestMomentum`](@ref) equates to
+`d⟨p⟩/dt`.
+
+Not the free energy that wears the same letter in [`FreeEnergyLegendre`](@ref),
+nor the cloning fidelity in [`CloningFidelityBound`](@ref): three quantities
+share `F` across the registry, and the type is what keeps them apart when a bag
+is read rather than a symbol.
+"""
+struct Force <: AbstractQuantity end
+export Force
 
 """
     EnergyVariance() <: AbstractQuantity
