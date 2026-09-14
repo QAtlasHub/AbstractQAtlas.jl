@@ -716,7 +716,7 @@ cannot be restated wrongly at the call site.  Equivalent to
 This is the door to prefer.  Passing a bare NamedTuple leaves `d` to the caller,
 and a sweep silently SKIPS every relation whose variables are not all present
 (see [`applicable_relations`](@ref)), so forgetting `d` does not fail; it just
-stops checking the twelve relations that need it.
+stops checking every relation that needs it, which is most of the Appendix-A block.
 """
 function exponents_consistent(s::ScalingDimensions; atol=0)
     return exponents_consistent(critical_exponents(s); d=s.d, atol=atol)
