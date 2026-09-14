@@ -394,6 +394,20 @@ end
     @test CorrelationMatrixEigenvalue in variable_types(EntanglementSpectrumCorrelation())
     @test LargeSpinExponent !== CorrelationMatrixEigenvalue
 
+    # `κ` in the same relation was the other half of it, and shares its letter with
+    # the thermal conductivity in two transport relations. Those were typed already,
+    # so this was the last bare `κ` that could still meet them on a name.
+    @test EffectiveMomentExponent in variable_types(LargeSpinMoment())
+    @test ThermalConductivity in
+        Set(Base.typename(T).wrapper for T in variable_types(WiedemannFranz()))
+    @test VariableKey(EffectiveMomentExponent) != VariableKey(ThermalConductivity)
+
+    # It is an exponent, so it joins `AbstractExponent` rather than being a quantity a
+    # bag holds a measurement of, and `quantities` leaves it out for that reason.
+    @test EffectiveMomentExponent <: AbstractExponent
+    @test !(EffectiveMomentExponent <: AbstractQuantity)
+    @test !(EffectiveMomentExponent in quantities(LargeSpinMoment()))
+
     # And the exemplar stays split.
     @test OrderParameterExponent in variable_types(Rushbrooke())
     @test !(InverseTemperature in variable_types(Rushbrooke()))

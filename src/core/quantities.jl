@@ -287,6 +287,20 @@ calculation.
 struct EnergyVariance <: AbstractQuantity end
 export EnergyVariance
 
+"""
+    Force() <: AbstractQuantity
+
+The mean force `⟨F⟩ = −⟨∂V/∂x⟩`, which [`EhrenfestMomentum`](@ref) equates to
+`d⟨p⟩/dt`.
+
+Not the free energy that wears the same letter in [`FreeEnergyLegendre`](@ref),
+nor the cloning fidelity in [`CloningFidelityBound`](@ref): three quantities
+share `F` across the registry, and the type is what keeps them apart when a bag
+is read rather than a symbol.
+"""
+struct Force <: AbstractQuantity end
+export Force
+
 # ─── Order parameters and responses (tensors in spin space) ─────────────
 #
 # These were the quantities blurred into scalars by baking a component

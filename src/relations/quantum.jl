@@ -64,9 +64,9 @@ the mean momentum obeys the classical force law,
 `d⟨p⟩/dt = −⟨∂V/∂x⟩ = ⟨F⟩`,
 
 the quantum counterpart of Newton's second law.  Variables: `dp_dt`,
-`F` = `⟨F⟩`.
+and `F` = `⟨F⟩` as a [`Force`](@ref).
 """
-@relation :quantum EhrenfestMomentum(dp_dt, F) = dp_dt - F
+@relation :quantum EhrenfestMomentum(dp_dt, F::Force) = dp_dt - F
 
 """
     EnergyVarianceEigenstate <: AbstractRelation

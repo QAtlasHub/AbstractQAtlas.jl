@@ -577,7 +577,10 @@ instance is Eqs. (8.6)-(8.8), §8.2, where `ζ = 1/2` and `κ = 0.22(1)` is
 measured, giving `z = 1/(2κ)`.
 """
 @relation :scaling LargeSpinMoment(
-    κ, d::SpatialDimension, ζ::LargeSpinExponent, z::DynamicalExponent
+    κ::EffectiveMomentExponent,
+    d::SpatialDimension,
+    ζ::LargeSpinExponent,
+    z::DynamicalExponent,
 ) = κ * z - d * ζ
 
 """
