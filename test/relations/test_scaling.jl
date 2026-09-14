@@ -6,7 +6,7 @@
 # pins the no-float-promotion contract.
 
 using AbstractQAtlas
-using AbstractQAtlas: residual, check, solve
+using AbstractQAtlas: residual, check, solve, derive
 using LinearAlgebra
 
 const ISING2D = (α=0//1, β=1//8, γ=7//4, δ=15//1, ν=1//1, η=1//4)
@@ -690,27 +690,58 @@ end
     # `R_X = Var(X)/[X]²` over an ensemble of samples, which is what a disorder
     # calculation already produces per size.
     d, α, ν = 3, -0.1, 0.7
-    @test solve(StrongSelfAveraging(), Val(:d); dlogR_dlogL=(-d)) ≈ d
-    @test solve(CriticalSelfAveraging(), Val(:α); dlogR_dlogL=α / ν, ν=ν) ≈ α
-    @test !check(StrongSelfAveraging(); dlogR_dlogL=(+d), d=d, atol=1e-9)   # sign
-    @test !check(CriticalSelfAveraging(); dlogR_dlogL=(-α / ν), α=α, ν=ν, atol=1e-9)
+    @test solve(StrongSelfAveraging(), Val(:d); dlogR_dlogLξ=(-d)) ≈ d
+    @test solve(CriticalSelfAveraging(), Val(:α_pure); dlogR_dlogL=α / ν, ν_pure=ν) ≈ α
+    @test check(StrongSelfAveraging(); dlogR_dlogLξ=(-d), d=d, atol=1e-12)
+    @test check(CriticalSelfAveraging(); dlogR_dlogL=α / ν, α_pure=α, ν_pure=ν, atol=1e-12)
+    @test !check(StrongSelfAveraging(); dlogR_dlogLξ=(+d), d=d, atol=1e-9)   # sign
+    @test !check(
+        CriticalSelfAveraging(); dlogR_dlogL=(-α / ν), α_pure=α, ν_pure=ν, atol=1e-9
+    )
 
-    # Relevant randomness means no decay at all, so the off-critical law is refused
-    # rather than fitted: a fixed point where more samples at larger L do not help.
-    @test !check(StrongSelfAveraging(); dlogR_dlogL=0.0, d=d, atol=1e-6)
-    @test !check(CriticalSelfAveraging(); dlogR_dlogL=0.0, α=α, ν=ν, atol=1e-6)
+    # Relevant randomness means no decay at all, so both decay laws are refused.
+    @test !check(StrongSelfAveraging(); dlogR_dlogLξ=0.0, d=d, atol=1e-6)
+    @test !check(CriticalSelfAveraging(); dlogR_dlogL=0.0, α_pure=α, ν_pure=ν, atol=1e-6)
+
+    # The two abscissas are different variables and must stay so. Sharing the name let
+    # an off-critical law be read off a critical slope and, through `d`, put a wrong ν
+    # on the far side of Josephson with no error.
+    @test isdisjoint(variables(StrongSelfAveraging()), variables(CriticalSelfAveraging()))
+    @test_throws "not reachable" derive(:ν; dlogR_dlogL=α / ν, α=α)
+
+    # At α = 0 the residual does not depend on ν, so a pass says nothing about it.
+    # Documented rather than refused: α = 0 is the marginal case, not a bad input.
+    @test all(
+        x -> check(CriticalSelfAveraging(); dlogR_dlogL=0.0, α_pure=0.0, ν_pure=x, atol=0),
+        (0.001, 0.63, 999.0),
+    )
 
     # `δT_c ∼ L^{-1/ν}`, not `L^{-d/2}`. The site-dilute Ising model in d = 3 measures
     # 1.449(8), which is six of its own errors from d/2 = 1.5, so the discriminator
-    # discriminates; asserted as the ratio because the two are only 2% apart.
+    # discriminates. Asserted in units of that error, the two being 3.4% apart.
     ρ, σρ = 1.449, 0.008
     @test abs(ρ - d / 2) / σρ > 5
-    @test solve(PseudocriticalWidthScaling(), Val(:ν); dlogδTc_dlogL=(-ρ)) ≈ 1 / ρ
-    @test isapprox(1 / ρ, 0.69; atol=0.01)      # and lands on that model's own ν
-    @test !check(PseudocriticalWidthScaling(); dlogδTc_dlogL=(-d / 2), ν=1 / ρ, atol=1e-3)
+    # Round-tripped through `check` rather than compared to the hand-written inverse,
+    # which would be that formula against itself.
+    ν_solved = solve(PseudocriticalWidthScaling(), Val(:ν); dlogδTc_dlogL=(-ρ))
+    @test check(PseudocriticalWidthScaling(); dlogδTc_dlogL=(-ρ), ν=ν_solved, atol=1e-12)
+    # Not a test of this package: a guard on the two numbers the docstring quotes, so
+    # editing one without the other is caught. They are separate measurement channels
+    # on the same model and agree at 1.9 of their combined error.
+    @test abs(ρ - 1.467) < 2.5 * sqrt(σρ^2 + 0.005^2)
+    @test !check(
+        PseudocriticalWidthScaling(); dlogδTc_dlogL=(-d / 2), ν=ν_solved, atol=1e-3
+    )
+
+    # A flat width identifies no exponent, so the specialized inverse refuses its own
+    # pole rather than returning an infinity signed by the caller's zero.
+    @test_throws "no ν at" solve(PseudocriticalWidthScaling(), Val(:ν); dlogδTc_dlogL=0.0)
+    @test_throws "no ν at" solve(PseudocriticalWidthScaling(), Val(:ν); dlogδTc_dlogL=-0.0)
 
     @test variable_types(StrongSelfAveraging()) == (SpatialDimension,)
-    @test variable_types(CriticalSelfAveraging()) ==
-        (SpecificHeatExponent, CorrelationLengthExponent)
     @test variable_types(PseudocriticalWidthScaling()) == (CorrelationLengthExponent,)
+    # Untyped on purpose: these are the PURE system's exponents, and the registry's
+    # exponent types mean the system under study. `WeinribHalperinExponent` leaves
+    # `ν_dis` bare for the same reason.
+    @test isempty(variable_types(CriticalSelfAveraging()))
 end

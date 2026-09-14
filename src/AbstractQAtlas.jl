@@ -95,6 +95,7 @@ include("relations/interface.jl")
 "Equilibrium statistical mechanics: occupation statistics → ensembles → thermodynamic potentials → response, FDT & stability."
 module StatisticalMechanics
     using ..AbstractQAtlas
+    import ..AbstractQAtlas: fetch      # unexported, so bare `fetch` here would be Base's
     using ..AbstractQAtlas: _beta          # β-or-T normalization (occupation functions)
     import ..AbstractQAtlas: _solve        # extended for a non-affine variable (FreeEnergyFromZ:Z)
     include("relations/thermodynamic.jl")
@@ -107,6 +108,7 @@ end
 "Critical phenomena and conformal field theory: scaling laws, finite-size scaling, Cardy, the c-theorem."
 module Criticality
     using ..AbstractQAtlas
+    import ..AbstractQAtlas: fetch      # unexported, so bare `fetch` here would be Base's
     import ..AbstractQAtlas: _solve        # extended for a non-affine variable (PseudocriticalWidthScaling:ν)
     include("relations/scaling.jl")
     include("relations/cft.jl")
@@ -115,6 +117,7 @@ end
 "Correlations, Green's functions and response: the spectral graph (Dyson, A=−ImG/π), the Keldysh RAK structure + fluctuation–dissipation, Wick / Bloch–De Dominicis (Gaussian factorization), Kramers–Kronig, detailed balance."
 module Correlations
     using ..AbstractQAtlas
+    import ..AbstractQAtlas: fetch      # unexported, so bare `fetch` here would be Base's
     using LinearAlgebra: inv, det
     include("relations/spectral.jl")
     include("relations/keldysh.jl")
@@ -124,12 +127,14 @@ end
 "Transport: DC/AC conductivity, thermal & thermoelectric coefficients, the Hall family, Onsager, Wiedemann–Franz, optical sum rule, Johnson–Nyquist."
 module Transport
     using ..AbstractQAtlas
+    import ..AbstractQAtlas: fetch      # unexported, so bare `fetch` here would be Base's
     include("relations/transport.jl")
 end
 
 "Quantum information & entanglement: the entropy zoo, its inequalities, multipartite entanglement, measurement and topological entanglement entropy."
 module QuantumInformation
     using ..AbstractQAtlas
+    import ..AbstractQAtlas: fetch      # unexported, so bare `fetch` here would be Base's
     using ExperimentalAPI: @experimental
     include("relations/entanglement.jl")
 end
@@ -137,18 +142,21 @@ end
 "Quantum-mechanical foundations & bounds: virial, Hellmann–Feynman, Ehrenfest, zero-variance eigenstate, the uncertainty relation and the Lieb–Robinson bound."
 module QuantumFoundations
     using ..AbstractQAtlas
+    import ..AbstractQAtlas: fetch      # unexported, so bare `fetch` here would be Base's
     include("relations/quantum.jl")
 end
 
 "Universal bounds stated against a fetched bounding value: Bell (CHSH, Mermin), chaos (MSS), speed limits, fast scrambling, BB84 key rate, optimal cloning, Bekenstein."
 module UniversalBounds
     using ..AbstractQAtlas
+    import ..AbstractQAtlas: fetch      # unexported, so bare `fetch` here would be Base's
     include("relations/bounds.jl")
 end
 
 "Topological invariants: Chern number, TKNN, winding, bulk–boundary correspondence."
 module Topology
     using ..AbstractQAtlas
+    import ..AbstractQAtlas: fetch      # unexported, so bare `fetch` here would be Base's
     using LinearAlgebra: det, eigen, Hermitian
     include("relations/topology.jl")
 end

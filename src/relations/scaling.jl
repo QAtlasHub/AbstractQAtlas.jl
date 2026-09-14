@@ -705,20 +705,18 @@ autocorrelation `G(t) ∼ exp(−A|ln t|^d)` of Eq. (A.34) (= Eq. (9.7), §9.1.3
 """
     StrongSelfAveraging <: AbstractRelation
 
-`R_X ∼ (L/ξ)^{-d}` for `L ≫ ξ`, so `d ln R_X/d ln L = -d`, where
+`R_X ∼ (L/ξ)^{-d}` for `L ≫ ξ`, so `d ln R_X/d ln(L/ξ) = -d`, where
 `R_X = Var(X)/[X]²` over an ensemble of samples (Aharony & Harris,
 [AharonyHarris1996](@cite)).
 
-Off criticality only.  At criticality the slope is `(α/ν)_pure` if the randomness
-is irrelevant ([`CriticalSelfAveraging`](@ref)) and ZERO if it is relevant, the
-distribution then approaching a universal non-Gaussian of `L`-independent width.
-So the measured slope says which of the three a calculation is in, and a fixed
-point where it does not decay is one where more samples at larger `L` do not
-improve the statistics.
+Off criticality only, and the abscissa is `L/ξ` rather than `L`, which is also
+what keeps this slope a different variable from
+[`CriticalSelfAveraging`](@ref)'s: one number cannot be both, and a graph that
+shared the name would read an off-critical law off a critical measurement.
 
-Variables: `dlogR_dlogL` (caller-computed), `d`.
+Variables: `dlogR_dlogLξ` (caller-computed), `d`.
 """
-@relation :scaling StrongSelfAveraging(dlogR_dlogL, d::SpatialDimension) = dlogR_dlogL + d
+@relation :scaling StrongSelfAveraging(dlogR_dlogLξ, d::SpatialDimension) = dlogR_dlogLξ + d
 
 """
     CriticalSelfAveraging <: AbstractRelation
@@ -726,18 +724,20 @@ Variables: `dlogR_dlogL` (caller-computed), `d`.
 `R_X ∼ L^{α/ν}` at criticality when the randomness is IRRELEVANT, so
 `d ln R_X/d ln L = α/ν` ([AharonyHarris1996](@cite)).
 
-The exponents are the PURE system's, which is what makes this the irrelevant-
-randomness statement rather than a general one.  Wiseman and Domany conjectured
-the same form with the random fixed point's exponents; [AharonyHarris1996](@cite)
-and the simulations in [WisemanDomany1998](@cite) both contradict it, the width
-going to a constant there instead.  Reading this relation with random-fixed-point
-exponents is that refuted conjecture.
+The exponents are the PURE system's, so they are `α_pure` and `ν_pure` and stay
+untyped: [`SpecificHeatExponent`](@ref) elsewhere in the registry means the system
+under study, and at a random fixed point that is a different number. Wiseman and
+Domany conjectured this form with the random fixed point's exponents;
+[AharonyHarris1996](@cite) and the simulations in [WisemanDomany1998](@cite) both
+contradict it, the width going to a constant there instead.
 
-Variables: `dlogR_dlogL` (caller-computed), `α`, `ν`.
+At `α = 0`, the marginal case this literature is largely about, the residual does
+not depend on `ν` and a passing check says nothing about it.
+
+Variables: `dlogR_dlogL` (caller-computed), `α_pure`, `ν_pure`.
 """
-@relation :scaling CriticalSelfAveraging(
-    dlogR_dlogL, α::SpecificHeatExponent, ν::CorrelationLengthExponent
-) = dlogR_dlogL - α / ν
+@relation :scaling CriticalSelfAveraging(dlogR_dlogL, α_pure, ν_pure) =
+    dlogR_dlogL - α_pure / ν_pure
 
 """
     PseudocriticalWidthScaling <: AbstractRelation
@@ -747,17 +747,24 @@ the sample-to-sample distribution of pseudocritical temperatures
 ([WisemanDomany1998](@cite), measured directly).
 
 Not `L^{-d/2}`, the central-limit answer, which holds only where the Harris
-criterion does.  The two are close and the measurement has to be good enough to
+criterion does. The two are close and the measurement has to be good enough to
 tell them apart: the site-dilute Ising model in `d = 3` gives `1.449(8)` against
-`d/2 = 1.5`, six of its own errors away, and `1/ν = 1.47`.
+`d/2 = 1.5`, six of its own errors away, agreeing with that model's separately
+fitted `1/ν = 1.467(5)`.
 
 Variables: `dlogδTc_dlogL` (caller-computed), `ν`.
 """
 @relation :scaling PseudocriticalWidthScaling(dlogδTc_dlogL, ν::CorrelationLengthExponent) =
     dlogδTc_dlogL + 1 / ν
 
-# `1/ν` is not affine in `ν`, so the generic three-probe inverter refuses it.
+# `1/ν` is not affine in `ν`, so the generic three-probe inverter refuses it. That
+# inverter also refuses a non-finite probe; this one has to refuse its own pole, or
+# a flat slope returns an infinity whose SIGN comes from the caller's zero.
 function _solve(::PseudocriticalWidthScaling, ::Val{:ν}; dlogδTc_dlogL, _extra...)
+    iszero(dlogδTc_dlogL) && error(
+        "solve: PseudocriticalWidthScaling has no ν at dlogδTc_dlogL = 0. A width " *
+        "that does not shift with L does not identify a correlation-length exponent.",
+    )
     return -1 / dlogδTc_dlogL
 end
 

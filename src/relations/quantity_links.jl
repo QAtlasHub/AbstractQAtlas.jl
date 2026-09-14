@@ -147,6 +147,11 @@ quantities(::HolevoMixingBound) = (VonNeumannEntropy,)
 quantities(::RenyiMonotonicity) = (RenyiEntropy,)
 quantities(::RelativeEntropyNonNegativity) = (RelativeEntropy,)
 
+# The three self-averaging relations name no quantity: `R_X = Var(X)/[X]²` leaves `X`
+# generic, and a width is not a mean, so neither `Typical` nor `DisorderAveraged`
+# names it and `CriticalTemperature` would name the thing `δT_c` is the spread of.
+# Same abstention as the two below, for the same reason.
+
 # ── Disorder statistics ──
 # Both are fully symbol-keyed: `X_typ`/`X_avg` and `F_quenched`/`F_annealed` are
 # REDUCTIONS over an ensemble, and no single quantity names a reduction, so there
