@@ -516,14 +516,6 @@ end
     @test all(r -> r.pass, shifted)
     @test [r.residual for r in truth] ≈ [r.residual for r in shifted] atol = 1e-14
 
-    # And the default that would have made that silent is gone: an open chain has to
-    # say what its boundary entropy is, even when the answer is zero.
-    @test_throws "an open chain needs `ln_g`" finite_size_entropy_report(
-        two_blocks, OBC(N_); c₁=c₁, atol=1e-12
-    )
-    # A ring never reads it, so nothing is asked there.
-    @test finite_size_entropy_report(two_blocks, PBC(N_); c₁=c₁, atol=1e-12) isa Vector
-
     # An infinite chain has no L to supply and gets Eq. (4).
     binf = bag(
         entanglement_entropy(Region(1:8...)) => (c / 3) * log(8) + c₁, CentralCharge => c

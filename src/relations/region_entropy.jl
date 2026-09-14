@@ -479,9 +479,9 @@ The central charge is read from the bag, as `CentralCharge` and, when a random
 critical chain is being checked, `EffectiveCentralCharge`; the latter also needs
 `f`, the scaling function, and its own constant `c₁′`.  The non-universal
 constants are arguments because they are not quantities: `c₁`, and `ln_g` for
-the boundary entropy an open chain carries.  `ln_g` has no default: it and `c₁`
-enter [`CFTEntanglementOBC`](@ref) only as a sum, so it is asked for rather than
-assumed to be zero.
+the boundary entropy an open chain carries.  `ln_g` and `c₁` enter
+[`CFTEntanglementOBC`](@ref) only as a sum, so no number of block sizes separates
+them; see that relation.
 
 A single region is not evidence that `c` or `c̃` is right.  Each closed form has
 one free constant, so with one row that constant can be chosen after the fact to
@@ -501,13 +501,7 @@ finite_size_entropy_report(b, PBC(64); c₁=0.4785)
 ```
 """
 function finite_size_entropy_report(
-    b::Bag,
-    bc::BoundaryCondition;
-    c₁::Real,
-    ln_g::Union{Real,Nothing}=nothing,
-    f=nothing,
-    c₁′::Real=0,
-    atol=1e-8,
+    b::Bag, bc::BoundaryCondition; c₁::Real, ln_g::Real=0, f=nothing, c₁′::Real=0, atol=1e-8
 )
     # An empty report must mean "no region matched", so a boundary condition with no
     # form here is refused rather than producing one: it would otherwise be a
@@ -516,16 +510,6 @@ function finite_size_entropy_report(
     bc isa Union{Infinite,OBC,PBC} || error(
         "finite_size_entropy_report: no finite-size form registered for $(typeof(bc))."
     )
-    # `ln g` and `c₁/2` are a fixed sum in `CFTEntanglementOBC`, so a default would be
-    # asserting a trivial boundary rather than declining to say. Asked for, not assumed.
-    bc isa OBC &&
-        ln_g === nothing &&
-        error(
-            "finite_size_entropy_report: an open chain needs `ln_g`. It enters only as " *
-            "`ln g + c₁/2`, so this relation cannot separate it from `c₁` at any number " *
-            "of block sizes, and defaulting it to 0 would claim a boundary entropy of " *
-            "zero on the caller's behalf. Pass `ln_g=0.0` to say that deliberately.",
-        )
     out = RegionFiniteSizeRow[]
     ents = _region_entropies(b)
     isempty(ents) && return out
