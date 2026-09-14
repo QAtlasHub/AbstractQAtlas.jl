@@ -26,6 +26,7 @@ also_constrains(::SusceptibilityResponse) = (Magnetization,)  # fundamental: χ 
 also_constrains(::ParticleNumberResponse) = (GrandPotential,)  # grand-canonical: N = −∂Ω/∂μ
 also_constrains(::StaticFromDynamicalStructureFactor) = (DynamicalStructureFactor,)  # Sq = ∫S(q,ω)dω/2π (supplied)
 also_constrains(::ChernFromBerryCurvature) = (BerryCurvature,)  # topology: C = ∫Ω d²k/2π (supplied integral)
+also_constrains(::CFTEntanglementInfinite) = (VonNeumannEntropy,)  # the L→∞ sibling
 also_constrains(::CFTEntanglementSlope) = (VonNeumannEntropy,)  # entanglement: dS/d(ln ℓ) (supplied derivative)
 also_constrains(::CFTEntanglementPBC) = (VonNeumannEntropy,)   # entanglement: S(ℓ) on a ring
 also_constrains(::CFTEntanglementOBC) = (VonNeumannEntropy,)   # entanglement: S(ℓ) at an open end
@@ -147,9 +148,9 @@ quantities(::TypicalBelowAverage) = (Typical, DisorderAveraged)
 quantities(::AnnealedFreeEnergyBound) = (FreeEnergy,)
 
 # ── Quantum-mechanical foundations ──
-# VirialTheorem is type-keyed (quantum.jl), `quantities` auto-derived. The Ehrenfest /
-# Hellmann–Feynman / uncertainty / Lieb–Robinson relations stay symbol-keyed (generic
-# operators / derivatives). EnergyVarianceEigenstate stays symbol-keyed — its subject
+# VirialTheorem and EhrenfestMomentum are type-keyed (quantum.jl), `quantities`
+# auto-derived, as is LiebRobinsonBound. EhrenfestPosition, Hellmann-Feynman and the
+# uncertainty relations stay symbol-keyed (generic operators and derivatives). EnergyVarianceEigenstate stays symbol-keyed — its subject
 # EnergyVariance enters only through the moment combination ⟨H²⟩ − E², not a slot.
 quantities(::EnergyVarianceEigenstate) = (EnergyVariance,)
 

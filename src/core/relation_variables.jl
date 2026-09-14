@@ -126,19 +126,39 @@ struct LargeSpinExponent <: AbstractExponent end
 export LargeSpinExponent
 
 """
-    EffectiveMomentExponent() <: AbstractExponent
+    LargeSpinMomentExponent() <: AbstractExponent
 
 `κ` of the large-spin fixed point, by which the effective moment grows as the
-energy scale falls, `S_eff ∼ Ω^{-κ}` ([IgloiMonthus2005](@cite), §8.2).  Tied to
-the other two by [`LargeSpinMoment`](@ref), `κ = dζ/z`, which is how a measured
-`κ` gives the dynamical exponent when `ζ` is known.
+energy scale falls, `S_eff ∼ Ω^{-κ}` ([IgloiMonthus2005](@cite), §A.5, with §8.2
+the 1D instance).  Tied to the other two by [`LargeSpinMoment`](@ref),
+`κ = dζ/z`, which is how a measured `κ` gives the dynamical exponent when `ζ` is
+known.
+
+Named for its fixed point rather than for the physics, like
+[`LargeSpinExponent`](@ref) beside it: the infinite-disorder fixed point has a
+moment exponent too, [`ActivatedMomentExponent`](@ref), and "effective moment"
+alone does not say which.
 
 Not the thermal conductivity that wears the same letter in
-[`WiedemannFranz`](@ref) and [`ThermoelectricFigureOfMerit`](@ref), which is why
-it is a type here and not a shared symbol.
+[`WiedemannFranz`](@ref) and [`ThermoelectricFigureOfMerit`](@ref).
 """
-struct EffectiveMomentExponent <: AbstractExponent end
-export EffectiveMomentExponent
+struct LargeSpinMomentExponent <: AbstractExponent end
+export LargeSpinMomentExponent
+
+"""
+    ActivatedMomentExponent() <: AbstractExponent
+
+`φ` of the infinite-disorder fixed point, where the moment grows in the logarithm
+of the energy scale rather than a power of it, `μ ∼ |ln Ω|^φ`
+([IgloiMonthus2005](@cite), §A.3).  Pinned by [`ActivatedMomentGrowth`](@ref),
+`φψ = d - x_m`.
+
+The activated twin of [`LargeSpinMomentExponent`](@ref).  It is bookkeeping
+rather than a separately measured number, which is a statement about how it is
+obtained and not about whether it is a quantity of its own.
+"""
+struct ActivatedMomentExponent <: AbstractExponent end
+export ActivatedMomentExponent
 
 """
     RelationVariable

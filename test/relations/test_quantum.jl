@@ -131,15 +131,15 @@ end
         ),
     )
 
-    # `EhrenfestMomentum` left that group for the same reason `LiebRobinsonBound`
-    # did. `⟨F⟩` is not a generic expectation value, it is a force, and three
-    # relations in the registry write `F` meaning three different things: the free
-    # energy in `FreeEnergyLegendre`, the cloning fidelity in `CloningFidelityBound`,
-    # and this. The other two were already typed, so this one was the last `F` that
-    # could still collide with them on the name-keyed side.
+    # `⟨F⟩` is not a generic expectation value, it is a force. Four relations write
+    # `F` and they mean three things: the free energy in `FreeEnergyLegendre` and
+    # `GrandPotentialLegendre`, the cloning fidelity in `CloningFidelityBound`, and
+    # this. The name-keyed graph still puts all four at one node and always will,
+    # `variables` being deliberately unchanged by typing; what a type buys is that
+    # the bag-keyed graph does not. `CloningFidelityBound`'s `F` stays bare under the
+    # `@bound` convention that types the ceiling and not the measured side.
     @test variable_types(EhrenfestMomentum()) == (Force,)
     @test quantities(EhrenfestMomentum()) == (Force,)
-    @test Force !== FreeEnergy
     @test VariableKey(Force) != VariableKey(FreeEnergy)
     @test check(EhrenfestMomentum(), bag(Force => -0.8); dp_dt=-0.8, atol=1e-12)
     @test !check(EhrenfestMomentum(), bag(Force => 0.8); dp_dt=-0.8, atol=1e-9)

@@ -210,7 +210,7 @@ struct ParticleNumber <: AbstractQuantity end
 export ParticleNumber
 
 """
-    LatentHeat() <: AbstractQuantity
+    LatentHeat() <: AbstractThermalPotential
 
 The latent heat `L = T ΔS` of a first-order transition — the entropy
 jump across the phase boundary times the temperature.  Enters the
@@ -278,16 +278,6 @@ struct PotentialEnergy <: AbstractThermalPotential end
 export PotentialEnergy
 
 """
-    EnergyVariance() <: AbstractQuantity
-
-The energy variance `Var(H) = ⟨H²⟩ − ⟨H⟩²` — zero iff the state is an
-exact eigenstate, the convergence metric of a variational / DMRG
-calculation.
-"""
-struct EnergyVariance <: AbstractQuantity end
-export EnergyVariance
-
-"""
     Force() <: AbstractQuantity
 
 The mean force `⟨F⟩ = −⟨∂V/∂x⟩`, which [`EhrenfestMomentum`](@ref) equates to
@@ -300,6 +290,16 @@ is read rather than a symbol.
 """
 struct Force <: AbstractQuantity end
 export Force
+
+"""
+    EnergyVariance() <: AbstractQuantity
+
+The energy variance `Var(H) = ⟨H²⟩ − ⟨H⟩²` — zero iff the state is an
+exact eigenstate, the convergence metric of a variational / DMRG
+calculation.
+"""
+struct EnergyVariance <: AbstractQuantity end
+export EnergyVariance
 
 # ─── Order parameters and responses (tensors in spin space) ─────────────
 #

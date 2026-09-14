@@ -497,9 +497,8 @@ end
         CFTEntanglementOBC
     @test isempty(finite_size_entropy_report(in_bulk, OBC(N); c₁=c₁, ln_g=0.0, atol=1e-12))
 
-    # `ln g` and `c₁/2` are a fixed sum, so the open chain cannot tell them apart at
-    # any number of block sizes. Pinned, because a report that passes on both readings
-    # of the same data must not be read as having checked either one.
+    # Pinned because a report that passes on both readings of the same data must not
+    # be read as having checked either one.
     lng, N_ = 0.3, 256
     obc(ℓ) = (c / 6) * log((2 * N_ / π) * sin(π * ℓ / N_)) + lng + c₁ / 2
     two_blocks = bag(
@@ -515,6 +514,13 @@ end
     @test all(r -> r.pass, truth)
     @test all(r -> r.pass, shifted)
     @test [r.residual for r in truth] ≈ [r.residual for r in shifted] atol = 1e-14
+
+    # And the negative control the pair needs: a reading that does NOT preserve the
+    # sum is a different physical claim and is refused. Without this the block shows
+    # that two equivalent readings agree and never that an inequivalent one does not.
+    off = finite_size_entropy_report(two_blocks, OBC(N_); c₁=c₁, ln_g=lng + 0.01, atol=1e-9)
+    @test !any(r -> r.pass, off)
+    @test all(r -> isapprox(r.residual, -0.01; atol=1e-12), off)
 
     # An infinite chain has no L to supply and gets Eq. (4).
     binf = bag(

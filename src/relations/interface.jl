@@ -952,16 +952,16 @@ function relation_report(data::NamedTuple; atol=0, domain::Union{Nothing,Symbol}
 end
 export relation_report
 
+# The shared "all applicable relations passed, and at least one applied" rule in one
+# place, so the NamedTuple and Bag `check_all` methods cannot drift on "empty ⇒ false".
+_all_passed(report) = !isempty(report) && all(row -> row.pass, report)
+
 """
     check_all(data::NamedTuple; atol=0, domain=nothing) -> Bool
 
-`true` iff every applicable relation passes on `data` — and at least one
+`true` iff every applicable relation passes on `data`, and at least one
 relation applies: an empty match is `false`, never a silent green.
 """
-# the shared "all applicable relations passed, and at least one applied" rule — one
-# place, so the NamedTuple and Bag `check_all` methods can't drift on "empty ⇒ false".
-_all_passed(report) = !isempty(report) && all(row -> row.pass, report)
-
 function check_all(data::NamedTuple; atol=0, domain::Union{Nothing,Symbol}=nothing)
     return _all_passed(relation_report(data; atol=atol, domain=domain))
 end
