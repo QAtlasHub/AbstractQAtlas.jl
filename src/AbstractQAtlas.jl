@@ -181,6 +181,10 @@ include("relations/quantity_links.jl")
 # Subadditivity / ArakiLieb + the Region set layer): region_report / region_check_all.
 include("relations/region_entropy.jl")
 
+# the SIZE twin of the above: reads a finite-size sweep out of a bag and hands the
+# supplied-derivative scaling relations their derivative — finite_size_scaling_report.
+include("relations/finite_size.jl")
+
 # the abstract typed-graph PARENT: one KnowledgeGraph{N} kernel (nodes, typed
 # edges, traversal, reachability, shortest-path, JSONL export) that every
 # concrete graph below — quantity, derivation, and QAtlas's model graph — is an
