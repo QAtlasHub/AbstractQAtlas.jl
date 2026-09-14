@@ -547,3 +547,86 @@ end
     ]
     @test Set(kinds) == Set([:CFTEntanglementPBC, :InfiniteRandomnessEntanglementPBC])
 end
+
+@testset "an infinite chain gives the slope relations their derivative exactly" begin
+    c, c₁ = 0.5, 0.4785
+    S(ℓ) = (c / 3) * log(ℓ) + c₁
+    b = bag(
+        entanglement_entropy(Region(1:8...)) => S(8),
+        entanglement_entropy(Region(1:32...)) => S(32),
+        entanglement_entropy(Region(1:64...)) => S(64),
+        CentralCharge => c,
+    )
+    rows = finite_size_entropy_report(b, Infinite(); c₁=c₁)
+    slopes = filter(r -> r.relation isa CFTEntanglementSlope, rows)
+
+    # `S` is affine in `ln ℓ` here, so the secant is the derivative and the rows
+    # are exact rather than fitted: two consecutive pairs from three regions.
+    @test length(slopes) == 2
+    @test all(r -> r.pass, rows)
+    @test all(r -> length(r.regions) == 2, slopes)
+
+    # A finite chain's abscissa is the chord, so no slope row is taken there; the
+    # closed form covers it and reporting an asymptotic slope as exact would not.
+    bring = bag(
+        entanglement_entropy(Region(1:8...)) => 0.0,
+        entanglement_entropy(Region(1:16...)) => 0.0,
+        CentralCharge => c,
+    )
+    @test !any(
+        r -> r.relation isa CFTEntanglementSlope,
+        finite_size_entropy_report(bring, PBC(64); c₁=c₁),
+    )
+
+    # The same measurement read at the other fixed point has to fail, or the two
+    # readings are not being told apart.
+    birfp = bag(
+        entanglement_entropy(Region(1:8...)) => S(8),
+        entanglement_entropy(Region(1:32...)) => S(32),
+        EffectiveCentralCharge => log(2) / 2,
+    )
+    r = only(finite_size_entropy_report(birfp, Infinite(); c₁=0.0))
+    @test r.relation isa InfiniteRandomnessEntanglementSlope
+    @test !r.pass
+
+    # And an actual random chain passes it, so the failure above is the reading
+    # and not the relation.
+    c̃ = log(2) / 2
+    S̃(ℓ) = (c̃ / 3) * log(ℓ) + 0.31
+    bok = bag(
+        entanglement_entropy(Region(1:8...)) => S̃(8),
+        entanglement_entropy(Region(1:32...)) => S̃(32),
+        EffectiveCentralCharge => c̃,
+    )
+    @test only(finite_size_entropy_report(bok, Infinite(); c₁=0.0)).pass
+end
+
+@testset "a correlation length in the bag reaches the saturated form" begin
+    c, ξ, N = 0.5, 12.0, 128
+    b = bag(
+        entanglement_entropy(Region(1:40...)) => 2 * (c / 6) * log(ξ),
+        CentralCharge => c,
+        CorrelationLength => ξ,
+    )
+    kinds = Dict(
+        nameof(typeof(r.relation)) => r.pass for
+        r in finite_size_entropy_report(b, PBC(N); c₁=0.4785)
+    )
+
+    # Off criticality the entropy sits on ξ, so the critical form fails and the
+    # saturated one passes: the report says which regime the data is in.
+    @test kinds[:OffCriticalEntanglementSaturation]
+    @test !kinds[:CFTEntanglementPBC]
+
+    # Only regions larger than ξ are matched, since below it there is no plateau
+    # to be on.
+    small = bag(
+        entanglement_entropy(Region(1:8...)) => 0.0,
+        CentralCharge => c,
+        CorrelationLength => ξ,
+    )
+    @test !any(
+        r -> r.relation isa OffCriticalEntanglementSaturation,
+        finite_size_entropy_report(small, PBC(N); c₁=0.4785),
+    )
+end

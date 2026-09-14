@@ -382,7 +382,8 @@ export region_tee_report
     RegionFiniteSizeRow
 
 One row of a [`finite_size_entropy_report`](@ref): the `relation` it matched, the
-`region` it was auto-instantiated on, its [`residual`](@ref), and `pass`.
+`regions` it was auto-instantiated on (one for a closed form, the pair a slope
+was taken across), its [`residual`](@ref), and `pass`.
 
 Separate from [`RegionReportRow`](@ref) because the residual means something
 else.  There it is a slack, satisfied at `≥ 0`; these are equalities, satisfied
@@ -391,16 +392,19 @@ violation and every large positive one a success.
 """
 struct RegionFiniteSizeRow
     relation::AbstractRelation
-    region::Region
+    regions::Tuple{Vararg{Region}}
     residual::Number
     pass::Bool
 end
 export RegionFiniteSizeRow
 
-function _finite_size_row!(out, rel, A, vars, atol)
+function _finite_size_row!(out, rel, regions::Tuple, vars, atol)
     r = residual(rel; vars...)
-    push!(out, RegionFiniteSizeRow(rel, A, r, isapprox(r, zero(r); atol=atol)))
+    push!(out, RegionFiniteSizeRow(rel, regions, r, isapprox(r, zero(r); atol=atol)))
     return out
+end
+function _finite_size_row!(out, rel, A::Region, vars, atol)
+    return _finite_size_row!(out, rel, (A,), vars, atol)
 end
 
 """
@@ -416,6 +420,11 @@ read off the bag rather than passed.  A region is matched only where its cut
 count is the one its equation was derived for: two on a ring or an infinite
 chain, one at an open end.  Anything else is skipped, as a non-disjoint pair is
 skipped by [`region_report`](@ref), which is what makes a mixed bag usable.
+
+On an infinite chain two regions also give the slope relations their derivative
+exactly, since `S` is affine in `ln ℓ` there; a finite chain's abscissa is the
+chord, so the closed forms cover it instead. [`HalvedChainEntropyDifference`](@ref)
+is not reachable from one bag at all, needing entropies from two chain lengths.
 
 The central charge is read from the bag, as `CentralCharge` and, when a random
 critical chain is being checked, `EffectiveCentralCharge`; the latter also needs
@@ -448,6 +457,7 @@ function finite_size_entropy_report(
     isempty(ents) && return out
     c = get(b, VariableKey(CentralCharge), nothing)
     c̃ = get(b, VariableKey(EffectiveCentralCharge), nothing)
+    ξ = get(b, VariableKey(CorrelationLength), nothing)
     (c === nothing && c̃ === nothing) && return out
     for pair in sort!(collect(ents); by=p -> (length(p.first), repr(p.first)))
         A, S = pair.first, pair.second
@@ -476,6 +486,51 @@ function finite_size_entropy_report(
                 atol,
             )
         end
+        # Off criticality the entropy stops following ℓ and sits on ξ instead, so
+        # this is matched wherever a correlation length is in the bag and the region
+        # is the larger of the two. The source states it for ξ ≪ ℓ, and a row taken
+        # near ξ ≈ ℓ is expected to fail rather than be excluded by a cutoff chosen
+        # here.
+        if c !== nothing && ξ !== nothing && ℓ > ξ
+            _finite_size_row!(
+                out, OffCriticalEntanglementSaturation(), A, (; S, c, ξ, ncuts=n), atol
+            )
+        end
+    end
+    append!(out, _slope_rows(ents, bc, c, c̃, atol))
+    return out
+end
+
+# The slope relations take a supplied derivative, and on an infinite chain two
+# regions give it exactly rather than by fitting: `S` is affine in `ln ℓ` there, so
+# the secant through any two points IS the derivative. On a finite chain the
+# abscissa is the chord and not `ln ℓ`, so the closed forms above cover that case
+# and this one stays out of it rather than reporting an asymptotic slope as exact.
+function _slope_rows(ents, bc::BoundaryCondition, c, c̃, atol)
+    out = RegionFiniteSizeRow[]
+    bc isa Infinite || return out
+    (c === nothing && c̃ === nothing) && return out
+    pts = [
+        (length(A), A, S) for (A, S) in ents if !isempty(A) &&
+            eltype(A.sites) <: Integer &&
+            eltype(A.sites) !== Bool &&
+            entanglement_cuts(bc, A) == 2
+    ]
+    length(pts) >= 2 || return out
+    sort!(pts; by=first)
+    for ((ℓ1, A1, S1), (ℓ2, A2, S2)) in zip(pts, pts[2:end])
+        ℓ1 == ℓ2 && continue
+        slope = (S2 - S1) / (log(ℓ2) - log(ℓ1))
+        c === nothing || _finite_size_row!(
+            out, CFTEntanglementSlope(), (A1, A2), (; dS_dlogℓ=slope, c, ncuts=2), atol
+        )
+        c̃ === nothing || _finite_size_row!(
+            out,
+            InfiniteRandomnessEntanglementSlope(),
+            (A1, A2),
+            (; dS_dlogℓ=slope, c̃, ncuts=2),
+            atol,
+        )
     end
     return out
 end
