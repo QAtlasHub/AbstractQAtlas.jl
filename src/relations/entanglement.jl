@@ -308,15 +308,14 @@ depends on it.
 end
 
 @experimental """
-Eq. (24)'s scaling function is not settled here. Its two stated properties are
-checked where `f` is still a callable, in [`finite_size_entropy_report`](@ref):
-reflection symmetry, and the normalisation `Σₖ Aₖ(2k-1)π = 1` read as `f'(0) = 1`.
-Its FORM is not, and cannot be from here. The higher harmonics are the whole
-difference between this and the conformal case, and separating them needs a
-disorder average this package does not compute; the only form pinned is the
-one-harmonic reduction, which is [`CFTEntanglementPBC`](@ref). Reaching the
-relation directly bypasses even the two checks, `f` arriving as a number that can
-only be asked to be positive, so a small one returns a negative entropy
+Eq. (24)'s scaling function is not settled here. Reflection symmetry and the
+normalisation are checked where `f` is still a callable, in
+[`finite_size_entropy_report`](@ref); its FORM is not, and cannot be from here,
+since separating the higher harmonics needs a disorder average this package does
+not compute. The only form pinned is the one-harmonic reduction, which is
+[`CFTEntanglementPBC`](@ref). Reaching the relation directly bypasses both checks,
+`f` arriving as a number that can only be asked to be positive, so a small one
+returns a negative entropy
 """ InfiniteRandomnessEntanglementPBC
 
 """

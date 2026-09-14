@@ -558,19 +558,46 @@ end
     # harmonics are the whole difference, so a two-term `f` must be accepted. A check
     # that took only `sin(πv)/π` would pass everything below and refuse the physics.
     two(v) = (1 / π - 0.06) * sin(π * v) + 0.02 * sin(3π * v)
-    @test isapprox(two(1e-5) / 1e-5, 1; atol=1e-6)
     @test !isapprox(two(0.3), conf(0.3); rtol=1e-3)
-    @test length(call(two)) == 1
-    @test !only(call(two)).pass                      # entropy built on `conf`, so it fails
+    rows = call(two)
+    @test length(rows) == 1
+    @test !only(rows).pass                           # entropy built on `conf`, so it fails
 
     @test_throws "not symmetric" call(v -> sin(π * v) / π + 0.05 * v)
 
-    # A constant factor lands in `c₁′` rather than in the residual, so the wrong `f`
-    # used to be a pass with a wrong constant.
-    @test_throws "f(v)/v" call(v -> sin(π * v))      # the chord, missing the 1/π
-    @test_throws "f(v)/v" call(v -> 2 * sin(π * v) / π)
+    # A constant factor lands in `c₁′` rather than in the residual, so the normalisation
+    # is the only thing that can see it.
+    @test_throws "f'(0)" call(v -> sin(π * v))       # the chord, missing the 1/π
+    @test_throws "f'(0)" call(v -> 2 * sin(π * v) / π)
 
-    # Refused only where read, so an unconsumed `f` is not refused for being present.
+    # Both are asked on the grid `f` is read at. A component invisible there is
+    # invisible to the row too, so there is no sample set to slip between: this `f` is
+    # symmetric at three round points and wildly asymmetric at the one the bag uses.
+    sneak(v) = sin(π * v) / π + 0.08 * (sin(20π * v) - 0.5 * sin(40π * v))
+    @test isapprox(sneak(0.25), sneak(0.75); atol=1e-12)
+    @test_throws "not symmetric" call(sneak)
+
+    # And the normalisation is estimated from `1/N` and `2/N`, points on that same
+    # grid, so an `f` fitted on a finite chain and undefined off it is still accepted.
+    function fitted(v)
+        (1 / N <= v <= 1 - 1 / N) || error("outside the fitted range")
+        return two(v)
+    end
+    @test length(call(fitted)) == 1
+
+    # An `f` that is not a finite real says so, rather than being reported as an
+    # asymmetry between two NaNs or reaching the kernel and failing on `isless`.
+    @test_throws "finite real" call(v -> NaN)
+    @test_throws "finite real" call(v -> complex(sin(π * v) / π, 0.0))
+
+    # Checked only at the points that feed a row. A whole-ring region has no cuts, so
+    # `f` is never read and must not be refused: the report is empty, not an error.
+    whole = bag(entanglement_entropy(Region(1:N...)) => 1.0, EffectiveCentralCharge => c̃)
+    @test isempty(
+        finite_size_entropy_report(whole, PBC(N); c₁=0.0, f=v -> -1.0, c₁′=c₁′, atol=1e-12)
+    )
+
+    # Same for the other two ways of not being read.
     ent = entanglement_entropy(Region(1:300...))
     open_chain = bag(ent => 1.0, EffectiveCentralCharge => c̃)
     @test isempty(

@@ -414,25 +414,44 @@ function _finite_size_row!(out, rel, A::Region, vars, atol)
     return _finite_size_row!(out, rel, (A,), vars, atol)
 end
 
-# Two consequences of Eq. (24)'s `f(v) = Σₖ Aₖ sin((2k-1)πv)` under
-# `Σₖ Aₖ(2k-1)π = 1`, neither needing a coefficient: the basis is symmetric about
-# `v = 1/2`, and the normalisation is `f'(0) = 1`.  The FORM is not checked, the
-# higher harmonics being exactly what a disorder average would be needed to see.
-function _check_scaling_function(f)
-    for v in (0.1, 0.25, 0.4)
-        a, m = f(v), f(1 - v)
-        isapprox(a, m; rtol=1e-8, atol=1e-12) || error(
-            "finite_size_entropy_report: f($v) = $a but f($(1 - v)) = $m, so the " *
-            "scaling function is not symmetric about v = 1/2 and is not in Eq. (24)'s " *
-            "family.",
-        )
-    end
-    v = 1e-5
-    slope = f(v) / v
-    isapprox(slope, 1; atol=1e-6) || error(
-        "finite_size_entropy_report: f(v)/v → $slope, not 1, so the scaling function " *
-        "breaks Eq. (24)'s normalisation. A constant factor shifts ln[L f] into c₁′ " *
-        "and passes; f is the dimensionless sin(πv)/π, not the chord.",
+# Eq. (24) states `f` through `f(v) = Σₖ Aₖ sin((2k-1)πv)` under `Σₖ Aₖ(2k-1)π = 1`,
+# and two consequences hold whatever the coefficients are: every basis function is
+# symmetric about `v = 1/2`, and the normalisation is `f'(0) = 1`.  The FORM is not
+# checked, and a future check of it must still admit harmonics past `k = 1`, those
+# being what Eq. (24) says over the conformal reduction rather than an error in it.
+#
+# Asked on the grid `f` is read at, `ℓ/N`, so a component the check cannot see cannot
+# reach a row either.  `f'(0)` is estimated from `f(1/N)` and `f(2/N)` by Richardson,
+# error falling as `N^-4`, rather than from a point near zero that an `f` fitted on a
+# finite chain has no reason to be defined at.
+function _check_symmetry_at(f, v)
+    a, m = f(v), f(1 - v)
+    (a isa Real && m isa Real && isfinite(a) && isfinite(m)) || error(
+        "finite_size_entropy_report: f($v) = $a and f($(1 - v)) = $m, but the scaling " *
+        "function must be a finite real on the grid it is read at.",
+    )
+    isapprox(a, m; rtol=1e-8, atol=1e-12) || error(
+        "finite_size_entropy_report: f($v) = $a but f($(1 - v)) = $m, so the scaling " *
+        "function is not symmetric about v = 1/2 and is not in Eq. (24)'s family.",
+    )
+    return nothing
+end
+
+# Loose on purpose: it separates an order-unity factor, which is what a missing `1/π`
+# or a chord passed whole looks like, from the estimate's own truncation.  Tightening
+# it would start refusing a strongly non-conformal `f` on a ring too short to resolve
+# its harmonics, which is a statement about the grid and not about `f`.
+function _check_normalisation(f, N)
+    s1, s2 = f(1 / N), f(2 / N)
+    (s1 isa Real && s2 isa Real && isfinite(s1) && isfinite(s2)) || error(
+        "finite_size_entropy_report: f(1/$N) = $s1 and f(2/$N) = $s2, but the scaling " *
+        "function must be a finite real on the grid it is read at.",
+    )
+    slope = (4 * s1 * N - s2 * N / 2) / 3
+    isapprox(slope, 1; atol=0.1) || error(
+        "finite_size_entropy_report: f'(0) is about $slope, not 1, so the scaling " *
+        "function breaks Eq. (24)'s normalisation. A constant factor shifts ln[L f] " *
+        "into c₁′ and passes; f is the dimensionless sin(πv)/π, not the chord.",
     )
     return nothing
 end
@@ -489,8 +508,8 @@ function finite_size_entropy_report(
     c̃ = get(b, VariableKey(EffectiveCentralCharge), nothing)
     ξ = get(b, VariableKey(CorrelationLength), nothing)
     (c === nothing && c̃ === nothing) && return out
-    # Only where it is read; an unconsumed `f` changes nothing.
-    c̃ !== nothing && f !== nothing && bc isa PBC && _check_scaling_function(f)
+    uses_f = c̃ !== nothing && f !== nothing && bc isa PBC
+    f_normalised = false
     for pair in sort!(collect(ents); by=p -> (length(p.first), repr(p.first)))
         A, S = pair.first, pair.second
         (isempty(A) || !(eltype(A.sites) <: Integer) || eltype(A.sites) === Bool) &&
@@ -509,7 +528,9 @@ function finite_size_entropy_report(
                 )
             end
         end
-        if c̃ !== nothing && f !== nothing && bc isa PBC && n == 2
+        if uses_f && n == 2
+            f_normalised || (_check_normalisation(f, bc.N); f_normalised=true)
+            _check_symmetry_at(f, ℓ / bc.N)
             _finite_size_row!(
                 out,
                 InfiniteRandomnessEntanglementPBC(),
