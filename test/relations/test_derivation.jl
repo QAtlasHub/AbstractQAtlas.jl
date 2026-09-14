@@ -116,3 +116,58 @@ end
     @test err isa ErrorException
     @test occursin("not reachable", err.msg)
 end
+
+@testset "every route back to a held-out exponent agrees, over the whole registry" begin
+    # The hand-written cross-checks elsewhere pick their routes. This picks none:
+    # each variable is held out in turn and every relation that reaches it from the
+    # rest is run, so a wrong identity is caught wherever it sits rather than only
+    # where someone thought to look.
+    ising2d = (; α=0 // 1, β=1 // 8, γ=7 // 4, δ=15 // 1, ν=1 // 1, η=1 // 4, d=2 // 1)
+    rows = consistency_report(ising2d; domain=:scaling)
+    @test length(rows) == 7
+    @test all(r -> r.agree, rows)
+    # Rationals in, so the agreement is exact and not a tolerance being generous.
+    @test all(r -> r.spread == 0, rows)
+    @test consistent(ising2d; domain=:scaling)
+
+    # γ is the busiest node, reached three ways; α and ν two ways each. A report
+    # that found one route everywhere would be checking nothing.
+    byname = Dict(r.target => length(r.steps) for r in rows)
+    @test byname[:γ] == 3
+    @test byname[:α] == 2
+    @test byname[:ν] == 2
+    @test Set(nameof(typeof(s.relation)) for r in rows for s in r.steps) ==
+        Set([:Rushbrooke, :Widom, :Fisher, :Josephson])
+
+    # A second consistent point, so the pass is not a property of one exponent set.
+    mf = (; α=0 // 1, β=1 // 2, γ=1 // 1, δ=3 // 1, ν=1 // 2, η=0 // 1, d=4 // 1)
+    @test consistent(mf; domain=:scaling)
+
+    # And it discriminates: one exponent moved by 5% is denied through every route
+    # that touches it, which is six of the seven rather than only γ's own.
+    bad = (; α=0.0, β=0.125, γ=1.75 * 1.05, δ=15.0, ν=1.0, η=0.25, d=2.0)
+    @test count(r -> !r.agree, consistency_report(bad; domain=:scaling)) == 6
+    @test !consistent(bad; domain=:scaling)
+end
+
+@testset "a shared variable name is not a shared quantity" begin
+    # The registry is one namespace and `S` is a ring's block in one relation and an
+    # open chain's end block in another. One number cannot be both, so an unscoped
+    # report says they disagree, correctly: the caller has supplied a state that does
+    # not exist. `domain` is the remedy, and this pins that it is needed rather than
+    # leaving a future reader to discover it from a puzzling row.
+    c, c₁, N, ℓ = 0.5, 0.4785, 4096.0, 1024.0
+    ring = (c / 3) * log((N / π) * sin(π * ℓ / N)) + c₁
+    mixed = (; S=ring, c=c, L=N, ℓ=ℓ, c₁=c₁, ncuts=2, ln_g=0.0)
+    row = only(filter(r -> r.target === :S, consistency_report(mixed)))
+    @test length(row.steps) >= 2
+    @test !row.agree
+
+    # Scoped to the one geometry the number belongs to, the same data is consistent.
+    @test solve(CFTEntanglementPBC(), Val(:S); c=c, L=N, ℓ=ℓ, c₁=c₁) ≈ ring atol = 1e-12
+
+    # Nothing reachable is reported as agreement, so `consistent` alone is not proof
+    # that anything was checked.
+    @test isempty(consistency_report((; α=0.11)))
+    @test consistent((; α=0.11))
+end

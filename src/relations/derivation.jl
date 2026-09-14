@@ -461,3 +461,121 @@ export DerivationStep,
     TypedStep,
     typed_derivation_steps,
     typed_derivation_graph
+
+# ─── Cross-checking the routes, rather than taking one ─────────────────────
+#
+# `derive` finds one route and runs it. The registry usually offers several, and
+# a quantity two relations both reach is a claim they have to agree on: each is
+# an exact identity, so on one consistent set of knowns the answers coincide or
+# one of the identities is wrong. That is a check no single relation can perform
+# on itself, and it is what a hand-written cross-check does one target at a time.
+
+"""
+    ConsistencyRow
+
+One held-out variable and every route back to it: the `target`, the value it was
+held out at, the `steps` that reproduced it, their `values`, the `spread` over
+those values and the held-out one, and whether they `agree`.
+"""
+struct ConsistencyRow
+    target::Symbol
+    held_out::Any
+    steps::Vector{DerivationStep}
+    values::Vector{Any}
+    spread::Float64
+    agree::Bool
+end
+export ConsistencyRow
+
+function Base.show(io::IO, r::ConsistencyRow)
+    return print(
+        io,
+        r.agree ? "agree" : "DISAGREE",
+        " :",
+        r.target,
+        " over ",
+        length(r.steps),
+        " route(s), spread ",
+        r.spread,
+    )
+end
+
+"""
+    consistency_report(data::NamedTuple; atol = 0, rtol = 1e-8, domain = nothing)
+        -> Vector{ConsistencyRow}
+
+Hold out each variable of `data` in turn and solve for it by every relation that
+reaches it from the rest, then report whether those answers agree with each other
+and with the value held out.
+
+The registry is a set of exact identities, so a variable two of them both reach
+must come back the same both ways and equal to what was removed. Where it does
+not, one of the identities is wrong, and the row names every route so the odd one
+out is visible. Nothing is hand-picked: the routes come from
+[`derivation_steps`](@ref), the enumeration [`derive`](@ref) walks, and a step
+non-affine in its target or otherwise refused drops out rather than being
+counted, so a route appears only if it computes.
+
+One step deep, from the remaining knowns. Chaining would compare a derived number
+against another derived number, where a disagreement no longer names the relation
+that caused it.
+
+`domain` restricts which relations may be used, as in [`relation_report`](@ref).
+That is the knob that makes this usable where a variable NAME is shared by
+relations describing different systems: `S` means a ring's block in one relation
+and an open chain's end block in another, and a caller holding one number cannot
+satisfy both. Scope to the family whose names mean one thing, or supply data for
+one geometry only.
+
+Agreement is `spread <= max(atol, rtol * scale)` with `scale` the largest
+magnitude present, so `rtol` reads as a relative tolerance on the answer.
+
+```julia
+ising2d = (; α=0//1, β=1//8, γ=7//4, δ=15//1, ν=1//1, η=1//4, d=2//1)
+all(r -> r.agree, consistency_report(ising2d; domain=:scaling))
+```
+"""
+function consistency_report(
+    data::NamedTuple; atol=0, rtol=1e-8, domain::Union{Nothing,Symbol}=nothing
+)
+    out = ConsistencyRow[]
+    steps = derivation_steps()
+    domain === nothing ||
+        (steps = filter(st -> AbstractQAtlas.domain(st.relation) === domain, steps))
+    for target in keys(data)
+        known = Dict{Symbol,Any}(k => v for (k, v) in pairs(data) if k !== target)
+        got = Tuple{DerivationStep,Any}[]
+        for st in steps
+            st.output === target || continue
+            v = _try_step(st, known)
+            v === nothing && continue
+            push!(got, (st, v))
+        end
+        isempty(got) && continue
+        vals = [v for (_, v) in got]
+        all(v -> v isa Number, vals) && data[target] isa Number || continue
+        everything = vcat(float.(real.(vals)), float(real(data[target])))
+        spread = maximum(everything) - minimum(everything)
+        tol = max(atol, rtol * maximum(abs, everything))
+        push!(
+            out,
+            ConsistencyRow(
+                target, data[target], [st for (st, _) in got], vals, spread, spread <= tol
+            ),
+        )
+    end
+    return out
+end
+export consistency_report
+
+"""
+    consistent(data::NamedTuple; atol = 0, rtol = 1e-8, domain = nothing) -> Bool
+
+Whether every row of [`consistency_report`](@ref) agrees. `true` when no variable
+is reachable at all, which is vacuous rather than a pass; read the report when
+that matters.
+"""
+function consistent(data::NamedTuple; atol=0, rtol=1e-8, domain=nothing)
+    return all(r -> r.agree, consistency_report(data; atol=atol, rtol=rtol, domain=domain))
+end
+export consistent
