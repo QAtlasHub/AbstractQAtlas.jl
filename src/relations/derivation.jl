@@ -511,7 +511,7 @@ function _families_satisfied(got, held, atol, rtol)
         # Per route, against its own scale and the held value's. A row-wide scale would
         # let one wild route widen the tolerance for every other route competing for the
         # same target, so a large `z` feeding one candidate could excuse an unrelated
-        # wrong one. MEASURED, before this was per route.
+        # wrong one.
         # `abs` of a complex difference, not of the real parts: the Keldysh identities
         # are statements about the imaginary part alone, and `GA = conj(GR)` cannot be
         # told from `GA = GR` by a real comparison. Non-finite scales are dropped, or
