@@ -547,6 +547,53 @@ end
     @test Set(kinds) == Set([:CFTEntanglementPBC, :InfiniteRandomnessEntanglementPBC])
 end
 
+@testset "the scaling function is checked against what Eq. (24) says it is" begin
+    # `f` reaches the relation as a number, so the relation can only ask that it be
+    # positive. The callable is visible here, and Eq. (24) states it through an
+    # expansion, `f(v) = Σₖ Aₖ sin((2k-1)πv)` under `Σₖ Aₖ(2k-1)π = 1`, from which
+    # two properties follow without knowing a single coefficient.
+    c̃, c₁′, N = log(2) / 2, 0.31, 1024
+    conf(v) = sin(π * v) / π
+    S̄(ℓ) = (c̃ / 3) * log(N * conf(ℓ / N)) + c₁′
+    b = bag(entanglement_entropy(Region(1:300...)) => S̄(300), EffectiveCentralCharge => c̃)
+    call(g) = finite_size_entropy_report(b, PBC(N); c₁=0.0, f=g, c₁′=c₁′, atol=1e-12)
+
+    # The point of Eq. (24) is that the random ring is NOT the conformal one, and the
+    # difference is the higher harmonics. So the check has to admit them: a two-term
+    # f, normalised the same way, is exactly as legitimate and must pass. A check
+    # that only accepted `sin(πv)/π` would refuse the physics it exists for.
+    two(v) = (1 / π - 0.06) * sin(π * v) + 0.02 * sin(3π * v)
+    @test isapprox(two(1e-5) / 1e-5, 1; atol=1e-6)      # the normalisation, restated
+    @test !isapprox(two(0.3), conf(0.3); rtol=1e-3)     # and it really is a different f
+    @test length(call(two)) == 1                        # accepted, and the row is real
+    @test !only(call(two)).pass                         # against an entropy built on `conf`
+
+    # Every basis function is symmetric about v = 1/2, so an admissible f is. An
+    # asymmetric one is not in the family and is refused rather than scored.
+    @test_throws "not reflection symmetric" call(v -> sin(π * v) / π + 0.05 * v)
+
+    # `Σₖ Aₖ(2k-1)π = 1` IS `f'(0) = 1`. Off by a constant, `ln[L f]` shifts by `ln`
+    # of it, which is absorbed by `c₁′` rather than showing up as a failure: the
+    # wrong f would be reported as a pass with a wrong constant.
+    @test_throws "f(v)/v" call(v -> sin(π * v))         # the chord, missing the 1/π
+    @test_throws "f(v)/v" call(v -> 2 * sin(π * v) / π)
+
+    # It refuses only where it is read. An `f` no row consumes changes nothing, and
+    # refusing it would be refusing an argument for being present.
+    open_chain = bag(
+        entanglement_entropy(Region(1:300...)) => 1.0, EffectiveCentralCharge => c̃
+    )
+    @test isempty(
+        finite_size_entropy_report(
+            open_chain, OBC(N); c₁=0.0, f=v -> -1.0, c₁′=c₁′, atol=1e-12
+        ),
+    )
+    clean = bag(entanglement_entropy(Region(1:300...)) => 1.0, CentralCharge => 0.5)
+    @test length(
+        finite_size_entropy_report(clean, PBC(N); c₁=0.0, f=v -> -1.0, atol=1e-12)
+    ) == 1
+end
+
 @testset "an infinite chain gives the slope relations their derivative exactly" begin
     c, c₁ = 0.5, 0.4785
     S(ℓ) = (c / 3) * log(ℓ) + c₁

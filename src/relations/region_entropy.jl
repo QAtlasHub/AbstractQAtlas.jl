@@ -449,6 +449,38 @@ b = bag(entanglement_entropy(Region(1:32...)) => 1.06, CentralCharge => 0.5)
 finite_size_entropy_report(b, PBC(64); c₁=0.4785)
 ```
 """
+# Eq. (24) states `f` through its expansion, `f(v) = Σₖ Aₖ sin((2k-1)πv)` under
+# `Σₖ Aₖ(2k-1)π = 1`, and two properties follow from that alone. Every basis
+# function is symmetric about `v = 1/2`, since `sin((2k-1)π(1-v)) = sin((2k-1)πv)`
+# for odd `2k-1`, so any admissible `f` is; and the normalisation IS `f'(0) = 1`,
+# which is what `f(v) → v` means. Neither needs the coefficients, so a caller who
+# passes the chord itself, or one normalised to something else, is caught here
+# rather than reported as a failing row against a correct entropy.
+#
+# The form of `f` is NOT checked: the higher harmonics are the difference between
+# this and the conformal case, and no oracle here can see them.
+function _check_scaling_function(f)
+    for v in (0.1, 0.25, 0.4)
+        a, m = f(v), f(1 - v)
+        isapprox(a, m; rtol=1e-8, atol=1e-12) || error(
+            "finite_size_entropy_report: the scaling function is not reflection " *
+            "symmetric, f($v) = $a but f($(1 - v)) = $m. Eq. (24) expands it in " *
+            "sin((2k-1)πv), and every one of those is symmetric about v = 1/2, so " *
+            "an asymmetric f is not in the family the relation is about.",
+        )
+    end
+    v = 1e-5
+    slope = f(v) / v
+    isapprox(slope, 1; atol=1e-6) || error(
+        "finite_size_entropy_report: the scaling function has f(v)/v → $slope, not " *
+        "1. Eq. (24) normalises it by Σₖ Aₖ(2k-1)π = 1, which is f'(0) = 1, so an f " *
+        "off by a constant shifts ln[L f] by ln of that constant and lands in c₁′ " *
+        "instead of failing. Passing the chord (L/π)sin(πℓ/L) itself is the common " *
+        "way in: f is the dimensionless sin(πv)/π.",
+    )
+    return nothing
+end
+
 function finite_size_entropy_report(
     b::Bag, bc::BoundaryCondition; c₁::Real, ln_g::Real=0, f=nothing, c₁′::Real=0, atol=1e-8
 )
@@ -466,6 +498,9 @@ function finite_size_entropy_report(
     c̃ = get(b, VariableKey(EffectiveCentralCharge), nothing)
     ξ = get(b, VariableKey(CorrelationLength), nothing)
     (c === nothing && c̃ === nothing) && return out
+    # Only when it will actually be read: validating an `f` that no row consumes
+    # would refuse an argument that changes nothing.
+    c̃ !== nothing && f !== nothing && bc isa PBC && _check_scaling_function(f)
     for pair in sort!(collect(ents); by=p -> (length(p.first), repr(p.first)))
         A, S = pair.first, pair.second
         (isempty(A) || !(eltype(A.sites) <: Integer) || eltype(A.sites) === Bool) &&
