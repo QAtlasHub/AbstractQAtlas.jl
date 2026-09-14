@@ -157,14 +157,10 @@ exponent is derived by [`critical_exponents`](@ref).
     at construction rather than one per call, and at an infinite-randomness fixed
     point there is no finite `d + z` to confuse it with anyway.
 
-    The hazard is not hypothetical and it has an address.  For this same class,
-    QAtlas reads the effective central charge as
-    `fetch(Universality(:IsingSDRG), CentralCharge(); d = 2)`, which refuses any
-    other `d`, because there `d` is the 1+1D CFT's dimension.  A consumer who
-    carries that `d` straight here is the case above.  Note also that the value
-    comes back under `CentralCharge` although it is the effective one, so the
-    quantity this package keeps separate as [`EffectiveCentralCharge`](@ref) is
-    not separate on that side either.  Tracked as #157.
+    Concretely: `fetch(Universality(:IsingSDRG), CentralCharge(); d = 2)` in QAtlas
+    refuses any other `d`, `d` being the CFT's dimension there, and returns the
+    EFFECTIVE charge under `CentralCharge`.  Carrying either number straight here is
+    the case above.  Tracked as #157.
 
 Arguments are promoted to a common type; pass `Rational`s where the values are
 rational.  `ψ ≤ 0` is refused rather than accepted: it names a conventional

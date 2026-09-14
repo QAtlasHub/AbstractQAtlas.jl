@@ -502,9 +502,7 @@ end
 end
 
 @testset "the chord slope is in domain over the whole chain and ln ℓ is not" begin
-    # `CFTEntanglementSlope` carries no `L`, so nothing tells a caller how large `ℓ`
-    # may be, and out of range it returns a number rather than refusing. Exactly on
-    # the ED ground state of the critical uniform chain, block at an open end.
+    # Exact ED ground state of the critical uniform chain, block at an open end.
     function fitslope(xs, ys)
         x̄, ȳ = sum(xs) / length(xs), sum(ys) / length(ys)
         return sum((xs .- x̄) .* (ys .- ȳ)) / sum((xs .- x̄) .^ 2)
@@ -546,10 +544,8 @@ end
     # The chord form is in domain over the same whole chain.
     @test isapprox(s128.chord_full, ncuts * c / 6; atol=0.01)
 
-    # And the two errors are different KINDS, which one ratio cannot show and two can.
-    # An open chain's leading finite-size correction goes as 1/L, so the chord error
-    # should fall by about a half per doubling and keep doing it; a wrong law has no
-    # reason to move at all. A threshold could not separate those.
+    # Two ratios, not one: a 1/L correction halves per doubling and keeps doing it,
+    # a wrong law does not move. A threshold cannot separate those.
     e = [abs(s.chord_full - c / 6) for s in (s64, s128, s256)]
     @test e[2] < 0.6 * e[1]
     @test e[3] < 0.6 * e[2]
@@ -566,8 +562,8 @@ end
         c;
         atol=0.06,
     )
-    # The limit claim, exercised rather than asserted: restricted to ℓ ≪ L the two
-    # abscissas coincide, so the same data gives both relations the same slope.
+    # The limit: for ℓ ≪ L the two abscissas coincide, so one dataset gives both
+    # relations the same charge.
     @test isapprox(s128.plain_near, s128.chord_near; rtol=0.05)
     @test isapprox(
         solve(CFTEntanglementSlope(), Val(:c); dS_dlogℓ=s128.plain_near, ncuts=ncuts),
@@ -577,8 +573,7 @@ end
         rtol=0.05,
     )
 
-    # A region with no cuts has no slope, and the residual would not depend on `c` at
-    # all, so both refuse rather than passing for every central charge.
+    # With no cuts the residual does not depend on `c`, so both refuse.
     @test_throws "ncuts = 0" residual(
         CFTEntanglementChordSlope(); dS_dlogchord=0.0, c=9.9, ncuts=0
     )

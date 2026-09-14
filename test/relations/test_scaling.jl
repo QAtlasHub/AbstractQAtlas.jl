@@ -639,15 +639,12 @@ end
 end
 
 @testset "the two critical correlation probes are separate statements" begin
-    # `x_m` and `ψ` are what a ground state actually yields, through the correlation
-    # function at criticality as a function of DISTANCE. That is a third scale: not
-    # `L`, which `ActivatedFiniteSizeScaling` is about, and not `ξ`, which diverges
-    # at criticality and constrains nothing there.
+    # What a ground state yields: the correlation function at criticality against
+    # distance, which is a third scale, neither `L` nor the divergent `ξ`.
     x_m = (3 - sqrt(5)) / 4          # the golden-mean IRFP value, IgloiMonthus2005
     ψ = 1 / 2
 
-    # Exact on a pure power law: the relation IS the slope, so this pins the
-    # arithmetic and the sign, and the anchor is the literature value.
+    # The anchor is the literature value; these pin the sign and the factor 2.
     @test solve(CriticalCorrelationDecay(), Val(:x_m); dlogC_dlogr=-2 * x_m) ≈ x_m
     @test solve(CriticalCorrelationDecay(), Val(:dlogC_dlogr); x_m=x_m) ≈ -2 * x_m
     @test check(CriticalCorrelationDecay(); dlogC_dlogr=-0.38197, x_m=x_m, atol=1e-5)
@@ -667,23 +664,19 @@ end
     # trip it and should arrive with this line removed.
     @test r > 0.5σ
 
-    # The typical probe is worse conditioned and the numbers say so: the uncorrected
-    # slope sits three of its own errors ABOVE 1/2, where the average probe's is
-    # already within one of -2x_m. Signed and stated as the ratio, so a sign flip in
-    # the relation cannot satisfy it the way a bare magnitude bound can.
+    # Signed and as a ratio, so a sign flip cannot satisfy it the way a magnitude
+    # bound can: the uncorrected typical slope is three of its own errors ABOVE 1/2.
     @test residual(ActivatedCriticalCorrelation(); dloglogC_dlogr=0.56, ψ=ψ) / 0.02 ≈ 3.0 atol =
         0.05
 
-    # They read different exponents off the same ground state and cannot substitute
-    # for each other, which is why there are two relations rather than one.
+    # Different exponents off one ground state, so neither substitutes for the other.
     @test variable_types(CriticalCorrelationDecay()) == (ScalingDimension,)
     @test variable_types(ActivatedCriticalCorrelation()) == (ActivatedExponent,)
     @test isdisjoint(
         variables(CriticalCorrelationDecay()), variables(ActivatedCriticalCorrelation())
     )
 
-    # And they are split by reduction the way the autocorrelations beside them are, so
-    # the average and the typical reading cannot meet at one node.
+    # Split by reduction, so the two readings cannot meet at one node.
     @test also_constrains(CriticalCorrelationDecay()) ==
         (DisorderAveraged{ConnectedSpinCorrelation},)
     @test also_constrains(ActivatedCriticalCorrelation()) ==

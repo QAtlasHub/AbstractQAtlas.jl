@@ -185,37 +185,18 @@ magnetization, both in §4.1 and both stated for free boundary conditions.
 """
     CriticalCorrelationDecay <: AbstractRelation
 
-The AVERAGE correlation at criticality against DISTANCE.  The scaling law is
-[IgloiMonthus2005](@cite) Eq. (A.6), `C(r) = b^{-2x_m} C(r/b)`, stated for a
-critical point generally; §A.3 carries it to an infinite-randomness one, where
-the average is dominated by rare pairs and the same conclusion holds:
+`⟨C(r)⟩ ∼ r^{-2 x_m}`, so `d ln⟨C⟩/d ln r = -2 x_m` ([IgloiMonthus2005](@cite),
+Eq. (A.6); §A.3 carries it to an infinite-randomness point, where the average is
+dominated by rare pairs).
 
-`⟨C(r)⟩ ∼ r^{-2 x_m}`,  so  `d ln⟨C⟩/d ln r = -2 x_m`.
+The AVERAGE correlation.  Not interchangeable with
+[`ActivatedCriticalCorrelation`](@ref), the typical one: the correlation function is
+non-self-averaging here, so the two read different exponents off one ground state.
 
-A third scale, and a third statement.  [`ActivatedFiniteSizeScaling`](@ref) is
-about the system size `L` and [`ActivatedDynamicalScaling`](@ref) about the
-correlation length `ξ`, and the argument that keeps those apart, that `ξ`
-diverges at criticality and constrains nothing there while `L` is the only scale
-left, applies again: the distance `r` inside a large system at `δ = 0` is neither.
+Distance is a third scale, neither the `L` of [`ActivatedFiniteSizeScaling`](@ref)
+nor the `ξ` of [`ActivatedDynamicalScaling`](@ref), which diverges at criticality.
 
-This is the clean probe of the two.  MEASURED on exact free-fermion ground states
-of the critical random chain, pairs at the centre, `r = 2…128`, fitted with the
-correction term left open rather than chosen:
-
-| L | samples | no correction | with `1/ln r` | with `r^{-1/2}` |
-|---|---|---|---|---|
-| 256 | 800 | -0.3774(186) | -0.4148(326) | -0.4813(633) |
-| 512 | 500 | -0.4029(204) | -0.4123(362) | -0.4101(673) |
-| 1024 | 200 | -0.4062(304) | -0.3935(523) | -0.3438(1018) |
-
-against `-2 x_m = -(3 - √5)/2 = -0.38197`, the random transverse-field Ising
-chain's value, which follows from that source's `β = (3 - √5)/2` and `ν = 2`.
-Eight of the nine entries sit within 1.03 of their own quoted error; the ninth,
-`L = 256` under `r^{-1/2}`, is 1.57 away and is the noisiest column at the
-smallest size.  So the uncorrected fit is already consistent and a correction buys
-nothing, which is not true of [`ActivatedCriticalCorrelation`](@ref).
-
-Variables: `dlogC_dlogr` (caller-computed slope of `ln⟨C⟩` against `ln r`), `x_m`.
+Variables: `dlogC_dlogr` (caller-computed), `x_m`.
 """
 @relation :scaling CriticalCorrelationDecay(dlogC_dlogr, x_m::ScalingDimension) =
     dlogC_dlogr + 2 * x_m
@@ -223,27 +204,15 @@ Variables: `dlogC_dlogr` (caller-computed slope of `ln⟨C⟩` against `ln r`), 
 """
     ActivatedCriticalCorrelation <: AbstractRelation
 
-The TYPICAL correlation at criticality against distance, which is a stretched
-exponential rather than a power.  [IgloiMonthus2005](@cite) Eq. (6.26) derives it
-for the random singlet phase, `-ln C_typ(r) ∼ ln Ω_L ∼ r^{1/2}`, where the
-exponent is `ψ = 1/2`; written with `ψ` it is the infinite-randomness statement:
+`exp⟨ln|C(r)|⟩ ∼ exp(-a r^ψ)`, so `d ln(-⟨ln|C|⟩)/d ln r = ψ`
+([IgloiMonthus2005](@cite), Eq. (6.26), derived there for the random singlet phase
+where `ψ = 1/2`).
 
-`exp⟨ln|C(r)|⟩ ∼ exp(-a r^ψ)`,  so  `d ln(-⟨ln|C|⟩)/d ln r = ψ`.
+The TYPICAL correlation, and the worse-conditioned of the two probes: on the same
+chains its uncorrected slope sits three of its own errors above `1/2` where
+[`CriticalCorrelationDecay`](@ref)'s is already within one.
 
-The same `ψ` as [`ActivatedFiniteSizeScaling`](@ref) and
-[`ActivatedDynamicalScaling`](@ref), read off a third scale.  The typical and the
-average correlation are different probes of the fixed point rather than two routes
-to one number, which is why both relations exist.
-
-Worse conditioned than [`CriticalCorrelationDecay`](@ref) on the same chains: its
-uncorrected slope sits about three of its own errors above `1/2`, where the
-average probe's is already within one.  The average correlation is
-non-self-averaging from the typical one (the source's own conclusion below
-Eq. 6.26), so these are two probes of the fixed point and not two routes to one
-number.
-
-Variables: `dloglogC_dlogr` (caller-computed slope of `ln(-⟨ln|C|⟩)` against
-`ln r`), `ψ`.
+Variables: `dloglogC_dlogr` (caller-computed), `ψ`.
 """
 @relation :scaling ActivatedCriticalCorrelation(dloglogC_dlogr, ψ::ActivatedExponent) =
     dloglogC_dlogr - ψ
