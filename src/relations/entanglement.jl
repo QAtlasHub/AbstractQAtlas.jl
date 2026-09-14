@@ -69,6 +69,39 @@ derivative, hence [`also_constrains`](@ref).  `ncuts` has no default:
     dS_dlogℓ - ncuts * c / 6
 
 """
+    CFTEntanglementChordSlope <: AbstractRelation
+
+The same slope on a FINITE chain, taken against the chord rather than the
+distance (Calabrese & Cardy, [CalabreseCardy2004](@cite)):
+
+`dS/d(ln[(L/π) sin(πℓ/L)]) = ncuts · c/6`.
+
+[`CFTEntanglementSlope`](@ref) has no `L` and so no way to say how large `ℓ` may
+be, and the answer degrades smoothly rather than refusing: at `ℓ → L` the block's
+complement is a few sites and purity alone caps `S`, so the quantity has stopped
+being a bulk block entropy and no `ncuts` is right for it.  MEASURED on exact
+free-fermion ground states of the critical uniform chain, block at an open end,
+`ncuts = 1`, so `c/6 = 0.08333`:
+
+| L | against `ln ℓ`, whole chain | against `ln[chord]`, whole chain |
+|---|---|---|
+| 64 | 0.03495 | 0.08941 |
+| 128 | 0.03332 | 0.08663 |
+| 256 | 0.03308 | 0.08502 |
+
+The chord column halves its error each time `L` doubles; the other column does not
+move, because it is not a finite-size correction but a different law.  Restricted
+to `ℓ ≤ L/4` the two agree, which is the regime [`CFTEntanglementSlope`](@ref) is
+for and does not state.
+
+Reduces to it as `ℓ/L → 0`, the chord tending to `ℓ`, so this is the general form
+and that one the limit.  Variables: `dS_dlogchord` (caller-computed slope against
+`ln[(L/π) sin(πℓ/L)]`), `c`, `ncuts`.
+"""
+@relation :entanglement CFTEntanglementChordSlope(dS_dlogchord, c::CentralCharge, ncuts) =
+    dS_dlogchord - ncuts * c / 6
+
+"""
     InfiniteRandomnessEntanglementSlope <: AbstractRelation
 
 The same logarithmic growth at a **one-dimensional** infinite-randomness fixed

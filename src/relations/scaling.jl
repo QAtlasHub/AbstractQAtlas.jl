@@ -183,6 +183,63 @@ magnetization, both in §4.1 and both stated for free boundary conditions.
     dloglogO_dlogL - ψ
 
 """
+    CriticalCorrelationDecay <: AbstractRelation
+
+The AVERAGE correlation at criticality against DISTANCE
+([IgloiMonthus2005](@cite), §A.3):
+
+`⟨C(r)⟩ ∼ r^{-2 x_m}`,  so  `d ln⟨C⟩/d ln r = -2 x_m`.
+
+A third scale, and a third statement.  [`ActivatedFiniteSizeScaling`](@ref) is
+about the system size `L` and [`ActivatedDynamicalScaling`](@ref) about the
+correlation length `ξ`, and the argument that keeps those apart, that `ξ`
+diverges at criticality and constrains nothing there while `L` is the only scale
+left, applies again: the distance `r` inside a large system at `δ = 0` is neither.
+
+This is the clean probe of the two.  MEASURED on exact free-fermion ground states
+of the critical random chain, pairs at the centre, `r = 2…128`, fitted with the
+correction term left open rather than chosen:
+
+| L | samples | no correction | with `1/ln r` | with `r^{-1/2}` |
+|---|---|---|---|---|
+| 256 | 800 | -0.3774(186) | -0.4148(326) | -0.4813(633) |
+| 512 | 500 | -0.4029(204) | -0.4123(362) | -0.4101(673) |
+| 1024 | 200 | -0.4062(304) | -0.3935(523) | -0.3438(1018) |
+
+against `-2 x_m = -(3 - √5)/2 = -0.38197`: consistent at every `L`, with a
+correction coefficient small and not keeping its sign, so no correction is needed.
+[`ActivatedCriticalCorrelation`](@ref), the typical one, is not that clean.
+
+Variables: `dlogC_dlogr` (caller-computed slope of `ln⟨C⟩` against `ln r`), `x_m`.
+"""
+@relation :scaling CriticalCorrelationDecay(dlogC_dlogr, x_m::ScalingDimension) =
+    dlogC_dlogr + 2 * x_m
+
+"""
+    ActivatedCriticalCorrelation <: AbstractRelation
+
+The TYPICAL correlation at criticality against distance, which is a stretched
+exponential rather than a power ([IgloiMonthus2005](@cite), §A.3):
+
+`exp⟨ln|C(r)|⟩ ∼ exp(-a r^ψ)`,  so  `d ln(-⟨ln|C|⟩)/d ln r = ψ`.
+
+The same `ψ` as [`ActivatedFiniteSizeScaling`](@ref) and
+[`ActivatedDynamicalScaling`](@ref), read off a third scale.  The typical and the
+average correlation are different probes of the fixed point rather than two routes
+to one number, which is why both relations exist.
+
+Worse conditioned than [`CriticalCorrelationDecay`](@ref), and the docstring says
+so because the numbers do: the same chains put `ψ` near `1/2` only once a
+correction is allowed, 0.47 to 0.56 across three correction forms, with the
+uncorrected slope about 3σ high and not moving toward `1/2` with `L`.
+
+Variables: `dloglogC_dlogr` (caller-computed slope of `ln(-⟨ln|C|⟩)` against
+`ln r`), `ψ`.
+"""
+@relation :scaling ActivatedCriticalCorrelation(dloglogC_dlogr, ψ::ActivatedExponent) =
+    dloglogC_dlogr - ψ
+
+"""
     TypicalCorrelationLength <: AbstractRelation
 
 At an infinite-randomness fixed point the typical correlation length is an

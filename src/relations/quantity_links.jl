@@ -27,7 +27,8 @@ also_constrains(::ParticleNumberResponse) = (GrandPotential,)  # grand-canonical
 also_constrains(::StaticFromDynamicalStructureFactor) = (DynamicalStructureFactor,)  # Sq = ∫S(q,ω)dω/2π (supplied)
 also_constrains(::ChernFromBerryCurvature) = (BerryCurvature,)  # topology: C = ∫Ω d²k/2π (supplied integral)
 also_constrains(::CFTEntanglementInfinite) = (VonNeumannEntropy,)  # the L→∞ sibling
-also_constrains(::CFTEntanglementSlope) = (VonNeumannEntropy,)  # entanglement: dS/d(ln ℓ) (supplied derivative)
+also_constrains(::CFTEntanglementSlope) = (VonNeumannEntropy,)
+also_constrains(::CFTEntanglementChordSlope) = (VonNeumannEntropy,)  # the finite-chain twin
 also_constrains(::CFTEntanglementPBC) = (VonNeumannEntropy,)   # entanglement: S(ℓ) on a ring
 also_constrains(::CFTEntanglementOBC) = (VonNeumannEntropy,)   # entanglement: S(ℓ) at an open end
 function also_constrains(::OffCriticalEntanglementSaturation)

@@ -157,6 +157,14 @@ exponent is derived by [`critical_exponents`](@ref).
     at construction rather than one per call, and at an infinite-randomness fixed
     point there is no finite `d + z` to confuse it with anyway.
 
+    The hazard is not hypothetical and it has an address.  For this same class,
+    QAtlas reads the effective central charge as
+    `fetch(Universality{:IsingSDRG}, CentralCharge(); d = 2)`, and `2` is the only
+    value that lookup takes, because there `d` is the 1+1D CFT's dimension.  A
+    consumer who carries that `d` straight here is the case above.  The two are
+    different variables wearing one letter, and nothing at either call site says
+    so, which is tracked as QAtlasHub/AbstractQAtlas.jl#157.
+
 Arguments are promoted to a common type; pass `Rational`s where the values are
 rational.  `ψ ≤ 0` is refused rather than accepted: it names a conventional
 fixed point, which is [`ScalingDimensions`](@ref)'s job, and it would divide by

@@ -503,6 +503,91 @@ end
     @test abs(wrong(64) - c₁_source) > 0.1
 end
 
+@testset "the chord slope is in domain over the whole chain and ln ℓ is not" begin
+    # `CFTEntanglementSlope` carries no `L`, so nothing tells a caller how large `ℓ`
+    # may be, and out of range it returns a number rather than refusing. Exactly on
+    # the ED ground state of the critical uniform chain, block at an open end.
+    function covariance(N)
+        A = zeros(2N, 2N)
+        for j in 1:N
+            A[2j - 1, 2j] = -2.0
+        end
+        for j in 1:(N - 1)
+            A[2j, 2j + 1] = -2.0
+        end
+        A = A - transpose(A)
+        F = svd(A)
+        Γ = F.U * F.Vt
+        return (Γ .- transpose(Γ)) ./ 2
+    end
+    function ed_entropy(Γ, sites)
+        idx = vcat(([2j - 1, 2j] for j in sites)...)
+        ν = eigvals(Hermitian(im .* Γ[idx, idx]))
+        return free_fermion_entanglement_entropy([
+            (1 + real(x)) / 2 for x in ν if real(x) > 0
+        ])
+    end
+    function fitslope(xs, ys)
+        x̄, ȳ = sum(xs) / length(xs), sum(ys) / length(ys)
+        return sum((xs .- x̄) .* (ys .- ȳ)) / sum((xs .- x̄) .^ 2)
+    end
+    c, ncuts = 1 / 2, 1
+
+    function slopes(N)
+        Γ = covariance(N)
+        ls = filter(
+            l -> 2 <= l <= N - 2,
+            unique(
+                round.(
+                    Int,
+                    N .* [0.03, 0.05, 0.08, 0.12, 0.19, 0.3, 0.45, 0.6, 0.75, 0.88, 0.95],
+                ),
+            ),
+        )
+        ys = [ed_entropy(Γ, 1:l) for l in ls]
+        chord = [(N / π) * sin(π * l / N) for l in ls]
+        near = filter(l -> l <= N ÷ 4, ls)
+        yn = [ed_entropy(Γ, 1:l) for l in near]
+        return (
+            plain_full=fitslope(log.(ls), ys),
+            chord_full=fitslope(log.(chord), ys),
+            plain_near=fitslope(log.(near), yn),
+        )
+    end
+    s64, s128 = slopes(64), slopes(128)
+
+    # In the regime the present relation is for, it is right.
+    @test isapprox(s128.plain_near, ncuts * c / 6; atol=0.005)
+
+    # Over the whole chain it is not, and by a lot: the block's complement is a few
+    # sites, purity caps `S`, and no `ncuts` describes that.
+    @test abs(s128.plain_full - ncuts * c / 6) > 0.04
+
+    # The chord form is in domain over the same whole chain.
+    @test isapprox(s128.chord_full, ncuts * c / 6; atol=0.01)
+
+    # And the two errors are different KINDS. The chord's halves when L doubles, so it
+    # is a finite-size correction; the other does not move, so it is a wrong law. A
+    # threshold alone could not tell those apart.
+    e64, e128 = abs(s64.chord_full - c / 6), abs(s128.chord_full - c / 6)
+    @test e128 < 0.6 * e64
+    p64, p128 = abs(s64.plain_full - c / 6), abs(s128.plain_full - c / 6)
+    @test p128 > 0.9 * p64
+
+    # The relation itself: the chord slope reads the central charge back.
+    @test isapprox(
+        solve(
+            CFTEntanglementChordSlope(), Val(:c); dS_dlogchord=s128.chord_full, ncuts=ncuts
+        ),
+        c;
+        atol=0.06,
+    )
+    # It is the general form and `CFTEntanglementSlope` the ℓ ≪ L limit, so on one
+    # number they agree exactly; what differs is which number the data gives them.
+    @test residual(CFTEntanglementChordSlope(); dS_dlogchord=c / 6, c=c, ncuts=1) ==
+        residual(CFTEntanglementSlope(); dS_dlogℓ=c / 6, c=c, ncuts=1)
+end
+
 @testset "every route from an entropy to c returns the same c" begin
     # `related_quantities(CentralCharge)` carries five distinct edges to
     # VonNeumannEntropy, so one measurement can be read for `c` five ways. Each was

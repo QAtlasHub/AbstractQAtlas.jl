@@ -637,3 +637,49 @@ end
         SpecificHeatExponent, CorrelationLengthExponent, SpatialDimension, DynamicalExponent
     )
 end
+
+@testset "the two critical correlation probes are separate statements" begin
+    # `x_m` and `ψ` are what a ground state actually yields, through the correlation
+    # function at criticality as a function of DISTANCE. That is a third scale: not
+    # `L`, which `ActivatedFiniteSizeScaling` is about, and not `ξ`, which diverges
+    # at criticality and constrains nothing there.
+    x_m = (3 - sqrt(5)) / 4          # the golden-mean IRFP value, IgloiMonthus2005
+    ψ = 1 / 2
+
+    # Exact on a pure power law: the relation IS the slope, so this pins the
+    # arithmetic and the sign, and the anchor is the literature value.
+    @test solve(CriticalCorrelationDecay(), Val(:x_m); dlogC_dlogr=-2 * x_m) ≈ x_m
+    @test solve(CriticalCorrelationDecay(), Val(:dlogC_dlogr); x_m=x_m) ≈ -2 * x_m
+    @test check(CriticalCorrelationDecay(); dlogC_dlogr=-0.38197, x_m=x_m, atol=1e-5)
+    @test !check(CriticalCorrelationDecay(); dlogC_dlogr=+2 * x_m, x_m=x_m, atol=1e-9)
+
+    @test solve(ActivatedCriticalCorrelation(), Val(:ψ); dloglogC_dlogr=ψ) ≈ ψ
+    @test check(ActivatedCriticalCorrelation(); dloglogC_dlogr=ψ, ψ=ψ, atol=1e-12)
+
+    # A measured slope from the issue that asked for these, L = 512 over 500 samples,
+    # stated in units of its own published error rather than a tolerance picked to
+    # pass: it sits about one standard error from the exact value.
+    measured, σ = -0.4029, 0.0204
+    @test abs(residual(CriticalCorrelationDecay(); dlogC_dlogr=measured, x_m=x_m)) < 1.5σ
+    @test abs(residual(CriticalCorrelationDecay(); dlogC_dlogr=measured, x_m=x_m)) > 0.5σ
+
+    # The typical probe is worse conditioned and the assertion says so: on the same
+    # chains an uncorrected slope sits about three of its own errors high, so it is
+    # NOT consistent with 1/2 the way the average probe is with -2x_m.
+    @test abs(residual(ActivatedCriticalCorrelation(); dloglogC_dlogr=0.56, ψ=ψ)) >
+        1.5 * 0.02
+
+    # They read different exponents off the same ground state and cannot substitute
+    # for each other, which is why there are two relations rather than one.
+    @test variable_types(CriticalCorrelationDecay()) == (ScalingDimension,)
+    @test variable_types(ActivatedCriticalCorrelation()) == (ActivatedExponent,)
+    @test isdisjoint(
+        Set(variables(CriticalCorrelationDecay())),
+        Set(variables(ActivatedCriticalCorrelation())),
+    )
+
+    # `ψ` is the same exponent the size and gap statements carry, reached from a
+    # third scale rather than being a fourth number.
+    @test ActivatedExponent in variable_types(ActivatedFiniteSizeScaling())
+    @test ActivatedExponent in variable_types(ActivatedDynamicalScaling())
+end
