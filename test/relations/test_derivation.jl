@@ -411,6 +411,14 @@ end
         filter(t -> t === nothing, last.(variable_slots(ActivatedMomentGrowth())))
     )
 
+    # A general law and its own restricted-domain limit must NOT be grouped. Every
+    # family above is a set of alternatives of which at most one holds; these two are
+    # both true, on different data, and `_families_satisfied` only needs one member of
+    # a family to agree. Grouping them would let the in-domain chord route excuse an
+    # out-of-domain plain-ℓ route rather than reporting the disagreement, which is the
+    # whole reason the chord relation exists.
+    @test law_family(CFTEntanglementSlope()) !== law_family(CFTEntanglementChordSlope())
+
     # And the exemplar stays split.
     @test OrderParameterExponent in variable_types(Rushbrooke())
     @test !(InverseTemperature in variable_types(Rushbrooke()))

@@ -453,6 +453,25 @@ end
     @test !any(r -> r isa CFTEntanglementSlope, applicable_relations(b_irfp; slope...))
 end
 
+function covariance(N)
+    A = zeros(2N, 2N)
+    for j in 1:N
+        A[2j - 1, 2j] = -2.0
+    end
+    for j in 1:(N - 1)
+        A[2j, 2j + 1] = -2.0
+    end
+    A = A - transpose(A)
+    F = svd(A)
+    Γ = F.U * F.Vt
+    return (Γ .- transpose(Γ)) ./ 2
+end
+function ed_entropy(Γ, sites)
+    idx = vcat(([2j - 1, 2j] for j in sites)...)
+    ν = eigvals(Hermitian(im .* Γ[idx, idx]))
+    return free_fermion_entanglement_entropy([(1 + real(x)) / 2 for x in ν if real(x) > 0])
+end
+
 @testset "the open-chain form against exact diagonalisation and a published constant" begin
     # The closed forms were otherwise checked only by retyping them in the test, so a
     # prefactor transcribed wrongly from the source would be transcribed wrongly here
@@ -461,27 +480,6 @@ end
     # constant it must reproduce is Iglói & Lin's own measured c₁.
     c = 1 / 2
     c₁_source = log(2) * 0.6904133      # Table 1, converted from their bits to nats
-
-    function covariance(N)
-        A = zeros(2N, 2N)
-        for j in 1:N
-            A[2j - 1, 2j] = -2.0
-        end
-        for j in 1:(N - 1)
-            A[2j, 2j + 1] = -2.0
-        end
-        A = A - transpose(A)
-        F = svd(A)
-        Γ = F.U * F.Vt
-        return (Γ .- transpose(Γ)) ./ 2
-    end
-    function ed_entropy(Γ, sites)
-        idx = vcat(([2j - 1, 2j] for j in sites)...)
-        ν = eigvals(Hermitian(im .* Γ[idx, idx]))
-        return free_fermion_entanglement_entropy([
-            (1 + real(x)) / 2 for x in ν if real(x) > 0
-        ])
-    end
 
     N = 256
     Γ = covariance(N)
@@ -507,26 +505,6 @@ end
     # `CFTEntanglementSlope` carries no `L`, so nothing tells a caller how large `ℓ`
     # may be, and out of range it returns a number rather than refusing. Exactly on
     # the ED ground state of the critical uniform chain, block at an open end.
-    function covariance(N)
-        A = zeros(2N, 2N)
-        for j in 1:N
-            A[2j - 1, 2j] = -2.0
-        end
-        for j in 1:(N - 1)
-            A[2j, 2j + 1] = -2.0
-        end
-        A = A - transpose(A)
-        F = svd(A)
-        Γ = F.U * F.Vt
-        return (Γ .- transpose(Γ)) ./ 2
-    end
-    function ed_entropy(Γ, sites)
-        idx = vcat(([2j - 1, 2j] for j in sites)...)
-        ν = eigvals(Hermitian(im .* Γ[idx, idx]))
-        return free_fermion_entanglement_entropy([
-            (1 + real(x)) / 2 for x in ν if real(x) > 0
-        ])
-    end
     function fitslope(xs, ys)
         x̄, ȳ = sum(xs) / length(xs), sum(ys) / length(ys)
         return sum((xs .- x̄) .* (ys .- ȳ)) / sum((xs .- x̄) .^ 2)
@@ -546,15 +524,17 @@ end
         )
         ys = [ed_entropy(Γ, 1:l) for l in ls]
         chord = [(N / π) * sin(π * l / N) for l in ls]
-        near = filter(l -> l <= N ÷ 4, ls)
-        yn = [ed_entropy(Γ, 1:l) for l in near]
+        idx = findall(l -> l <= N ÷ 4, ls)
+        near, yn = ls[idx], ys[idx]
+        cn = chord[idx]
         return (
             plain_full=fitslope(log.(ls), ys),
             chord_full=fitslope(log.(chord), ys),
             plain_near=fitslope(log.(near), yn),
+            chord_near=fitslope(log.(cn), yn),
         )
     end
-    s64, s128 = slopes(64), slopes(128)
+    s64, s128, s256 = slopes(64), slopes(128), slopes(256)
 
     # In the regime the present relation is for, it is right.
     @test isapprox(s128.plain_near, ncuts * c / 6; atol=0.005)
@@ -566,13 +546,17 @@ end
     # The chord form is in domain over the same whole chain.
     @test isapprox(s128.chord_full, ncuts * c / 6; atol=0.01)
 
-    # And the two errors are different KINDS. The chord's halves when L doubles, so it
-    # is a finite-size correction; the other does not move, so it is a wrong law. A
-    # threshold alone could not tell those apart.
-    e64, e128 = abs(s64.chord_full - c / 6), abs(s128.chord_full - c / 6)
-    @test e128 < 0.6 * e64
-    p64, p128 = abs(s64.plain_full - c / 6), abs(s128.plain_full - c / 6)
-    @test p128 > 0.9 * p64
+    # And the two errors are different KINDS, which one ratio cannot show and two can.
+    # An open chain's leading finite-size correction goes as 1/L, so the chord error
+    # should fall by about a half per doubling and keep doing it; a wrong law has no
+    # reason to move at all. A threshold could not separate those.
+    e = [abs(s.chord_full - c / 6) for s in (s64, s128, s256)]
+    @test e[2] < 0.6 * e[1]
+    @test e[3] < 0.6 * e[2]
+    @test e[3] < e[2] < e[1]
+    q = [abs(s.plain_full - c / 6) for s in (s64, s128, s256)]
+    @test q[2] > 0.9 * q[1]
+    @test q[3] > 0.9 * q[2]
 
     # The relation itself: the chord slope reads the central charge back.
     @test isapprox(
@@ -582,10 +566,23 @@ end
         c;
         atol=0.06,
     )
-    # It is the general form and `CFTEntanglementSlope` the ℓ ≪ L limit, so on one
-    # number they agree exactly; what differs is which number the data gives them.
-    @test residual(CFTEntanglementChordSlope(); dS_dlogchord=c / 6, c=c, ncuts=1) ==
-        residual(CFTEntanglementSlope(); dS_dlogℓ=c / 6, c=c, ncuts=1)
+    # The limit claim, exercised rather than asserted: restricted to ℓ ≪ L the two
+    # abscissas coincide, so the same data gives both relations the same slope.
+    @test isapprox(s128.plain_near, s128.chord_near; rtol=0.05)
+    @test isapprox(
+        solve(CFTEntanglementSlope(), Val(:c); dS_dlogℓ=s128.plain_near, ncuts=ncuts),
+        solve(
+            CFTEntanglementChordSlope(), Val(:c); dS_dlogchord=s128.chord_near, ncuts=ncuts
+        );
+        rtol=0.05,
+    )
+
+    # A region with no cuts has no slope, and the residual would not depend on `c` at
+    # all, so both refuse rather than passing for every central charge.
+    @test_throws "ncuts = 0" residual(
+        CFTEntanglementChordSlope(); dS_dlogchord=0.0, c=9.9, ncuts=0
+    )
+    @test_throws "ncuts = 0" residual(CFTEntanglementSlope(); dS_dlogℓ=0.0, c=9.9, ncuts=0)
 end
 
 @testset "every route from an entropy to c returns the same c" begin

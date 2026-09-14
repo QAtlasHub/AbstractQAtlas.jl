@@ -660,26 +660,34 @@ end
     # stated in units of its own published error rather than a tolerance picked to
     # pass: it sits about one standard error from the exact value.
     measured, σ = -0.4029, 0.0204
-    @test abs(residual(CriticalCorrelationDecay(); dlogC_dlogr=measured, x_m=x_m)) < 1.5σ
-    @test abs(residual(CriticalCorrelationDecay(); dlogC_dlogr=measured, x_m=x_m)) > 0.5σ
+    r = abs(residual(CriticalCorrelationDecay(); dlogC_dlogr=measured, x_m=x_m))
+    @test r < 1.5σ
+    # A guard on the literals above, not a floor on accuracy: it catches pasting the
+    # exact value in place of the measured one. A genuinely better measurement would
+    # trip it and should arrive with this line removed.
+    @test r > 0.5σ
 
-    # The typical probe is worse conditioned and the assertion says so: on the same
-    # chains an uncorrected slope sits about three of its own errors high, so it is
-    # NOT consistent with 1/2 the way the average probe is with -2x_m.
-    @test abs(residual(ActivatedCriticalCorrelation(); dloglogC_dlogr=0.56, ψ=ψ)) >
-        1.5 * 0.02
+    # The typical probe is worse conditioned and the numbers say so: the uncorrected
+    # slope sits three of its own errors ABOVE 1/2, where the average probe's is
+    # already within one of -2x_m. Signed and stated as the ratio, so a sign flip in
+    # the relation cannot satisfy it the way a bare magnitude bound can.
+    @test residual(ActivatedCriticalCorrelation(); dloglogC_dlogr=0.56, ψ=ψ) / 0.02 ≈ 3.0 atol =
+        0.05
 
     # They read different exponents off the same ground state and cannot substitute
     # for each other, which is why there are two relations rather than one.
     @test variable_types(CriticalCorrelationDecay()) == (ScalingDimension,)
     @test variable_types(ActivatedCriticalCorrelation()) == (ActivatedExponent,)
     @test isdisjoint(
-        Set(variables(CriticalCorrelationDecay())),
-        Set(variables(ActivatedCriticalCorrelation())),
+        variables(CriticalCorrelationDecay()), variables(ActivatedCriticalCorrelation())
     )
 
-    # `ψ` is the same exponent the size and gap statements carry, reached from a
-    # third scale rather than being a fourth number.
-    @test ActivatedExponent in variable_types(ActivatedFiniteSizeScaling())
-    @test ActivatedExponent in variable_types(ActivatedDynamicalScaling())
+    # And they are split by reduction the way the autocorrelations beside them are, so
+    # the average and the typical reading cannot meet at one node.
+    @test also_constrains(CriticalCorrelationDecay()) ==
+        (DisorderAveraged{ConnectedSpinCorrelation},)
+    @test also_constrains(ActivatedCriticalCorrelation()) ==
+        (Typical{ConnectedSpinCorrelation},)
+    @test CriticalCorrelationDecay() in
+        relations_constraining(DisorderAveraged{ConnectedSpinCorrelation})
 end

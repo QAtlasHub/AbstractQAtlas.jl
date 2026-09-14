@@ -27,8 +27,17 @@ also_constrains(::ParticleNumberResponse) = (GrandPotential,)  # grand-canonical
 also_constrains(::StaticFromDynamicalStructureFactor) = (DynamicalStructureFactor,)  # Sq = ∫S(q,ω)dω/2π (supplied)
 also_constrains(::ChernFromBerryCurvature) = (BerryCurvature,)  # topology: C = ∫Ω d²k/2π (supplied integral)
 also_constrains(::CFTEntanglementInfinite) = (VonNeumannEntropy,)  # the L→∞ sibling
-also_constrains(::CFTEntanglementSlope) = (VonNeumannEntropy,)
+also_constrains(::CFTEntanglementSlope) = (VonNeumannEntropy,)  # entanglement: dS/d(ln ℓ), supplied
 also_constrains(::CFTEntanglementChordSlope) = (VonNeumannEntropy,)  # the finite-chain twin
+# The spatial correlator's decay, so the subject is the two-point function itself, and
+# split by reduction for the same reason the autocorrelations above are: at an
+# infinite-randomness point the average is set by rare pairs and the typical is not.
+function also_constrains(::CriticalCorrelationDecay)
+    return (DisorderAveraged{ConnectedSpinCorrelation},)
+end
+function also_constrains(::ActivatedCriticalCorrelation)
+    return (Typical{ConnectedSpinCorrelation},)
+end
 also_constrains(::CFTEntanglementPBC) = (VonNeumannEntropy,)   # entanglement: S(ℓ) on a ring
 also_constrains(::CFTEntanglementOBC) = (VonNeumannEntropy,)   # entanglement: S(ℓ) at an open end
 function also_constrains(::OffCriticalEntanglementSaturation)

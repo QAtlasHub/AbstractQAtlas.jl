@@ -185,8 +185,10 @@ magnetization, both in §4.1 and both stated for free boundary conditions.
 """
     CriticalCorrelationDecay <: AbstractRelation
 
-The AVERAGE correlation at criticality against DISTANCE
-([IgloiMonthus2005](@cite), §A.3):
+The AVERAGE correlation at criticality against DISTANCE.  The scaling law is
+[IgloiMonthus2005](@cite) Eq. (A.6), `C(r) = b^{-2x_m} C(r/b)`, stated for a
+critical point generally; §A.3 carries it to an infinite-randomness one, where
+the average is dominated by rare pairs and the same conclusion holds:
 
 `⟨C(r)⟩ ∼ r^{-2 x_m}`,  so  `d ln⟨C⟩/d ln r = -2 x_m`.
 
@@ -206,9 +208,12 @@ correction term left open rather than chosen:
 | 512 | 500 | -0.4029(204) | -0.4123(362) | -0.4101(673) |
 | 1024 | 200 | -0.4062(304) | -0.3935(523) | -0.3438(1018) |
 
-against `-2 x_m = -(3 - √5)/2 = -0.38197`: consistent at every `L`, with a
-correction coefficient small and not keeping its sign, so no correction is needed.
-[`ActivatedCriticalCorrelation`](@ref), the typical one, is not that clean.
+against `-2 x_m = -(3 - √5)/2 = -0.38197`, the random transverse-field Ising
+chain's value, which follows from that source's `β = (3 - √5)/2` and `ν = 2`.
+Eight of the nine entries sit within 1.03 of their own quoted error; the ninth,
+`L = 256` under `r^{-1/2}`, is 1.57 away and is the noisiest column at the
+smallest size.  So the uncorrected fit is already consistent and a correction buys
+nothing, which is not true of [`ActivatedCriticalCorrelation`](@ref).
 
 Variables: `dlogC_dlogr` (caller-computed slope of `ln⟨C⟩` against `ln r`), `x_m`.
 """
@@ -219,7 +224,9 @@ Variables: `dlogC_dlogr` (caller-computed slope of `ln⟨C⟩` against `ln r`), 
     ActivatedCriticalCorrelation <: AbstractRelation
 
 The TYPICAL correlation at criticality against distance, which is a stretched
-exponential rather than a power ([IgloiMonthus2005](@cite), §A.3):
+exponential rather than a power.  [IgloiMonthus2005](@cite) Eq. (6.26) derives it
+for the random singlet phase, `-ln C_typ(r) ∼ ln Ω_L ∼ r^{1/2}`, where the
+exponent is `ψ = 1/2`; written with `ψ` it is the infinite-randomness statement:
 
 `exp⟨ln|C(r)|⟩ ∼ exp(-a r^ψ)`,  so  `d ln(-⟨ln|C|⟩)/d ln r = ψ`.
 
@@ -228,10 +235,12 @@ The same `ψ` as [`ActivatedFiniteSizeScaling`](@ref) and
 average correlation are different probes of the fixed point rather than two routes
 to one number, which is why both relations exist.
 
-Worse conditioned than [`CriticalCorrelationDecay`](@ref), and the docstring says
-so because the numbers do: the same chains put `ψ` near `1/2` only once a
-correction is allowed, 0.47 to 0.56 across three correction forms, with the
-uncorrected slope about 3σ high and not moving toward `1/2` with `L`.
+Worse conditioned than [`CriticalCorrelationDecay`](@ref) on the same chains: its
+uncorrected slope sits about three of its own errors above `1/2`, where the
+average probe's is already within one.  The average correlation is
+non-self-averaging from the typical one (the source's own conclusion below
+Eq. 6.26), so these are two probes of the fixed point and not two routes to one
+number.
 
 Variables: `dloglogC_dlogr` (caller-computed slope of `ln(-⟨ln|C|⟩)` against
 `ln r`), `ψ`.

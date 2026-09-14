@@ -15,6 +15,18 @@
 # relations and the Region-typed layer above them cannot drift apart.
 _chord(L, ℓ) = (L / π) * sin(π * ℓ / L)
 
+# A slope relation with no cuts constrains nothing: the residual is `slope - 0`, so
+# any central charge passes it. `entanglement_cuts` returns 0 for a whole ring, which
+# is a correct count and not a slope to take.
+function _require_cuts(what::Symbol, ncuts)
+    ncuts == 0 && error(
+        "$what: ncuts = 0 leaves the residual independent of the central charge, so " *
+        "the check would pass for any value of it. A region with no cuts has no " *
+        "entanglement to grow and no slope to read.",
+    )
+    return nothing
+end
+
 # `sin` is periodic, so an ℓ outside the chain does not merely give a wrong number:
 # ℓ = 250 on L = 100 returns exactly the ℓ = 50 answer. And ℓ = L is not caught by a
 # blow-up either, since `sin(float(π))` is 1.2e-16 rather than 0, which turns into a
@@ -42,33 +54,6 @@ Variables: `S2`, `purity`.
 @relation :entanglement RenyiTwoPurity(S2, purity) = S2 + log(purity)
 
 """
-    CFTEntanglementSlope <: AbstractRelation
-
-Logarithmic growth of a region's entanglement entropy in a 1D CFT, reading off
-the central charge (Calabrese & Cardy, [CalabreseCardy2004](@cite)):
-
-`dS/d(ln ℓ) = ncuts · c/6`.
-
-`ncuts` counts the cuts bounding the region — set by where it sits, not by the
-chain's boundary condition:
-
-| region | `ncuts` | |
-|---|---|---|
-| one interval on a ring | 2 | `c/3` |
-| block at an open end | 1 | `c/6` |
-| block in the bulk of an open chain | 2 | `c/3` |
-
-The last row is the one "OBC ⇒ `c/6`" gets wrong.
-
-Variables: `dS_dlogℓ` (caller-computed slope against `ln ℓ`), `c`, `ncuts`.
-`c` is the typed subject; [`VonNeumannEntropy`](@ref) arrives via the supplied
-derivative, hence [`also_constrains`](@ref).  `ncuts` has no default:
-[`Region`](@ref) carries no adjacency or boundary, so nothing can compute it.
-"""
-@relation :entanglement CFTEntanglementSlope(dS_dlogℓ, c::CentralCharge, ncuts) =
-    dS_dlogℓ - ncuts * c / 6
-
-"""
     CFTEntanglementChordSlope <: AbstractRelation
 
 The same slope on a FINITE chain, taken against the chord rather than the
@@ -89,8 +74,9 @@ free-fermion ground states of the critical uniform chain, block at an open end,
 | 128 | 0.03332 | 0.08663 |
 | 256 | 0.03308 | 0.08502 |
 
-The chord column halves its error each time `L` doubles; the other column does not
-move, because it is not a finite-size correction but a different law.  Restricted
+The chord column's error falls by a factor 0.54 then 0.51 as `L` doubles, toward the
+`1/L` an open chain's leading correction carries; the other column moves 5% then
+0.7%, because it is not a finite-size correction but a different law.  Restricted
 to `ℓ ≤ L/4` the two agree, which is the regime [`CFTEntanglementSlope`](@ref) is
 for and does not state.
 
@@ -99,7 +85,40 @@ and that one the limit.  Variables: `dS_dlogchord` (caller-computed slope agains
 `ln[(L/π) sin(πℓ/L)]`), `c`, `ncuts`.
 """
 @relation :entanglement CFTEntanglementChordSlope(dS_dlogchord, c::CentralCharge, ncuts) =
-    dS_dlogchord - ncuts * c / 6
+    begin
+        _require_cuts(:CFTEntanglementChordSlope, ncuts)
+        dS_dlogchord - ncuts * c / 6
+    end
+
+"""
+    CFTEntanglementSlope <: AbstractRelation
+
+Logarithmic growth of a region's entanglement entropy in a 1D CFT, reading off
+the central charge (Calabrese & Cardy, [CalabreseCardy2004](@cite)):
+
+`dS/d(ln ℓ) = ncuts · c/6`.
+
+`ncuts` counts the cuts bounding the region — set by where it sits, not by the
+chain's boundary condition:
+
+| region | `ncuts` | |
+|---|---|---|
+| one interval on a ring | 2 | `c/3` |
+| block at an open end | 1 | `c/6` |
+| block in the bulk of an open chain | 2 | `c/3` |
+
+The last row is the one "OBC ⇒ `c/6`" gets wrong.
+
+Variables: `dS_dlogℓ` (caller-computed slope against `ln ℓ`), `c`, `ncuts`.
+`c` is the typed subject; [`VonNeumannEntropy`](@ref) arrives via the supplied
+derivative, hence [`also_constrains`](@ref).  For `ℓ` comparable to `L` this form
+is out of domain and [`CFTEntanglementChordSlope`](@ref) is the one to use.  `ncuts` has no default:
+[`Region`](@ref) carries no adjacency or boundary, so nothing can compute it.
+"""
+@relation :entanglement CFTEntanglementSlope(dS_dlogℓ, c::CentralCharge, ncuts) = begin
+    _require_cuts(:CFTEntanglementSlope, ncuts)
+    dS_dlogℓ - ncuts * c / 6
+end
 
 """
     InfiniteRandomnessEntanglementSlope <: AbstractRelation
