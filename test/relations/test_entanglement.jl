@@ -503,6 +503,173 @@ end
     @test abs(wrong(64) - c₁_source) > 0.1
 end
 
+@testset "every route from an entropy to c returns the same c" begin
+    # `related_quantities(CentralCharge)` carries five distinct edges to
+    # VonNeumannEntropy, so one measurement can be read for `c` five ways. Each was
+    # only ever checked against its own hand-written fixture; here they are made to
+    # agree with each other, which no single relation can satisfy alone. A coefficient
+    # mistyped in one of them is denied by the other four even where its own test
+    # still passes.
+    c, c₁, N = 1 / 2, 0.4785, 4096.0
+    chord(L, ℓ) = (L / π) * sin(π * ℓ / L)
+    ring(ℓ, L=N) = (c / 3) * log(chord(L, ℓ)) + c₁
+    open_(ℓ, L=N) = (c / 6) * log(2 * chord(L, ℓ)) + c₁ / 2
+    line(ℓ) = (c / 3) * log(ℓ) + c₁
+
+    # A ring: the closed form and the two-length difference.
+    c_pbc = solve(CFTEntanglementPBC(), Val(:c); S=ring(1024), L=N, ℓ=1024, c₁=c₁)
+    c_halved_ring = solve(
+        HalvedChainEntropyDifference(),
+        Val(:c);
+        ΔS=ring(N / 2) - ring(N / 4, N / 2),
+        ncuts=2,
+    )
+    @test c_pbc ≈ c atol = 1e-12
+    @test c_halved_ring ≈ c atol = 1e-12
+
+    # An open chain: same two routes, one cut, and the boundary entropy in the way.
+    c_obc = solve(
+        CFTEntanglementOBC(), Val(:c); S=open_(1024), L=N, ℓ=1024, c₁=c₁, ln_g=0.0
+    )
+    c_halved_open = solve(
+        HalvedChainEntropyDifference(),
+        Val(:c);
+        ΔS=open_(N / 2) - open_(N / 4, N / 2),
+        ncuts=1,
+    )
+    @test c_obc ≈ c atol = 1e-12
+    @test c_halved_open ≈ c atol = 1e-12
+
+    # An infinite chain: the closed form and the slope through two blocks.
+    c_inf = solve(CFTEntanglementInfinite(), Val(:c); S=line(300), ℓ=300, c₁=c₁)
+    c_slope = solve(
+        CFTEntanglementSlope(),
+        Val(:c);
+        dS_dlogℓ=(line(300) - line(100)) / (log(300) - log(100)),
+        ncuts=2,
+    )
+    @test c_inf ≈ c atol = 1e-12
+    @test c_slope ≈ c atol = 1e-12
+
+    # Off criticality the same c is read from a length that is not the region's.
+    ξ = 40.0
+    c_sat = solve(
+        OffCriticalEntanglementSaturation(), Val(:c); S=2 * (c / 6) * log(ξ), ξ=ξ, ncuts=2
+    )
+    @test c_sat ≈ c atol = 1e-12
+
+    # All six routes agree to machine precision, which is the claim; the spread a
+    # single mistyped coefficient would open is a factor of two, not 1e-12.
+    routes = [c_pbc, c_halved_ring, c_obc, c_halved_open, c_inf, c_slope, c_sat]
+    @test maximum(routes) - minimum(routes) < 1e-12
+
+    # The spread a single wrong coefficient opens, for scale: the same ring datum
+    # read at one cut instead of two returns 2c, so the routes would disagree by c
+    # rather than by 1e-12.
+    @test solve(
+        HalvedChainEntropyDifference(),
+        Val(:c);
+        ΔS=ring(N / 2) - ring(N / 4, N / 2),
+        ncuts=1,
+    ) ≈ 2c atol = 1e-12
+
+    # And the ring becomes the infinite chain where its chord does: the two closed
+    # forms are one law, not two that happen to agree at one point.
+    @test ring(8) ≈ line(8) atol = 2e-5
+    @test abs(ring(8) - line(8)) < abs(ring(512) - line(512))
+end
+
+@testset "both routes to the effective central charge agree" begin
+    # The random side has two edges to EffectiveCentralCharge, and the ring form must
+    # reduce to the slope on the same data rather than being a second unrelated law.
+    c̃, c₁′, L = log(2) / 2, 0.31, 2048.0
+    conf(v) = sin(π * v) / π
+    ring̃(ℓ) = (c̃ / 3) * log(L * conf(ℓ / L)) + c₁′
+    linẽ(ℓ) = (c̃ / 3) * log(ℓ) + c₁′
+
+    c̃_ring = solve(
+        InfiniteRandomnessEntanglementPBC(),
+        Val(:c̃);
+        S̄=ring̃(512),
+        L=L,
+        f=conf(512 / L),
+        c₁′=c₁′,
+    )
+    c̃_slope = solve(
+        InfiniteRandomnessEntanglementSlope(),
+        Val(:c̃);
+        dS_dlogℓ=(linẽ(300) - linẽ(100)) / (log(300) - log(100)),
+        ncuts=2,
+    )
+    @test c̃_ring ≈ c̃ atol = 1e-12
+    @test c̃_slope ≈ c̃ atol = 1e-12
+    @test c̃_ring ≈ c̃_slope atol = 1e-12
+
+    # The two networks must not meet: the same numbers read through the clean route
+    # give a different constant, which is the whole reason c̃ is its own quantity.
+    @test !isapprox(
+        solve(
+            CFTEntanglementSlope(),
+            Val(:c);
+            dS_dlogℓ=(linẽ(300) - linẽ(100)) / (log(300) - log(100)),
+            ncuts=2,
+        ),
+        1 / 2;
+        atol=1e-6,
+    )
+end
+
+@testset "the graph edges are real, and say which traversal can use them" begin
+    # Every edge these relations add must name a relation that genuinely links the
+    # two quantities, or the graph is advertising a route that is not there.
+    edges = related_quantities(CentralCharge)
+    named = Set(e.detail for e in edges)
+    for r in (
+        "CFTEntanglementPBC",
+        "CFTEntanglementOBC",
+        "CFTEntanglementSlope",
+        "HalvedChainEntropyDifference",
+        "OffCriticalEntanglementSaturation",
+    )
+        @test r in named
+    end
+    @test any(
+        e ->
+            e.detail == "OffCriticalEntanglementSaturation" &&
+            CorrelationLength in (e.from, e.to),
+        edges,
+    )
+
+    # The edge is a statement about the law, not a promise that `derive` can walk
+    # it. The entropy enters as a supplied slot and lives in a bag under a region,
+    # so the type-keyed derivation has nothing to match and says so rather than
+    # guessing. `CFTEntanglementSlope` behaves the same way, and has since before
+    # these relations existed.
+    c, c₁, N = 0.5, 0.4785, 4096.0
+    b = bag(VonNeumannEntropy => (c / 3) * log((N / π) * sin(π * 1024 / N)) + c₁)
+    @test isempty(setdiff(derivable(b; L=N, ℓ=1024.0, c₁=c₁), keys(b)))
+    @test_throws "not reachable from the bag" derive(CentralCharge, b; L=N, ℓ=1024.0, c₁=c₁)
+
+    # `finite_size_entropy_report` is the traversal that does reach them, off the
+    # region-keyed entry the bag actually holds, and it agrees with the direct
+    # solve: the same data passes there and returns c here.
+    breg = bag(
+        entanglement_entropy(Region(1:1024...)) =>
+            (c / 3) * log((N / π) * sin(π * 1024 / N)) + c₁,
+        CentralCharge => c,
+    )
+    rows = finite_size_entropy_report(breg, PBC(Int(N)); c₁=c₁, atol=1e-12)
+    @test only(rows).pass
+    @test solve(
+        CFTEntanglementPBC(),
+        Val(:c);
+        S=(c / 3) * log((N / π) * sin(π * 1024 / N)) + c₁,
+        L=N,
+        ℓ=1024,
+        c₁=c₁,
+    ) ≈ c atol = 1e-12
+end
+
 @testset "CFTEntanglementSlope is type-keyed like its cft.jl siblings" begin
     rel = CFTEntanglementSlope()
 
