@@ -200,3 +200,42 @@ end
     # any data pass.
     @test !consistent(withz; domain=:scaling, exclude=(:Fisher,))
 end
+
+@testset "the type-keyed cross-check is sound where the name-keyed one cannot be" begin
+    # A VariableKey is a quantity type, so two relations meet at a node only when
+    # they mean the same thing. The name-keyed graph cannot do this: `β` is the
+    # order-parameter exponent in Rushbrooke and the inverse temperature in
+    # DetailedBalance, one symbol produced by nineteen relations.
+    produce_β = unique(
+        nameof(typeof(st.relation)) for
+        st in AbstractQAtlas.derivation_steps() if st.output === :β
+    )
+    @test length(produce_β) >= 15
+    @test :Rushbrooke in produce_β
+    @test :DetailedBalance in produce_β        # inverse temperature, not an exponent
+
+    # Typed, those are separate nodes and cannot be compared with each other.
+    @test VariableKey(InverseTemperature) != VariableKey(CentralCharge)
+    rows = consistency_report(bag(SpatialDimension => 2.0); α=0.0, ν=1.0)
+    @test only(rows).target == VariableKey(SpatialDimension)
+    @test only(rows).agree
+    @test :Josephson in Set(nameof(typeof(s.relation)) for s in only(rows).steps)
+
+    # And narrower for the same reason: a relation appears only through its typed
+    # slots, so the classical scaling identities, whose exponents are bare symbols,
+    # are absent here and are what the name-keyed report checks best. The two are
+    # complementary rather than one superseding the other.
+    @test isempty(variable_types(Rushbrooke()))
+    @test !any(st -> st.relation isa Rushbrooke, AbstractQAtlas.typed_derivation_steps())
+    ising2d = (; α=0 // 1, β=1 // 8, γ=7 // 4, δ=15 // 1, ν=1 // 1, η=1 // 4, d=2 // 1)
+    @test any(
+        r -> :Rushbrooke in Set(nameof(typeof(s.relation)) for s in r.steps),
+        consistency_report(ising2d; domain=:scaling),
+    )
+
+    # Typing does not settle everything: `d` is one SpatialDimension by design, and
+    # the classical image's dimension and the chain's own are the same node, so the
+    # reading a caller means is still theirs to state.
+    @test SpatialDimension in variable_types(Josephson())
+    @test SpatialDimension in variable_types(QuantumHyperscaling())
+end

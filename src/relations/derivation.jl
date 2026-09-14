@@ -473,12 +473,13 @@ export DerivationStep,
 """
     ConsistencyRow
 
-One held-out variable and every route back to it: the `target`, the value it was
-held out at, the `steps` that reproduced it, their `values`, the `spread` over
+One held-out variable and every route back to it: the `target`, a `Symbol` on the
+name-keyed report and a [`VariableKey`](@ref) on the type-keyed one, the value it
+was held out at, the `steps` that reproduced it, their `values`, the `spread` over
 those values and the held-out one, and whether they `agree`.
 """
 struct ConsistencyRow
-    target::Symbol
+    target::Union{Symbol,VariableKey}
     held_out::Any
     steps::Vector{DerivationStep}
     values::Vector{Any}
@@ -598,3 +599,80 @@ function consistent(data::NamedTuple; atol=0, rtol=1e-8, domain=nothing, exclude
     )
 end
 export consistent
+
+"""
+    consistency_report(b::Bag; atol = 0, rtol = 1e-8, domain = nothing, exclude = (),
+                       extras...) -> Vector{ConsistencyRow}
+
+The type-keyed cross-check: the same leave-one-out sweep as the `NamedTuple`
+method, over [`typed_derivation_steps`](@ref) instead of the symbol graph.
+
+Sound where the other is not. A `VariableKey` is a quantity type and a support,
+so two relations meet at a node only when they are talking about the same thing,
+and the collision the name-keyed report cannot see does not arise: `β` is the
+order-parameter exponent in `Rushbrooke` and the inverse temperature in
+`DetailedBalance`, one symbol and two quantities, while `InverseTemperature` is a
+type of its own. The typed known-set is aliasing-aware too, so a bag never holds
+`InverseTemperature` and `Temperature` at once.
+
+Narrower for the same reason. Only the 109 of 167 relations carrying at least one
+typed slot appear at all, and a relation is present only through those slots, so
+the classical scaling identities, whose exponents are bare symbols, are absent
+here and are exactly what the name-keyed report checks best. Run both: this one
+for what it can see, that one where a caller can vouch that a shared name is a
+shared quantity.
+
+Neither knows applicability; see the `NamedTuple` method.
+"""
+function consistency_report(
+    b::Bag; atol=0, rtol=1e-8, domain::Union{Nothing,Symbol}=nothing, exclude=(), extras...
+)
+    out = ConsistencyRow[]
+    steps = typed_derivation_steps()
+    domain === nothing ||
+        (steps = filter(st -> AbstractQAtlas.domain(st.relation) === domain, steps))
+    isempty(exclude) ||
+        (steps = filter(st -> !(nameof(typeof(st.relation)) in exclude), steps))
+    for target in sort!(collect(keys(b)); by=k -> string(k.type))
+        held = b[target]
+        held isa Number || continue
+        known = delete!(copy(b), target)
+        got = Tuple{TypedStep,Any}[]
+        for st in steps
+            st.output.type === target.type || continue
+            v = _try_typed_step(st, known, extras)
+            v === nothing && continue
+            push!(got, (st, v))
+        end
+        isempty(got) && continue
+        vals = [v for (_, v) in got]
+        all(v -> v isa Number, vals) || continue
+        everything = vcat(float.(real.(vals)), float(real(held)))
+        spread = maximum(everything) - minimum(everything)
+        push!(
+            out,
+            ConsistencyRow(
+                target,
+                held,
+                DerivationStep[
+                    DerivationStep(
+                        st.relation,
+                        nameof(st.output.type),
+                        Tuple(nameof(i.type) for i in st.inputs),
+                    ) for (st, _) in got
+                ],
+                vals,
+                spread,
+                spread <= max(atol, rtol * maximum(abs, everything)),
+            ),
+        )
+    end
+    return out
+end
+
+"""
+    consistent(b::Bag; kwargs...) -> Bool
+
+Whether every row of the type-keyed [`consistency_report`](@ref) agrees.
+"""
+consistent(b::Bag; kwargs...) = all(r -> r.agree, consistency_report(b; kwargs...))
