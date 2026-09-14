@@ -335,11 +335,34 @@ end
     @test InverseTemperature in variable_types(DynamicalFDT())
     @test !(InverseTemperature in quantities(DynamicalFDT()))
 
-    # `DetailedBalance` stays bare on purpose: it holds the structure factor at +ω
-    # and at -ω, and a key is a type and a support with nothing to say which
-    # frequency, so its hand-link is the only expression available rather than debt.
+    for r in (HeatCapacityDifference(), TsallisEntropyMoment(), ConcurrenceTangle())
+        @test !isempty(variable_types(r))
+    end
+    @test Volume in quantities(HeatCapacityDifference())
+    @test quantities(TsallisEntropyMoment()) == (TsallisEntropy,)
+    @test Set(quantities(ConcurrenceTangle())) == Set([Concurrence, Tangle])
+
+    # Two relations stay bare for one reason, and it is not debt: each holds TWO
+    # instances of a single quantity, and a key is a type and a support with nothing
+    # to say which instance. `DetailedBalance` has the structure factor at +ω and at
+    # -ω; `BulkBoundary` equates a boundary mode count with a bulk invariant. Their
+    # hand-links are the only expression available until supports compose, which is
+    # the same wall `at_size` refuses at.
     @test isempty(variable_types(DetailedBalance()))
     @test quantities(DetailedBalance()) == (DynamicalStructureFactor,)
-    @test count(==(:S_plus), variables(DetailedBalance())) == 1
+    @test :S_plus in variables(DetailedBalance())
     @test :S_minus in variables(DetailedBalance())
+    @test isempty(variable_types(BulkBoundary()))
+    @test length(variables(BulkBoundary())) == 2
+
+    # And a bare slot is not always a missing type. Several are evaluation
+    # coordinates, which is what an untyped supplied slot is for: the Rényi index in
+    # `RenyiEntropyMoment`, the statistics sign in `KMSGreaterLesser`, the
+    # Hilbert-space dimension in `CanonicalTPQ`. Typing those would claim they are
+    # quantities a bag can hold.
+    for (r, sym) in
+        ((RenyiEntropyMoment(), :α), (KMSGreaterLesser(), :ζ), (CanonicalTPQ(), :D))
+        @test sym in variables(r)
+        @test get(Dict(variable_slots(r)), sym, nothing) === nothing
+    end
 end

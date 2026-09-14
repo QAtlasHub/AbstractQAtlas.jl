@@ -188,7 +188,8 @@ The Tsallis entropy from the moment `Tr ρ^q` (q ≠ 1; Tsallis, [Tsallis1988](@
 
 Variables: `Sq`, `moment` = `Tr ρ^q`, `q`.
 """
-@relation :entanglement TsallisEntropyMoment(Sq, moment, q) = Sq - (1 - moment) / (q - 1)
+@relation :entanglement TsallisEntropyMoment(Sq::TsallisEntropy, moment, q) =
+    Sq - (1 - moment) / (q - 1)
 
 """
     MutualInformationDefinition <: AbstractRelation
@@ -401,7 +402,7 @@ The tangle is the squared concurrence (Wootters, [Wootters1998](@cite)),
 
 Variables: `τ`, `C`.
 """
-@relation :entanglement ConcurrenceTangle(τ, C) = τ - C^2
+@relation :entanglement ConcurrenceTangle(τ::Tangle, C::Concurrence) = τ - C^2
 
 """
     Monogamy <: AbstractInequality

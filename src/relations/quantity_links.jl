@@ -104,12 +104,10 @@ quantities(::ResponseRealityImag) = (DynamicalSusceptibility,)   # reality: Im �
 # ── Quantum information & entanglement ──
 quantities(::RenyiTwoPurity) = (RenyiEntropy, Purity)
 quantities(::RenyiEntropyMoment) = (RenyiEntropy,)
-quantities(::TsallisEntropyMoment) = (TsallisEntropy,)
 quantities(::MutualInformationDefinition) = (MutualInformation,)
 quantities(::ConditionalEntropyDefinition) = (ConditionalEntropy,)
 quantities(::MeasurementEntropyIncrease) = (MeasurementEntropy,)
 quantities(::MarkovEntropyDefinition) = (MarkovEntropy,)
-quantities(::ConcurrenceTangle) = (Concurrence, Tangle)
 quantities(::Monogamy) = (Tangle,)
 quantities(::ThreeTangleDefinition) = (ThreeTangle, Tangle)
 quantities(::TripartiteInformationDefinition) = (TripartiteInformation,)
