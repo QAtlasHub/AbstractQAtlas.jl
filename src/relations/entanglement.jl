@@ -300,7 +300,9 @@ tying the [`MeasurementEntropy`](@ref) to the [`RelativeEntropy`](@ref)
 
 Variables: `S_meas` = `S(Δρ)`, `S` = `S(ρ)`, `S_rel` = `S(ρ‖Δρ)`.
 """
-@relation :entanglement MeasurementEntropyRelative(S_meas, S, S_rel) = (S_meas - S) - S_rel
+@relation :entanglement MeasurementEntropyRelative(
+    S_meas::MeasurementEntropy, S::VonNeumannEntropy, S_rel::RelativeEntropy
+) = (S_meas - S) - S_rel
 
 """
     MarkovEntropyDefinition <: AbstractRelation
@@ -460,5 +462,6 @@ alternating tripartite sum (`γ > 0` ⇒ topological order).
 
 Variables: `γ`, `S_A`, `S_B`, `S_C`, `S_AB`, `S_BC`, `S_CA`, `S_ABC`.
 """
-@relation :entanglement KitaevPreskillTEE(γ, S_A, S_B, S_C, S_AB, S_BC, S_CA, S_ABC) =
-    (S_A + S_B + S_C - S_AB - S_BC - S_CA + S_ABC) + γ
+@relation :entanglement KitaevPreskillTEE(
+    γ::TopologicalEntanglementEntropy, S_A, S_B, S_C, S_AB, S_BC, S_CA, S_ABC
+) = (S_A + S_B + S_C - S_AB - S_BC - S_CA + S_ABC) + γ

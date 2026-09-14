@@ -314,3 +314,32 @@ end
     @test OrderParameterExponent in variable_types(Rushbrooke())
     @test !(InverseTemperature in variable_types(Rushbrooke()))
 end
+
+@testset "typing a slot retires its hand-link, and the two must not both exist" begin
+    # `quantity_links.jl` carries `quantities` by hand for relations whose slots are
+    # still bare, and the macro emits it for any relation with a typed slot. Both at
+    # once is a precompile failure, not a silent shadow, which is how the overlap was
+    # found; migrating means typing AND deleting, in one change.
+    for r in (DynamicalFDT(), KitaevPreskillTEE(), MeasurementEntropyRelative())
+        @test !isempty(variable_types(r))
+    end
+    # Auto-derived now, and each still names what its hand-link named.
+    @test quantities(KitaevPreskillTEE()) == (TopologicalEntanglementEntropy,)
+    @test quantities(MeasurementEntropyRelative()) ==
+        (MeasurementEntropy, VonNeumannEntropy, RelativeEntropy)
+    @test quantities(DynamicalFDT()) == (DynamicalStructureFactor, DynamicalSusceptibility)
+
+    # A typed slot is not always a quantity: DynamicalFDT also types β, and
+    # InverseTemperature is a field, so it keys the slot without joining the
+    # relation'''s quantity list.
+    @test InverseTemperature in variable_types(DynamicalFDT())
+    @test !(InverseTemperature in quantities(DynamicalFDT()))
+
+    # `DetailedBalance` stays bare on purpose: it holds the structure factor at +ω
+    # and at -ω, and a key is a type and a support with nothing to say which
+    # frequency, so its hand-link is the only expression available rather than debt.
+    @test isempty(variable_types(DetailedBalance()))
+    @test quantities(DetailedBalance()) == (DynamicalStructureFactor,)
+    @test count(==(:S_plus), variables(DetailedBalance())) == 1
+    @test :S_minus in variables(DetailedBalance())
+end

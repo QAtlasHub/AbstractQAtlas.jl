@@ -302,7 +302,7 @@ for the RTFIC is that review's Eq. (3.18), §3.5, reached by a different route.
 Variables: `φ`, `d`, `x_m`, `ψ`.
 """
 @relation :scaling ActivatedMomentGrowth(
-    φ, d::SpatialDimension, x_m, ψ::ActivatedExponent
+    φ, d::SpatialDimension, x_m::ScalingDimension, ψ::ActivatedExponent
 ) = φ * ψ - (d - x_m)
 
 # ─── Appendix A: the four scaling types of a random system ───────────────

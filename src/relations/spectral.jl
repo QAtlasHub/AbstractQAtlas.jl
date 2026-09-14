@@ -158,7 +158,9 @@ this convention reproduces detailed balance `S(q,−ω) = e^{−βω} S(q, ω)`
 
 Variables: `S` = `S(q, ω)`, `χpp` = `χ''(q, ω)`, `ω`, and `β` (or `T`).
 """
-@relation :spectral DynamicalFDT(S, χpp, ω, β) = S - χpp / (π * (1 - exp(-β * ω)))
+@relation :spectral DynamicalFDT(
+    S::DynamicalStructureFactor, χpp::DynamicalSusceptibility, ω, β::InverseTemperature
+) = S - χpp / (π * (1 - exp(-β * ω)))
 
 """
     CorrelationLengthGap <: AbstractRelation

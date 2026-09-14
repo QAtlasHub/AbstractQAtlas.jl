@@ -70,10 +70,17 @@ also_constrains(::WeinribHalperinExponent) = (CorrelationLength,)
 # TYPE-KEYED (`Name(x::Quantity, …)` in spectral.jl / keldysh.jl), so their
 # `quantities` is auto-derived from the declaration — no hand-link here.  The
 # remaining entries are legacy symbol-keyed relations awaiting migration.
+#
+# Migrating one means typing its slots AND deleting its line here, in the same
+# change: the macro emits `quantities` for a relation with any typed slot, and two
+# definitions of it is a precompile failure rather than a silent shadow, which is
+# how this was found.  A relation holding TWO instances of one quantity cannot
+# migrate yet — `DetailedBalance` carries the structure factor at +ω and at −ω, and
+# a key is a type and a support with no way to say which frequency — so its
+# hand-link is not debt but the only expression available.
 quantities(::SpectralSumRule) = (SpectralFunction,)
 quantities(::FSumRule) = (DynamicalStructureFactor,)   # first moment of S(q,ω) (supplied)
 quantities(::DetailedBalance) = (DynamicalStructureFactor,)
-quantities(::DynamicalFDT) = (DynamicalStructureFactor, DynamicalSusceptibility)
 quantities(::ResponseRealityReal) = (DynamicalSusceptibility,)   # reality: Re χ even under ω→−ω
 quantities(::ResponseRealityImag) = (DynamicalSusceptibility,)   # reality: Im χ odd under ω→−ω
 # CorrelationLengthGap (ξ::CorrelationLength, v::Velocity, Δ::MassGap), NMRExponent
@@ -101,13 +108,11 @@ quantities(::TsallisEntropyMoment) = (TsallisEntropy,)
 quantities(::MutualInformationDefinition) = (MutualInformation,)
 quantities(::ConditionalEntropyDefinition) = (ConditionalEntropy,)
 quantities(::MeasurementEntropyIncrease) = (MeasurementEntropy,)
-quantities(::MeasurementEntropyRelative) = (MeasurementEntropy, RelativeEntropy)
 quantities(::MarkovEntropyDefinition) = (MarkovEntropy,)
 quantities(::ConcurrenceTangle) = (Concurrence, Tangle)
 quantities(::Monogamy) = (Tangle,)
 quantities(::ThreeTangleDefinition) = (ThreeTangle, Tangle)
 quantities(::TripartiteInformationDefinition) = (TripartiteInformation,)
-quantities(::KitaevPreskillTEE) = (TopologicalEntanglementEntropy,)
 quantities(::EntropyNonNegativity) = (VonNeumannEntropy,)
 quantities(::MaxEntropyBound) = (VonNeumannEntropy,)
 quantities(::Subadditivity) = (VonNeumannEntropy,)
