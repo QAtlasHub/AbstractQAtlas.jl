@@ -157,6 +157,11 @@ exponent is derived by [`critical_exponents`](@ref).
     at construction rather than one per call, and at an infinite-randomness fixed
     point there is no finite `d + z` to confuse it with anyway.
 
+    Concretely: `fetch(Universality(:IsingSDRG), CentralCharge(); d = 2)` in QAtlas
+    refuses any other `d`, `d` being the CFT's dimension there, and returns the
+    EFFECTIVE charge under `CentralCharge`.  Carrying either number straight here is
+    the case above.  Tracked as #157.
+
 Arguments are promoted to a common type; pass `Rational`s where the values are
 rational.  `ψ ≤ 0` is refused rather than accepted: it names a conventional
 fixed point, which is [`ScalingDimensions`](@ref)'s job, and it would divide by

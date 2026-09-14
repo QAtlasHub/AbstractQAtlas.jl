@@ -183,6 +183,41 @@ magnetization, both in §4.1 and both stated for free boundary conditions.
     dloglogO_dlogL - ψ
 
 """
+    CriticalCorrelationDecay <: AbstractRelation
+
+`⟨C(r)⟩ ∼ r^{-2 x_m}`, so `d ln⟨C⟩/d ln r = -2 x_m` ([IgloiMonthus2005](@cite),
+Eq. (A.6); §A.3 carries it to an infinite-randomness point, where the average is
+dominated by rare pairs).
+
+The AVERAGE correlation.  Not interchangeable with
+[`ActivatedCriticalCorrelation`](@ref), the typical one: the correlation function is
+non-self-averaging here, so the two read different exponents off one ground state.
+
+Distance is a third scale, neither the `L` of [`ActivatedFiniteSizeScaling`](@ref)
+nor the `ξ` of [`ActivatedDynamicalScaling`](@ref), which diverges at criticality.
+
+Variables: `dlogC_dlogr` (caller-computed), `x_m`.
+"""
+@relation :scaling CriticalCorrelationDecay(dlogC_dlogr, x_m::ScalingDimension) =
+    dlogC_dlogr + 2 * x_m
+
+"""
+    ActivatedCriticalCorrelation <: AbstractRelation
+
+`exp⟨ln|C(r)|⟩ ∼ exp(-a r^ψ)`, so `d ln(-⟨ln|C|⟩)/d ln r = ψ`
+([IgloiMonthus2005](@cite), Eq. (6.26), derived there for the random singlet phase
+where `ψ = 1/2`).
+
+The TYPICAL correlation, and the worse-conditioned of the two probes: on the same
+chains its uncorrected slope sits three of its own errors above `1/2` where
+[`CriticalCorrelationDecay`](@ref)'s is already within one.
+
+Variables: `dloglogC_dlogr` (caller-computed), `ψ`.
+"""
+@relation :scaling ActivatedCriticalCorrelation(dloglogC_dlogr, ψ::ActivatedExponent) =
+    dloglogC_dlogr - ψ
+
+"""
     TypicalCorrelationLength <: AbstractRelation
 
 At an infinite-randomness fixed point the typical correlation length is an

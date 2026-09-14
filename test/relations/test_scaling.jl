@@ -637,3 +637,50 @@ end
         SpecificHeatExponent, CorrelationLengthExponent, SpatialDimension, DynamicalExponent
     )
 end
+
+@testset "the two critical correlation probes are separate statements" begin
+    # What a ground state yields: the correlation function at criticality against
+    # distance, which is a third scale, neither `L` nor the divergent `ξ`.
+    x_m = (3 - sqrt(5)) / 4          # the golden-mean IRFP value, IgloiMonthus2005
+    ψ = 1 / 2
+
+    # The anchor is the literature value; these pin the sign and the factor 2.
+    @test solve(CriticalCorrelationDecay(), Val(:x_m); dlogC_dlogr=-2 * x_m) ≈ x_m
+    @test solve(CriticalCorrelationDecay(), Val(:dlogC_dlogr); x_m=x_m) ≈ -2 * x_m
+    @test check(CriticalCorrelationDecay(); dlogC_dlogr=-0.38197, x_m=x_m, atol=1e-5)
+    @test !check(CriticalCorrelationDecay(); dlogC_dlogr=+2 * x_m, x_m=x_m, atol=1e-9)
+
+    @test solve(ActivatedCriticalCorrelation(), Val(:ψ); dloglogC_dlogr=ψ) ≈ ψ
+    @test check(ActivatedCriticalCorrelation(); dloglogC_dlogr=ψ, ψ=ψ, atol=1e-12)
+
+    # A measured slope from the issue that asked for these, L = 512 over 500 samples,
+    # stated in units of its own published error rather than a tolerance picked to
+    # pass: it sits about one standard error from the exact value.
+    measured, σ = -0.4029, 0.0204
+    r = abs(residual(CriticalCorrelationDecay(); dlogC_dlogr=measured, x_m=x_m))
+    @test r < 1.5σ
+    # A guard on the literals above, not a floor on accuracy: it catches pasting the
+    # exact value in place of the measured one. A genuinely better measurement would
+    # trip it and should arrive with this line removed.
+    @test r > 0.5σ
+
+    # Signed and as a ratio, so a sign flip cannot satisfy it the way a magnitude
+    # bound can: the uncorrected typical slope is three of its own errors ABOVE 1/2.
+    @test residual(ActivatedCriticalCorrelation(); dloglogC_dlogr=0.56, ψ=ψ) / 0.02 ≈ 3.0 atol =
+        0.05
+
+    # Different exponents off one ground state, so neither substitutes for the other.
+    @test variable_types(CriticalCorrelationDecay()) == (ScalingDimension,)
+    @test variable_types(ActivatedCriticalCorrelation()) == (ActivatedExponent,)
+    @test isdisjoint(
+        variables(CriticalCorrelationDecay()), variables(ActivatedCriticalCorrelation())
+    )
+
+    # Split by reduction, so the two readings cannot meet at one node.
+    @test also_constrains(CriticalCorrelationDecay()) ==
+        (DisorderAveraged{ConnectedSpinCorrelation},)
+    @test also_constrains(ActivatedCriticalCorrelation()) ==
+        (Typical{ConnectedSpinCorrelation},)
+    @test CriticalCorrelationDecay() in
+        relations_constraining(DisorderAveraged{ConnectedSpinCorrelation})
+end
