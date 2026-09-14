@@ -18,9 +18,9 @@ AbstractQAtlas.domain(::_NonAffineDemo) = :test_only
     # domain that has no line here shows up as a mismatch in this number alone.
     # Universal-only: the model-specific relations (spin glass, Drude mobility,
     # single-band Hall) live in QAtlas.
-    @test length(rels) == 170
+    @test length(rels) == 173
     @test allunique(typeof.(rels))
-    @test length(all_relations(; domain=:scaling)) == 30   # +ActivatedDynamicalScaling, ActivatedFiniteSizeScaling, +14 Appendix-A scaling types, +WeinribHalperinExponent, +QuantumHyperscaling; +TypicalCorrelationLength, GriffithsExponentDivergence, GriffithsSusceptibility, GriffithsSpecificHeat, ActivatedMomentGrowth; +CriticalCorrelationDecay, ActivatedCriticalCorrelation (#158)
+    @test length(all_relations(; domain=:scaling)) == 33   # +ActivatedDynamicalScaling, ActivatedFiniteSizeScaling, +14 Appendix-A scaling types, +WeinribHalperinExponent, +QuantumHyperscaling; +TypicalCorrelationLength, GriffithsExponentDivergence, GriffithsSusceptibility, GriffithsSpecificHeat, ActivatedMomentGrowth; +CriticalCorrelationDecay, ActivatedCriticalCorrelation (#158); +3 self-averaging
     @test length(all_relations(; domain=:thermodynamic)) == 15
     @test length(all_relations(; domain=:fundamental)) == 9   # +GrandPotentialLegendre, ParticleNumberResponse (grand-canonical); +ElectricCurrentResponse (j = −∂H/∂A)
     @test length(all_relations(; domain=:topology)) == 3

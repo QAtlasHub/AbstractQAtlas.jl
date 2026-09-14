@@ -684,3 +684,32 @@ end
     @test CriticalCorrelationDecay() in
         relations_constraining(DisorderAveraged{ConnectedSpinCorrelation})
 end
+
+@testset "how the sample-to-sample width scales says which fixed point it is" begin
+    # `R_X = Var(X)/[X]²` over an ensemble of samples, which is what a disorder
+    # calculation already produces per size.
+    d, α, ν = 3, -0.1, 0.7
+    @test solve(StrongSelfAveraging(), Val(:d); dlogR_dlogL=(-d)) ≈ d
+    @test solve(CriticalSelfAveraging(), Val(:α); dlogR_dlogL=α / ν, ν=ν) ≈ α
+    @test !check(StrongSelfAveraging(); dlogR_dlogL=(+d), d=d, atol=1e-9)   # sign
+    @test !check(CriticalSelfAveraging(); dlogR_dlogL=(-α / ν), α=α, ν=ν, atol=1e-9)
+
+    # Relevant randomness means no decay at all, so the off-critical law is refused
+    # rather than fitted: a fixed point where more samples at larger L do not help.
+    @test !check(StrongSelfAveraging(); dlogR_dlogL=0.0, d=d, atol=1e-6)
+    @test !check(CriticalSelfAveraging(); dlogR_dlogL=0.0, α=α, ν=ν, atol=1e-6)
+
+    # `δT_c ∼ L^{-1/ν}`, not `L^{-d/2}`. The site-dilute Ising model in d = 3 measures
+    # 1.449(8), which is six of its own errors from d/2 = 1.5, so the discriminator
+    # discriminates; asserted as the ratio because the two are only 2% apart.
+    ρ, σρ = 1.449, 0.008
+    @test abs(ρ - d / 2) / σρ > 5
+    @test solve(PseudocriticalWidthScaling(), Val(:ν); dlogδTc_dlogL=(-ρ)) ≈ 1 / ρ
+    @test isapprox(1 / ρ, 0.69; atol=0.01)      # and lands on that model's own ν
+    @test !check(PseudocriticalWidthScaling(); dlogδTc_dlogL=(-d / 2), ν=1 / ρ, atol=1e-3)
+
+    @test variable_types(StrongSelfAveraging()) == (SpatialDimension,)
+    @test variable_types(CriticalSelfAveraging()) ==
+        (SpecificHeatExponent, CorrelationLengthExponent)
+    @test variable_types(PseudocriticalWidthScaling()) == (CorrelationLengthExponent,)
+end

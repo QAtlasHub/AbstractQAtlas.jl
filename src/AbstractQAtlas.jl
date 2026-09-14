@@ -107,6 +107,7 @@ end
 "Critical phenomena and conformal field theory: scaling laws, finite-size scaling, Cardy, the c-theorem."
 module Criticality
     using ..AbstractQAtlas
+    import ..AbstractQAtlas: _solve        # extended for a non-affine variable (PseudocriticalWidthScaling:ν)
     include("relations/scaling.jl")
     include("relations/cft.jl")
 end
