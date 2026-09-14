@@ -27,7 +27,9 @@ residual(Rushbrooke(); α=0//1, β=1//8, γ=7//4)   # == 0//1 (2D Ising, exact)
 solve(Rushbrooke(), Val(:γ); α=0//1, β=1//8)     # == 7//4
 ```
 """
-@relation :scaling Rushbrooke(α, β, γ) = α + 2β + γ - 2
+@relation :scaling Rushbrooke(
+    α::SpecificHeatExponent, β::OrderParameterExponent, γ::SusceptibilityExponent
+) = α + 2β + γ - 2
 
 """
     Widom <: AbstractRelation
@@ -37,7 +39,9 @@ The Widom identity `γ = β(δ − 1)`.
 Reference: [Widom1965](@cite) (J. Chem. Phys. **43**, 3898), from the
 homogeneous equation of state.
 """
-@relation :scaling Widom(β, γ, δ) = γ - β * (δ - 1)
+@relation :scaling Widom(
+    β::OrderParameterExponent, γ::SusceptibilityExponent, δ::CriticalIsothermExponent
+) = γ - β * (δ - 1)
 
 """
     Fisher <: AbstractRelation
@@ -47,7 +51,9 @@ correlation function that produces it.
 
 Reference: [Fisher1964](@cite) (J. Math. Phys. **5**, 944).
 """
-@relation :scaling Fisher(γ, ν, η) = γ - ν * (2 - η)
+@relation :scaling Fisher(
+    γ::SusceptibilityExponent, ν::CorrelationLengthExponent, η::AnomalousDimension
+) = γ - ν * (2 - η)
 
 """
     Josephson <: AbstractRelation
@@ -65,7 +71,9 @@ is [`QuantumHyperscaling`](@ref).
 Reference: [Josephson1967](@cite) (Proc. Phys. Soc. **92**, 269, "Inequality for
 the specific heat: I. Derivation"), again an inequality first, `2 − α ≥ dν`.
 """
-@relation :scaling Josephson(α, ν, d::SpatialDimension) = 2 - α - d * ν
+@relation :scaling Josephson(
+    α::SpecificHeatExponent, ν::CorrelationLengthExponent, d::SpatialDimension
+) = 2 - α - d * ν
 
 """
     QuantumHyperscaling <: AbstractRelation
@@ -90,8 +98,12 @@ Reference: [Sachdev2011](@cite); the Euclidean action of a `d`-dimensional
 quantum system at `T = 0` lives in `d + z` EFFECTIVE directions, `z` being
 generally non-integer, so the count is scaling-theoretic and not geometric.
 """
-@relation :scaling QuantumHyperscaling(α, ν, d::SpatialDimension, z::DynamicalExponent) =
-    2 - α - (d + z) * ν
+@relation :scaling QuantumHyperscaling(
+    α::SpecificHeatExponent,
+    ν::CorrelationLengthExponent,
+    d::SpatialDimension,
+    z::DynamicalExponent,
+) = 2 - α - (d + z) * ν
 
 """
     DynamicalScaling <: AbstractRelation
@@ -190,8 +202,9 @@ Not a 1D statement.  The 1D values it is checked against are Table 1 (§4.1.2):
 
 Variables: `ν_typ`, `ν`, `ψ`.
 """
-@relation :scaling TypicalCorrelationLength(ν_typ, ν, ψ::ActivatedExponent) =
-    ν_typ - ν * (1 - ψ)
+@relation :scaling TypicalCorrelationLength(
+    ν_typ, ν::CorrelationLengthExponent, ψ::ActivatedExponent
+) = ν_typ - ν * (1 - ψ)
 
 """
     GriffithsExponentDivergence <: AbstractRelation
@@ -215,8 +228,9 @@ exponent is known in closed form, `1/z = 2|δ|` (stated with Eq. (4.51),
 
 Variables: `dlogz_dlogδ`, `ν`, `ψ`.
 """
-@relation :scaling GriffithsExponentDivergence(dlogz_dlogδ, ν, ψ::ActivatedExponent) =
-    dlogz_dlogδ + ν * ψ
+@relation :scaling GriffithsExponentDivergence(
+    dlogz_dlogδ, ν::CorrelationLengthExponent, ψ::ActivatedExponent
+) = dlogz_dlogδ + ν * ψ
 
 """
     GriffithsSusceptibility <: AbstractRelation
@@ -330,7 +344,9 @@ Reference: [IgloiMonthus2005](@cite) Eq. (A.11) and the paragraph below it,
 which states both the bulk and the surface form; the 1D instances are Table 1
 (§4.1.2), where `β = νx_m` and `β_s = νx_m^s` are checked against each other.
 """
-@relation :scaling OrderParameterDimension(β, ν, x_m::ScalingDimension) = β - ν * x_m
+@relation :scaling OrderParameterDimension(
+    β::OrderParameterExponent, ν::CorrelationLengthExponent, x_m::ScalingDimension
+) = β - ν * x_m
 
 """
     FixedPointDisorderStrength <: AbstractRelation
@@ -419,8 +435,12 @@ counterpart is [`GriffithsSusceptibility`](@ref) and the infinite-randomness
 one is [`ActivatedSusceptibility`](@ref); all three are different forms, not
 different values.
 """
-@relation :scaling CriticalQuantumSusceptibility(dlogχ_dlogT, γ, ν, z::DynamicalExponent) =
-    dlogχ_dlogT * ν * z + γ
+@relation :scaling CriticalQuantumSusceptibility(
+    dlogχ_dlogT,
+    γ::SusceptibilityExponent,
+    ν::CorrelationLengthExponent,
+    z::DynamicalExponent,
+) = dlogχ_dlogT * ν * z + γ
 
 """
     CriticalQuantumSpecificHeat <: AbstractRelation
@@ -436,8 +456,9 @@ Variables: `dlogc_dlogT`, `α`, `ν`, `z`.
 
 Reference: [IgloiMonthus2005](@cite) Eq. (A.14), §A.2.
 """
-@relation :scaling CriticalQuantumSpecificHeat(dlogc_dlogT, α, ν, z::DynamicalExponent) =
-    dlogc_dlogT * ν * z + α
+@relation :scaling CriticalQuantumSpecificHeat(
+    dlogc_dlogT, α::SpecificHeatExponent, ν::CorrelationLengthExponent, z::DynamicalExponent
+) = dlogc_dlogT * ν * z + α
 
 """
     ActivatedAutocorrelation <: AbstractRelation
@@ -555,8 +576,9 @@ Reference: [IgloiMonthus2005](@cite) Eqs. (A.37) and (A.38), §A.5; the 1D
 instance is Eqs. (8.6)-(8.8), §8.2, where `ζ = 1/2` and `κ = 0.22(1)` is
 measured, giving `z = 1/(2κ)`.
 """
-@relation :scaling LargeSpinMoment(κ, d::SpatialDimension, ζ, z::DynamicalExponent) =
-    κ * z - d * ζ
+@relation :scaling LargeSpinMoment(
+    κ, d::SpatialDimension, ζ::LargeSpinExponent, z::DynamicalExponent
+) = κ * z - d * ζ
 
 """
     ConventionalFieldSusceptibility <: AbstractRelation
@@ -577,7 +599,12 @@ Variables: `dlogχ_dlogH`, `γ`, `ν`, `d`, `z`, `x_m`.
 Reference: [IgloiMonthus2005](@cite) Eq. (A.15), §A.2.
 """
 @relation :scaling ConventionalFieldSusceptibility(
-    dlogχ_dlogH, γ, ν, d::SpatialDimension, z::DynamicalExponent, x_m::ScalingDimension
+    dlogχ_dlogH,
+    γ::SusceptibilityExponent,
+    ν::CorrelationLengthExponent,
+    d::SpatialDimension,
+    z::DynamicalExponent,
+    x_m::ScalingDimension,
 ) = dlogχ_dlogH * ν * (d + z - x_m) + γ
 
 """
@@ -598,7 +625,12 @@ Variables: `dlogc_dlogH`, `α`, `ν`, `d`, `z`, `x_m`.
 Reference: [IgloiMonthus2005](@cite) Eq. (A.15), §A.2.
 """
 @relation :scaling ConventionalFieldSpecificHeat(
-    dlogc_dlogH, α, ν, d::SpatialDimension, z::DynamicalExponent, x_m::ScalingDimension
+    dlogc_dlogH,
+    α::SpecificHeatExponent,
+    ν::CorrelationLengthExponent,
+    d::SpatialDimension,
+    z::DynamicalExponent,
+    x_m::ScalingDimension,
 ) = dlogc_dlogH * ν * (d + z - x_m) + α
 
 """

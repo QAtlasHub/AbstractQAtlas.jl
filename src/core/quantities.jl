@@ -1476,6 +1476,98 @@ follows a different law, so the two reductions give different exponents.
 struct ActivatedExponent <: AbstractQuantity end
 export ActivatedExponent
 
+# The classical exponents, as quantities rather than as the bare Greek letters
+# they were. A `VariableKey` is a type, so `β` the order-parameter exponent and
+# `β` the inverse temperature were one node in the symbol graph while being two
+# quantities: MEASURED, nineteen relations produce `:β` and sixteen of them mean
+# the temperature. `α` was likewise shared with the Rényi index and `γ` with the
+# topological entanglement entropy. Typing the scaling side separates them without
+# touching the others, since only the twelve `:scaling` relations are annotated.
+
+"""
+    SpecificHeatExponent() <: AbstractQuantity
+
+`α`, the specific heat's divergence at a critical point, `c ∼ |t|^{-α}`.
+"""
+struct SpecificHeatExponent <: AbstractQuantity end
+export SpecificHeatExponent
+
+"""
+    OrderParameterExponent() <: AbstractQuantity
+
+`β`, the order parameter's vanishing, `m ∼ (-t)^β`.  Not
+[`InverseTemperature`](@ref), which wears the same letter across most of this
+registry.
+"""
+struct OrderParameterExponent <: AbstractQuantity end
+export OrderParameterExponent
+
+"""
+    SusceptibilityExponent() <: AbstractQuantity
+
+`γ`, the susceptibility's divergence, `χ ∼ |t|^{-γ}`.
+"""
+struct SusceptibilityExponent <: AbstractQuantity end
+export SusceptibilityExponent
+
+"""
+    CriticalIsothermExponent() <: AbstractQuantity
+
+`δ`, the critical isotherm's shape, `m ∼ h^{1/δ}` at `t = 0`.
+"""
+struct CriticalIsothermExponent <: AbstractQuantity end
+export CriticalIsothermExponent
+
+"""
+    CorrelationLengthExponent() <: AbstractQuantity
+
+`ν`, the correlation length's divergence, `ξ ∼ |t|^{-ν}`.  The exponent, where
+[`CorrelationLength`](@ref) is the length itself.
+"""
+struct CorrelationLengthExponent <: AbstractQuantity end
+export CorrelationLengthExponent
+
+"""
+    AnomalousDimension() <: AbstractQuantity
+
+`η`, the correlation function's decay at criticality, `G(r) ∼ r^{-(d-2+η)}`.
+"""
+struct AnomalousDimension <: AbstractQuantity end
+export AnomalousDimension
+
+"""
+    LargeSpinExponent() <: AbstractQuantity
+
+`ζ` of the large-spin fixed point, where the effective moment GROWS under
+renormalization ([IgloiMonthus2005](@cite), §A.5).  A random-walk argument on the
+signs of the couplings gives `ζ = 1/2`.
+
+Not the correlation-matrix eigenvalue that wears the same letter in
+[`EntanglementSpectrumCorrelation`](@ref); one is an exponent and the other an
+occupation in `(0, 1)`.
+"""
+struct LargeSpinExponent <: AbstractQuantity end
+export LargeSpinExponent
+
+"""
+    CorrelationMatrixEigenvalue() <: AbstractQuantity
+
+`ζ ∈ (0, 1)`, an eigenvalue of a Gaussian state's correlation matrix, which is
+the Fermi-Dirac occupation of one single-particle entanglement mode (Peschel,
+[Peschel2003](@cite)).  See [`EntanglementSpectrumCorrelation`](@ref).
+"""
+struct CorrelationMatrixEigenvalue <: AbstractQuantity end
+export CorrelationMatrixEigenvalue
+
+"""
+    EntanglementSpectrumLevel() <: AbstractQuantity
+
+`ε`, one eigenvalue of the quadratic entanglement Hamiltonian, paired with a
+[`CorrelationMatrixEigenvalue`](@ref) by `ε = ln((1 - ζ)/ζ)`.
+"""
+struct EntanglementSpectrumLevel <: AbstractQuantity end
+export EntanglementSpectrumLevel
+
 """
     DisorderStrength() <: AbstractQuantity
 

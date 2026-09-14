@@ -186,6 +186,63 @@ Base.show(io::IO, s::OrderSupport) = print(io, "order ", s.order)
 export OrderSupport
 
 """
+    SizeSupport(L) <: Support
+
+The support of a quantity measured on a FINITE SYSTEM of linear size `L`, where
+the size is what distinguishes one measurement from another.
+
+The size twin of [`OrderSupport`](@ref), and required for the same reason: a
+[`VariableKey`](@ref) is `(type, support)`, so without it a finite-size sweep
+cannot even be written down. MEASURED, on the present bag:
+
+    bag(Typical(MassGap()) => 1e-2, Typical(MassGap()) => 1e-4)
+    # ERROR: bag: duplicate key VariableKey(Typical{MassGap}). Two entries claim
+    # the same identity slot; if they are different quantities, one of them needs
+    # a support that says so.
+
+Build the key with [`at_size`](@ref).
+"""
+struct SizeSupport{T} <: Support
+    size::T
+end
+Base.:(==)(a::SizeSupport, b::SizeSupport) = a.size == b.size
+Base.hash(a::SizeSupport, h::UInt) = hash(a.size, hash(:SizeSupport, h))
+Base.show(io::IO, s::SizeSupport) = print(io, "L = ", s.size)
+export SizeSupport
+
+"""
+    at_size(q::AbstractQuantity, L) -> VariableKey
+    at_size(::Type{<:AbstractQuantity}, L) -> VariableKey
+
+The bag key for `q` measured on a system of size `L`, so one bag can hold a whole
+finite-size sweep:
+
+```julia
+b = bag(at_size(Typical(MassGap()), 16) => 1e-2,
+        at_size(Typical(MassGap()), 32) => 1e-4)
+```
+
+The twin of [`entanglement_entropy`](@ref) for the size axis: it writes the key
+directly, because the size belongs to the measurement and not to the quantity.
+A quantity that already needs a support of its own, [`RenyiEntropy`](@ref) under
+[`OrderSupport`](@ref), is refused rather than silently losing it.
+"""
+function at_size(q::AbstractQuantity, L)
+    # `typeof` erases a field, so a quantity whose identity lives in one would key
+    # two different measurements to one slot. `RenyiEntropy(2)` and `RenyiEntropy(3)`
+    # at the same size collide loudly, and at different sizes fuse into a sweep that
+    # never existed. Supports do not compose here, so the pair is refused.
+    variable_support(q) isa Global || error(
+        "at_size: $(typeof(q)) already keys under $(variable_support(q)), and a key " *
+        "carries one support. Size and $(nameof(typeof(variable_support(q)))) cannot " *
+        "be combined, so this measurement has no slot to go in.",
+    )
+    return VariableKey(typeof(q), SizeSupport(L))
+end
+at_size(@nospecialize(Q::Type), L) = VariableKey(Q, SizeSupport(L))
+export at_size
+
+"""
     variable_support(v) -> Support
 
 The support a variable INSTANCE keys under. `Global()` for everything whose type is

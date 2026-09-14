@@ -461,3 +461,280 @@ export DerivationStep,
     TypedStep,
     typed_derivation_steps,
     typed_derivation_graph
+
+# ─── Cross-checking the routes, rather than taking one ─────────────────────
+#
+# `derive` finds one route and runs it. The registry usually offers several, and
+# a quantity two relations both reach is a claim they have to agree on: each is
+# an exact identity, so on one consistent set of knowns the answers coincide or
+# one of the identities is wrong. That is a check no single relation can perform
+# on itself, and it is what a hand-written cross-check does one target at a time.
+
+"""
+    law_family(rel::AbstractRelation) -> Symbol
+
+The set of ALTERNATIVES a relation belongs to: laws for one observable at
+different fixed points, of which at most one holds at a given point.
+
+Iglói and Monthus state the same menu of observables once per fixed-point type,
+[IgloiMonthus2005](@cite) §A.2 conventional, §A.3 infinite-disorder, §A.4
+Griffiths, so `χ ∼ |t|^{-γ}` at Eq. (A.15) and the activated form at Eq. (A.25)
+are two readings of one quantity and never both true. Grouping them keeps
+[`consistency_report`](@ref) from calling that a contradiction: within a family
+one member matching is the family satisfied, while across families every route
+must agree, which is where a real inconsistency shows.
+
+Defaults to the relation's own name, so a law with no alternative is alone in its
+family and is compared with everything as before.
+"""
+law_family(@nospecialize(r::AbstractRelation)) = nameof(typeof(r))
+export law_family
+
+# A family holds if ANY of its members reproduces the held-out value, its members
+# being alternatives of which at most one applies. Every family must hold, so a
+# law with no alternative still has to agree on its own.
+function _families_satisfied(got, held, tol)
+    fams = Dict{Symbol,Bool}()
+    for (st, v) in got
+        f = law_family(st.relation)
+        fams[f] = get(fams, f, false) || abs(float(real(v)) - float(real(held))) <= tol
+    end
+    return all(values(fams))
+end
+
+# The Appendix-A menu, one family per observable. Section numbers are on each
+# relation's own docstring; what is recorded here is only which of them compete.
+for (fam, rels) in (
+    :hyperscaling => (:Josephson, :QuantumHyperscaling),
+    :finite_size_energy => (
+        :ConventionalFiniteSizeEnergy,
+        :ActivatedFiniteSizeScaling,
+        :OrderedGriffithsEnergyScale,
+    ),
+    :autocorrelation =>
+        (:CriticalAutocorrelation, :ActivatedAutocorrelation, :GriffithsAutocorrelation),
+    :susceptibility_scaling => (
+        :ConventionalFieldSusceptibility,
+        :ActivatedSusceptibility,
+        :GriffithsSusceptibility,
+    ),
+    :specific_heat_scaling =>
+        (:ConventionalFieldSpecificHeat, :ActivatedSpecificHeat, :GriffithsSpecificHeat),
+    :dynamical_scaling => (:DynamicalScaling, :ActivatedDynamicalScaling),
+)
+    for r in rels
+        @eval law_family(::$r) = $(QuoteNode(fam))
+    end
+end
+
+"""
+    ConsistencyRow
+
+One held-out variable and every route back to it: the `target`, a `Symbol` on the
+name-keyed report and a [`VariableKey`](@ref) on the type-keyed one, the value it
+was held out at, the `steps` that reproduced it, their `values`, the `spread` over
+those values and the held-out one, and whether they `agree`.
+"""
+struct ConsistencyRow
+    target::Union{Symbol,VariableKey}
+    held_out::Any
+    steps::Vector{DerivationStep}
+    values::Vector{Any}
+    spread::Float64
+    agree::Bool
+end
+export ConsistencyRow
+
+function Base.show(io::IO, r::ConsistencyRow)
+    return print(
+        io,
+        r.agree ? "agree" : "DISAGREE",
+        " :",
+        r.target,
+        " over ",
+        length(r.steps),
+        " route(s), spread ",
+        r.spread,
+    )
+end
+
+"""
+    consistency_report(data::NamedTuple; atol = 0, rtol = 1e-8, domain = nothing,
+                       exclude = ()) -> Vector{ConsistencyRow}
+
+Hold out each variable of `data` in turn and solve for it by every relation that
+reaches it from the rest, then report whether those answers agree with each other
+and with the value held out.
+
+The registry is a set of exact identities, so a variable two of them both reach
+must come back the same both ways and equal to what was removed. Where it does
+not, one of the identities is wrong, and the row names every route so the odd one
+out is visible. Nothing is hand-picked: the routes come from
+[`derivation_steps`](@ref), the enumeration [`derive`](@ref) walks, and a step
+non-affine in its target or otherwise refused drops out rather than being
+counted, so a route appears only if it computes.
+
+One step deep, from the remaining knowns. Chaining would compare a derived number
+against another derived number, where a disagreement no longer names the relation
+that caused it.
+
+What is checked is the ALGEBRA, not the semantics. The registry is one namespace
+and the report assumes a shared symbol is a shared quantity; where it is not, the
+routes disagree and the row names them, but the fault is in the question rather
+than in the identities. Two ways that happens, both measured:
+
+  * A name means different things in different relations. `S` is a ring's block
+    in one and an open chain's end block in another, so one number cannot satisfy
+    both. `d` is the same trap: the classical image's dimension in
+    [`Josephson`](@ref), the chain's own in [`HarrisCriterion`](@ref).
+  * A relation does not apply at the point the data describes. Classical 2D Ising
+    exponents agree over `:scaling` until `z` is added, at which point
+    [`QuantumHyperscaling`](@ref) joins the routes to `α` and four rows disagree.
+    It was excluded before only for want of an input, never for want of
+    applicability, and nothing here knows the difference.
+
+So a disagreement is a place to look, not a verdict. `domain` and `exclude` are
+how a caller states the scope the data belongs to: `domain` keeps one family,
+`exclude` drops named relations, and either is preferable to reading a row whose
+routes describe different physics.
+
+Agreement is `spread <= max(atol, rtol * scale)` with `scale` the largest
+magnitude present, so `rtol` reads as a relative tolerance on the answer.
+
+```julia
+ising2d = (; α=0//1, β=1//8, γ=7//4, δ=15//1, ν=1//1, η=1//4, d=2//1)
+all(r -> r.agree, consistency_report(ising2d; domain=:scaling))
+```
+"""
+function consistency_report(
+    data::NamedTuple; atol=0, rtol=1e-8, domain::Union{Nothing,Symbol}=nothing, exclude=()
+)
+    out = ConsistencyRow[]
+    steps = derivation_steps()
+    domain === nothing ||
+        (steps = filter(st -> AbstractQAtlas.domain(st.relation) === domain, steps))
+    isempty(exclude) ||
+        (steps = filter(st -> !(nameof(typeof(st.relation)) in exclude), steps))
+    for target in keys(data)
+        known = Dict{Symbol,Any}(k => v for (k, v) in pairs(data) if k !== target)
+        got = Tuple{DerivationStep,Any}[]
+        for st in steps
+            st.output === target || continue
+            v = _try_step(st, known)
+            v === nothing && continue
+            push!(got, (st, v))
+        end
+        isempty(got) && continue
+        vals = [v for (_, v) in got]
+        all(v -> v isa Number, vals) && data[target] isa Number || continue
+        everything = vcat(float.(real.(vals)), float(real(data[target])))
+        spread = maximum(everything) - minimum(everything)
+        tol = max(atol, rtol * maximum(abs, everything))
+        push!(
+            out,
+            ConsistencyRow(
+                target,
+                data[target],
+                [st for (st, _) in got],
+                vals,
+                spread,
+                _families_satisfied(got, data[target], tol),
+            ),
+        )
+    end
+    return out
+end
+export consistency_report
+
+"""
+    consistent(data::NamedTuple; atol = 0, rtol = 1e-8, domain = nothing,
+               exclude = ()) -> Bool
+
+Whether every row of [`consistency_report`](@ref) agrees. `true` when no variable
+is reachable at all, which is vacuous rather than a pass; read the report when
+that matters.
+"""
+function consistent(data::NamedTuple; atol=0, rtol=1e-8, domain=nothing, exclude=())
+    return all(
+        r -> r.agree,
+        consistency_report(data; atol=atol, rtol=rtol, domain=domain, exclude=exclude),
+    )
+end
+export consistent
+
+"""
+    consistency_report(b::Bag; atol = 0, rtol = 1e-8, domain = nothing, exclude = (),
+                       extras...) -> Vector{ConsistencyRow}
+
+The type-keyed cross-check: the same leave-one-out sweep as the `NamedTuple`
+method, over [`typed_derivation_steps`](@ref) instead of the symbol graph.
+
+Sound where the other is not. A `VariableKey` is a quantity type and a support,
+so two relations meet at a node only when they are talking about the same thing,
+and the collision the name-keyed report cannot see does not arise: `β` is the
+order-parameter exponent in `Rushbrooke` and the inverse temperature in
+`DetailedBalance`, one symbol and two quantities, while `InverseTemperature` is a
+type of its own. The typed known-set is aliasing-aware too, so a bag never holds
+`InverseTemperature` and `Temperature` at once.
+
+Narrower for the same reason. Only the 109 of 167 relations carrying at least one
+typed slot appear at all, and a relation is present only through those slots, so
+the classical scaling identities, whose exponents are bare symbols, are absent
+here and are exactly what the name-keyed report checks best. Run both: this one
+for what it can see, that one where a caller can vouch that a shared name is a
+shared quantity.
+
+Neither knows applicability; see the `NamedTuple` method.
+"""
+function consistency_report(
+    b::Bag; atol=0, rtol=1e-8, domain::Union{Nothing,Symbol}=nothing, exclude=(), extras...
+)
+    out = ConsistencyRow[]
+    steps = typed_derivation_steps()
+    domain === nothing ||
+        (steps = filter(st -> AbstractQAtlas.domain(st.relation) === domain, steps))
+    isempty(exclude) ||
+        (steps = filter(st -> !(nameof(typeof(st.relation)) in exclude), steps))
+    for target in sort!(collect(keys(b)); by=k -> string(k.type))
+        held = b[target]
+        held isa Number || continue
+        known = delete!(copy(b), target)
+        got = Tuple{TypedStep,Any}[]
+        for st in steps
+            st.output.type === target.type || continue
+            v = _try_typed_step(st, known, extras)
+            v === nothing && continue
+            push!(got, (st, v))
+        end
+        isempty(got) && continue
+        vals = [v for (_, v) in got]
+        all(v -> v isa Number, vals) || continue
+        everything = vcat(float.(real.(vals)), float(real(held)))
+        spread = maximum(everything) - minimum(everything)
+        push!(
+            out,
+            ConsistencyRow(
+                target,
+                held,
+                DerivationStep[
+                    DerivationStep(
+                        st.relation,
+                        nameof(st.output.type),
+                        Tuple(nameof(i.type) for i in st.inputs),
+                    ) for (st, _) in got
+                ],
+                vals,
+                spread,
+                _families_satisfied(got, held, max(atol, rtol * maximum(abs, everything))),
+            ),
+        )
+    end
+    return out
+end
+
+"""
+    consistent(b::Bag; kwargs...) -> Bool
+
+Whether every row of the type-keyed [`consistency_report`](@ref) agrees.
+"""
+consistent(b::Bag; kwargs...) = all(r -> r.agree, consistency_report(b; kwargs...))
