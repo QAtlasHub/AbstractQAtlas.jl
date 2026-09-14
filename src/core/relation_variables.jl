@@ -58,7 +58,7 @@ export AbstractExponent
 # quantities: MEASURED, nineteen relations produce `:β` and sixteen of them mean
 # the temperature. `α` was likewise shared with the Rényi index and `γ` with the
 # topological entanglement entropy. Typing the scaling side separates them without
-# touching the others, since only the twelve `:scaling` relations are annotated.
+# touching the others, since only the thirteen `:scaling` relations are annotated.
 
 """
     SpecificHeatExponent() <: AbstractQuantity
@@ -296,10 +296,12 @@ b = bag(at_size(Typical(MassGap()), 16) => 1e-2,
 
 The twin of [`entanglement_entropy`](@ref) for the size axis: it writes the key
 directly, because the size belongs to the measurement and not to the quantity.
-A quantity that already needs a support of its own, [`RenyiEntropy`](@ref) under
-[`OrderSupport`](@ref), is refused rather than silently losing it.
+A quantity that already needs a support of its own is refused rather than
+silently losing it.
 """
 function at_size(q::AbstractQuantity, L)
+    L isa Real && isfinite(L) ||
+        error("at_size: a size must be a finite real, got $L::$(typeof(L)).")
     # `typeof` erases a field, so a quantity whose identity lives in one would key
     # two different measurements to one slot. `RenyiEntropy(2)` and `RenyiEntropy(3)`
     # at the same size collide loudly, and at different sizes fuse into a sweep that
@@ -312,6 +314,8 @@ function at_size(q::AbstractQuantity, L)
     return VariableKey(typeof(q), SizeSupport(L))
 end
 function at_size(@nospecialize(Q::Type), L)
+    L isa Real && isfinite(L) ||
+        error("at_size: a size must be a finite real, got $L::$(typeof(L)).")
     # The instance method's guard applies here too: a type whose instances key under
     # a support of their own would lose it just as silently through this spelling.
     Q <: AbstractQuantity &&

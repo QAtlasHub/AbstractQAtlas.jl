@@ -150,6 +150,62 @@ end
     @test !consistent(bad; domain=:scaling)
 end
 
+@testset "a fixture with a vanishing exponent cannot see that exponent's coefficient" begin
+    # Every exponent set above has α = 0, and Rushbrooke is α + 2β + γ - 2. At α = 0
+    # the α term contributes nothing, so a wrong COEFFICIENT on it, as opposed to a
+    # wrong value passed in, is arithmetically invisible: the fixtures are degenerate
+    # in exactly the direction the relation is being checked in.
+    #
+    # This point is not a universality class. It is constructed to be exactly
+    # consistent with α ≠ 0: fix d = 3, ν = 1/2, η = 0, then impose Josephson
+    # (α = 2 - dν = 1/2), Fisher (γ = ν(2 - η) = 1), Rushbrooke (β = (2 - α - γ)/2
+    # = 1/4) and Widom (δ = 1 + γ/β = 5). Being synthetic is the point: what is
+    # under test here is the algebra, and the algebra is now exercised on a point
+    # where every term is live.
+    nonzero_α = (; α=1 // 2, β=1 // 4, γ=1 // 1, δ=5 // 1, ν=1 // 2, η=0 // 1, d=3 // 1)
+    rows = consistency_report(nonzero_α; domain=:scaling)
+    @test length(rows) == 7
+    @test all(r -> r.agree, rows)
+    @test all(r -> r.spread == 0, rows)      # exact rationals, so no tolerance is spent
+    @test consistent(nonzero_α; domain=:scaling)
+
+    # And an independent physical point with α ≠ 0: the 3D Ising bootstrap values of
+    # Kos, Poland, Simmons-Duffin and Vichi (2016), which test/relations/test_scaling.jl
+    # already carries. These are quoted to five digits, so they agree to their own
+    # rounding and NOT beyond it, which is what makes the tolerance load-bearing here
+    # rather than generous.
+    boot3d = (; α=0.11009, β=0.32642, γ=1.23708, δ=4.78984, ν=0.62999, η=0.03631, d=3.0)
+    @test consistent(boot3d; domain=:scaling, atol=2e-4)
+    @test !consistent(boot3d; domain=:scaling)
+end
+
+@testset "a target no relation reaches is omitted, never reported as agreeing" begin
+    # An empty route set must not read as a pass. `agree` is "every family that got
+    # there agrees", and over zero families that is vacuously true, so a target with
+    # no route would emit `agree = true` while nothing whatsoever had been checked.
+    # The row is dropped instead, and the count is how a caller sees the difference.
+    nonzero_α = (; α=1 // 2, β=1 // 4, γ=1 // 1, δ=5 // 1, ν=1 // 2, η=0 // 1, d=3 // 1)
+    @test length(consistency_report(nonzero_α; domain=:scaling)) == 7
+
+    # `d` is reached only by Josephson and QuantumHyperscaling. With both excluded it
+    # has no route left, and it leaves the report rather than passing it.
+    without_d = consistency_report(
+        nonzero_α; domain=:scaling, exclude=(:Josephson, :QuantumHyperscaling)
+    )
+    @test length(without_d) == 6
+    @test !any(r -> r.target === :d, without_d)
+    @test all(r -> r.agree, without_d)       # the remaining six are genuinely checked
+    @test consistent(nonzero_α; domain=:scaling, exclude=(:Josephson, :QuantumHyperscaling))
+
+    # When NOTHING is reachable, the report and the gate part ways, and deliberately.
+    # An empty listing is an honest listing, so the report returns one. A gate cannot
+    # do that: `true` for a question it never asked is indistinguishable from `true`
+    # for one it asked and passed, so it refuses instead of answering.
+    @test isempty(consistency_report((; zzz=1.0); domain=:scaling))
+    @test_throws "nothing was checked" consistent((; zzz=1.0); domain=:scaling)
+    @test_throws "nothing was checked" consistent(bag(CentralCharge => 0.5))
+end
+
 @testset "applicability is not inferred, and the report says where it stopped" begin
     # A classical exponent set agrees over `:scaling`. It does so because the
     # relations that do not apply at a classical point happened to need an input
@@ -236,6 +292,34 @@ end
     # reading a caller means is still theirs to state.
     @test SpatialDimension in variable_types(Josephson())
     @test SpatialDimension in variable_types(QuantumHyperscaling())
+
+    # The gate over the same bag, and it is the bag method being called rather than
+    # the name-keyed one behind it.
+    @test consistent(ising_bag)
+
+    # It discriminates on the typed side too. Every disagreement above went through
+    # the name-keyed door, which would leave a tolerance or scale bug local to this
+    # branch visible only to the coarse "the values are numbers" reading.
+    wrong_bag = bag(
+        SpecificHeatExponent => 0 // 1,
+        OrderParameterExponent => 1 // 8,
+        SusceptibilityExponent => 7 // 4 * 21 // 20,     # γ moved 5%
+        CriticalIsothermExponent => 15 // 1,
+        CorrelationLengthExponent => 1 // 1,
+        AnomalousDimension => 1 // 4,
+        SpatialDimension => 2 // 1,
+    )
+    @test !consistent(wrong_bag)
+    @test count(r -> !r.agree, consistency_report(wrong_bag)) >= 3
+
+    # `domain` and `exclude` mean the same thing here as on the name-keyed side, and
+    # the typed report drops an unreachable target rather than passing it: with both
+    # relations carrying SpatialDimension excluded, its row leaves the report.
+    d_gone = consistency_report(ising_bag; exclude=(:Josephson, :QuantumHyperscaling))
+    @test !any(r -> r.target.type === SpatialDimension, d_gone)
+    @test length(d_gone) == length(consistency_report(ising_bag)) - 1
+    @test all(r -> r.agree, d_gone)
+    @test consistent(ising_bag; domain=:scaling)
 end
 
 @testset "alternatives are grouped, so a law that does not apply is not a contradiction" begin
@@ -342,18 +426,23 @@ end
     @test quantities(TsallisEntropyMoment()) == (TsallisEntropy,)
     @test Set(quantities(ConcurrenceTangle())) == Set([Concurrence, Tangle])
 
-    # Two relations stay bare for one reason, and it is not debt: each holds TWO
-    # instances of a single quantity, and a key is a type and a support with nothing
-    # to say which instance. `DetailedBalance` has the structure factor at +ω and at
-    # -ω; `BulkBoundary` equates a boundary mode count with a bulk invariant. Their
-    # hand-links are the only expression available until supports compose, which is
-    # the same wall `at_size` refuses at.
+    # `DetailedBalance` stays bare for a reason that is not debt: it holds TWO
+    # instances of a single quantity, the structure factor at +ω and at -ω, and a key
+    # is a type and a support with nothing to say which frequency. Its hand-link is
+    # the only expression available until supports compose, which is the same wall
+    # `at_size` refuses at.
     @test isempty(variable_types(DetailedBalance()))
     @test quantities(DetailedBalance()) == (DynamicalStructureFactor,)
     @test :S_plus in variables(DetailedBalance())
     @test :S_minus in variables(DetailedBalance())
+
+    # `BulkBoundary` is bare for a different reason: its two variables are two
+    # DIFFERENT quantities, and it is the second that has no type. `ν` ranges over
+    # Chern, winding and ℤ₂ invariants, so typing it would name one and exclude the
+    # others; the count `n` is typeable, but a relation is only reachable through the
+    # slots it types, so typing half of it would advertise a route that cannot close.
     @test isempty(variable_types(BulkBoundary()))
-    @test length(variables(BulkBoundary())) == 2
+    @test variables(BulkBoundary()) == (:n, :ν)
 
     # And a bare slot is not always a missing type. Several are evaluation
     # coordinates, which is what an untyped supplied slot is for: the Rényi index in
@@ -377,4 +466,23 @@ end
     tags = Set(law_family(r) for r in all_relations() if law_family(r) ∉ names)
     @test !isempty(tags)                       # the explicit families exist at all
     @test isempty(intersect(tags, names))      # and none is also a relation name
+
+    # Each family is pinned by membership, not only by existing. A tag declared and
+    # never asserted can be deleted without a test noticing, which for this table
+    # means the alternatives silently stop being alternatives and each route starts
+    # demanding agreement on its own.
+    members(f) = Set(nameof(typeof(r)) for r in all_relations() if law_family(r) === f)
+    @test members(:specific_heat_scaling) == Set([
+        :GriffithsSpecificHeat, :ActivatedSpecificHeat, :ConventionalFieldSpecificHeat
+    ])
+    @test members(:dynamical_scaling) ==
+        Set([:DynamicalScaling, :ActivatedDynamicalScaling])
+    @test members(:finite_size_energy) == Set([
+        :ActivatedFiniteSizeScaling,
+        :ConventionalFiniteSizeEnergy,
+        :OrderedGriffithsEnergyScale,
+    ])
+    @test members(:autocorrelation) == Set([
+        :CriticalAutocorrelation, :ActivatedAutocorrelation, :GriffithsAutocorrelation
+    ])
 end

@@ -73,11 +73,10 @@ also_constrains(::WeinribHalperinExponent) = (CorrelationLength,)
 #
 # Migrating one means typing its slots AND deleting its line here, in the same
 # change: the macro emits `quantities` for a relation with any typed slot, and two
-# definitions of it is a precompile failure rather than a silent shadow, which is
-# how this was found.  A relation holding TWO instances of one quantity cannot
-# migrate yet — `DetailedBalance` carries the structure factor at +ω and at −ω, and
-# a key is a type and a support with no way to say which frequency — so its
-# hand-link is not debt but the only expression available.
+# definitions of it is a precompile failure rather than a silent shadow.  A relation
+# holding TWO instances of one quantity cannot migrate yet: `DetailedBalance` carries
+# the structure factor at +ω and at −ω, and a key is a type and a support with no way
+# to say which frequency, so its hand-link is the only expression available.
 quantities(::SpectralSumRule) = (SpectralFunction,)
 quantities(::FSumRule) = (DynamicalStructureFactor,)   # first moment of S(q,ω) (supplied)
 quantities(::DetailedBalance) = (DynamicalStructureFactor,)
