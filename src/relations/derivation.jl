@@ -117,12 +117,17 @@ end
 # Forward-chaining closure: keep firing any step whose inputs are all known
 # until nothing new is produced.  Records the ordered steps actually used.
 # Stops early once `stop` (if given) becomes known.
-function _forward_chain(known::Dict{Symbol,Any}, stop::Union{Symbol,Nothing})
+function _forward_chain(
+    known::Dict{Symbol,Any},
+    stop::Union{Symbol,Nothing};
+    avoid::Union{Symbol,Nothing}=nothing,
+)
     used = DerivationStep[]
     progress = true
     while progress && !(stop !== nothing && haskey(known, stop))
         progress = false
         for step in derivation_steps()
+            step.output === avoid && continue
             haskey(known, step.output) && continue
             v = _try_step(step, known)
             v === nothing && continue
@@ -334,12 +339,18 @@ end
 # Forward-chaining closure over VariableKey nodes: fire any step whose inputs are all
 # known until nothing new is produced (stopping early once `stop` is known).  All
 # "known" tests are aliasing-aware, so `known` never accumulates both β and T.
-function _typed_chain!(known::Bag, extras, stop::Union{VariableKey,Nothing})
+function _typed_chain!(
+    known::Bag,
+    extras,
+    stop::Union{VariableKey,Nothing};
+    avoid::Union{VariableKey,Nothing}=nothing,
+)
     used = TypedStep[]
     progress = true
     while progress && !(stop !== nothing && _known(stop.type, known))
         progress = false
         for step in typed_derivation_steps()
+            step.output == avoid && continue
             _known(step.output.type, known) && continue
             v = _try_typed_step(step, known, extras)
             v === nothing && continue
@@ -777,4 +788,169 @@ function consistent(b::Bag; kwargs...)
     rows = consistency_report(b; kwargs...)
     _refuse_vacuous(rows)
     return all(r -> r.agree, rows)
+end
+
+# ─── Every route to one target, not the first one found ──────────────────
+#
+# `derive` stops at the first relation that produces the target, and 66 of the
+# 219 symbol-keyed outputs (38 of 84 typed ones) have more than one producing
+# relation, up to nineteen. Which one runs is registry iteration order, and if
+# two disagree the caller is handed a number and told nothing.
+#
+# The trap in checking them is circular confirmation: derive the target first
+# and an intermediate built FROM it will confirm a second route trivially. So
+# the closure here is built with the target held out, both as a given and as a
+# derivable node, and every route is then run against data that does not contain
+# it.
+
+"""
+    DerivationRouteRow
+
+One route to a target: the `relation` that produced it, the `inputs` it consumed,
+and the `value` it returned.
+"""
+struct DerivationRouteRow
+    relation::AbstractRelation
+    inputs::Vector{Any}
+    value::Any
+end
+export DerivationRouteRow
+
+function Base.show(io::IO, r::DerivationRouteRow)
+    return print(
+        io, nameof(typeof(r.relation)), ": {", join(r.inputs, ", "), "} → ", r.value
+    )
+end
+
+"""
+    derivation_routes(target::Symbol; knowns...) -> Vector{DerivationRouteRow}
+    derivation_routes(Q::Type, bag::Bag; extras...) -> Vector{DerivationRouteRow}
+
+EVERY relation that can produce `target` from the knowns, each with the value it
+gives, where [`derive`](@ref) runs whichever one the registry reaches first.
+
+The target is held out of the data the routes are run against, as a given and as
+a derivable node both, so a route cannot read a value that was itself derived
+from the target and confirm itself. A route needing something only reachable
+through the target therefore does not appear, which is the correct answer for it.
+
+Supplying the target is the useful case: the rows are then what the rest of the
+data predicts for a number already measured.
+
+```julia
+derivation_routes(:c; dS_dlogℓ = 0.1667, ncuts = 2)
+```
+"""
+function derivation_routes(target::Symbol; knowns...)
+    known = Dict{Symbol,Any}(pairs(knowns))
+    pop!(known, target, nothing)
+    _forward_chain(known, nothing; avoid=target)
+    rows = DerivationRouteRow[]
+    for step in derivation_steps()
+        step.output === target || continue
+        v = _try_step(step, known)
+        v === nothing && continue
+        push!(rows, DerivationRouteRow(step.relation, Any[step.inputs...], v))
+    end
+    return rows
+end
+
+# β and T are one quantity under two names, so holding out the target means
+# holding out whichever of the pair the bag carries.
+function _holdout!(known::Bag, @nospecialize(Q::Type))
+    delete!(known, VariableKey(Q))
+    Q === Temperature && delete!(known, VariableKey(InverseTemperature))
+    Q === InverseTemperature && delete!(known, VariableKey(Temperature))
+    return known
+end
+
+function derivation_routes(@nospecialize(Q::Type), bag::Bag; extras...)
+    known = copy(bag)
+    _check_one_temperature(known)
+    _holdout!(known, Q)
+    target = VariableKey(Q)
+    _typed_chain!(known, values(extras), nothing; avoid=target)
+    rows = DerivationRouteRow[]
+    for step in typed_derivation_steps()
+        step.output == target || continue
+        v = _try_typed_step(step, known, values(extras))
+        v === nothing && continue
+        push!(rows, DerivationRouteRow(step.relation, Any[step.inputs...], v))
+    end
+    return rows
+end
+export derivation_routes
+
+# The spread a set of values shows, relative to their largest magnitude. `NaN` for
+# fewer than two, which is not agreement and must not read as zero.
+function _value_spread(vs)
+    length(vs) < 2 && return NaN
+    m = max(maximum(abs, vs), 1)
+    return maximum(abs(a - b) for a in vs, b in vs) / m
+end
+
+"""
+    derive_crosschecked(target::Symbol; rtol=1e-8, knowns...) -> value
+    derive_crosschecked(Q::Type, bag::Bag; rtol=1e-8, extras...) -> value
+
+[`derive`](@ref), refusing when the data reaches the target two ways that
+disagree by more than `rtol`.
+
+One route returning a number is not evidence the data is consistent about it,
+and with up to nineteen relations producing one symbol the route that ran was
+chosen by iteration order. A single route is accepted, since there is nothing to
+compare it against; the refusal fires only where the data contradicts itself.
+
+Supplying the target is the case to reach for. [`derive`](@ref) hands it straight
+back without looking at anything else, and this compares it against every route
+the rest of the data affords, which is the question a measured number raises.
+
+`min_routes` is how to ask that a cross-check actually happened. The default of
+`0` accepts data that affords no independent route, which returns a number this
+verb's name would otherwise claim it had checked.
+"""
+function derive_crosschecked(target::Symbol; rtol::Real=1e-8, min_routes::Int=0, knowns...)
+    rows = derivation_routes(target; knowns...)
+    supplied = get(Dict{Symbol,Any}(pairs(knowns)), target, nothing)
+    _require_routes(":$target", rows, min_routes)
+    isempty(rows) && return supplied === nothing ? derive(target; knowns...) : supplied
+    _refuse_disagreement(":$target", rows, supplied, rtol)
+    return supplied === nothing ? first(rows).value : supplied
+end
+
+function derive_crosschecked(
+    @nospecialize(Q::Type), bag::Bag; rtol::Real=1e-8, min_routes::Int=0, extras...
+)
+    rows = derivation_routes(Q, bag; extras...)
+    sup = _slot_value(Q, bag)
+    supplied = sup === nothing ? nothing : something(sup)
+    _require_routes(string(nameof(Q)), rows, min_routes)
+    isempty(rows) && return supplied === nothing ? derive(Q, bag; extras...) : supplied
+    _refuse_disagreement(string(nameof(Q)), rows, supplied, rtol)
+    return supplied === nothing ? first(rows).value : supplied
+end
+export derive_crosschecked
+
+function _refuse_disagreement(what, rows, supplied, rtol)
+    vs = Any[r.value for r in rows]
+    supplied === nothing || push!(vs, supplied)
+    sp = _value_spread(vs)
+    (isnan(sp) || sp <= rtol) && return nothing
+    lines = string.(rows)
+    supplied === nothing || push!(lines, "supplied: $supplied")
+    return error(
+        "derive_crosschecked: the data reaches $what $(length(vs)) ways that disagree " *
+        "by $(sp) (rtol = $rtol). One of the inputs is wrong, or they are not all " *
+        "describing the same system:\n  " *
+        join(lines, "\n  "),
+    )
+end
+
+function _require_routes(what, rows, min_routes)
+    length(rows) >= min_routes && return nothing
+    return error(
+        "derive_crosschecked: $what is reached by $(length(rows)) independent " *
+        "route(s), fewer than the $min_routes asked for. The data affords no " *
+        "cross-check here, and a value returned from it would not have had one.",
+    )
 end
