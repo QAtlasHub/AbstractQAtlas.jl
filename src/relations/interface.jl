@@ -1041,6 +1041,29 @@ function bag(pairs::Pair...)
 end
 export bag
 
+"""
+    bag(cs::ConventionSet, pairs...) -> Bag
+
+A bag whose values are converted, on entry, out of the conventions `cs` declares
+and into the ones this package's relations are written in.
+
+This is the only door: a relation never sees the project's convention, so there
+is no call that silently skips the conversion. A quantity `cs` says nothing
+about, or one with no convention axis, is stored unchanged.
+
+```julia
+cs = conventions(AbstractEntanglementMeasure => Bits)
+bag(cs, VonNeumannEntropy() => 3.0)     # stored as 3.0 * log(2), in nats
+```
+"""
+function bag(cs::ConventionSet, pairs::Pair...)
+    b = bag(pairs...)
+    for key in collect(keys(b))
+        b[key] = in_canonical_convention(cs, key.type, b[key])
+    end
+    return b
+end
+
 # Look up one identity slot in a bag, PRESENCE-aware: `Some(value)` if the key is
 # present (even when the stored value is itself `nothing`), else `nothing` — so a
 # truly absent key is never confused with a present-but-`nothing` one (issue C2).

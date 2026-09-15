@@ -62,6 +62,7 @@ include("core/distributions.jl")
 include("core/fields.jl")
 include("core/relation_variables.jl")   # the RelationVariable layer (type-keyed variables)
 include("core/region.jl")                # the Region set layer (entanglement support, §5)
+include("core/conventions.jl")           # how a value is written, and the conversion into the one the relations use
 
 # structure — model-independent definitional correspondences between the
 # core quantities: transition classification, the critical
