@@ -7,6 +7,14 @@ using AbstractQAtlas
 using AbstractQAtlas: _route_order, _genealogy_derivative
 using Test: @test, @test_throws, @testset
 
+why(f) =
+    try
+        f()
+        ""
+    catch e
+        sprint(showerror, e)
+    end
+
 F(h) = -log(2cosh(h))          # M = -F'(h) = tanh(h)
 Φ(T) = -T * log(2cosh(1 / T))  # S = -Φ'(T)
 kinked(x) = x < 0 ? x^2 : 2x^2 # f and f' continuous at 0, f'' jumps 2 -> 4
@@ -18,6 +26,21 @@ struct RootProbeQuantity <: AbstractQuantity end
 function AbstractQAtlas.derivative_edge(::Type{RootProbeQuantity})
     return DerivativeEdge(RootProbeParent, Temperature)
 end
+
+# A route that breaks the contract: it reports a step and gives no way to change
+# one. `observed_order` needs both, so this must surface rather than become a NaN.
+struct BrokenStepRoute <: DerivativeRoute
+    h::Float64
+end
+function AbstractQAtlas.nth_derivative(r::BrokenStepRoute, f, x, n::Integer)
+    return nth_derivative(CentralDifference(r.h), f, x, n)
+end
+AbstractQAtlas.step_size(r::BrokenStepRoute) = r.h
+
+# A route naming a backend that IS loaded, so the fallback must not blame the
+# package for a method the route itself never defined.
+struct LoadedBackendRoute <: DerivativeRoute end
+AbstractQAtlas.backend_package(::LoadedBackendRoute) = :LinearAlgebra
 
 @testset "a finite-difference route reaches the closed form" begin
     x = 0.3
@@ -97,8 +120,9 @@ end
             thermal_derivative(Magnetization(:z), F, x, Richardson(1e-1; levels=L)) - exact
         ) for L in 2:5
     ]
-    # Each level removes one more order of h^2, so the error falls monotonically.
-    @test issorted(errs; rev=true)
+    # STRICTLY falling: a `levels` that is ignored gives four equal errors, and
+    # `issorted` counts ties as sorted, so it alone would pass that.
+    @test all(errs[i] > errs[i + 1] for i in 1:(length(errs) - 1))
     @test errs[1] / errs[end] > 1e3
     # And a bad `levels` is refused rather than silently behaving as the default.
     @test_throws ArgumentError Richardson(1e-2; levels=1)
@@ -177,8 +201,13 @@ end
     # Only a missing backend is absorbed into a NaN row. A quantity with no
     # genealogy edge, and a guard the route itself raises, both propagate: a NaN
     # there would read as "install a package" for a mistake no package fixes.
-    @test_throws ErrorException derivative_report(
-        PartitionFunction(), F, 0.3, (CentralDifference(1e-2),)
+    # Pinned by MESSAGE: `_route_order` has its own guard one line later, so a
+    # type-only assertion passes whichever of the two fired.
+    @test occursin(
+        "is not a response function",
+        why(
+            () -> derivative_report(PartitionFunction(), F, 0.3, (CentralDifference(1e-2),))
+        ),
     )
     @test_throws ErrorException derivative_report(
         Susceptibility(:x, :y), F, 0.3, (CentralDifference(1e-2),)
@@ -207,4 +236,42 @@ end
         sprint(showerror, e)
     end
     @test isempty(msg) || occursin("ForwardDiff", msg)
+end
+
+@testset "a route that breaks the step contract is not absorbed as a NaN" begin
+    # The order column used to catch `ErrorException` as well as
+    # `MissingRouteBackend`, so a route reporting a `step_size` with no
+    # `with_step_size` produced the same NaN as one that legitimately has no step.
+    # Different mistakes, and only one of them is the caller's.
+    @test occursin(
+        "with_step_size", why(() -> observed_order(BrokenStepRoute(1e-2), F, 0.3, 1))
+    )
+    @test_throws ErrorException derivative_report(
+        Magnetization(:z), F, 0.3, (BrokenStepRoute(1e-2),)
+    )
+    # A route declaring no step is still a quiet NaN, the one case the column may
+    # absorb, and its message says which half is missing.
+    @test isnan(only(derivative_report(Magnetization(:z), F, 0.3, (AutoDiff(),))).order)
+    @test occursin(
+        "reports no `step_size`", why(() -> observed_order(AutoDiff(), F, 0.3, 1))
+    )
+end
+
+@testset "a missing method is not blamed on a package that is loaded" begin
+    # LinearAlgebra is loaded by this package, so reaching the fallback means the
+    # ROUTE is incomplete. Telling its author to reinstall points away from that.
+    msg = why(() -> nth_derivative(LoadedBackendRoute(), F, 0.3, 1))
+    @test occursin("is loaded, but no method matched", msg)
+    @test !occursin("which is not loaded", msg)
+end
+
+@testset "MissingRouteBackend cannot name an extension that does not exist" begin
+    # It is exported, so an extension author can construct it. Built for a route
+    # with no `backend_package` it used to render "needs the nothing extension".
+    @test_throws ArgumentError MissingRouteBackend(CentralDifference(1e-3))
+    @test_throws ArgumentError MissingRouteBackend(Richardson(1e-2))
+    e = MissingRouteBackend(AutoDiff())
+    @test e isa Exception
+    @test occursin("MissingRouteBackend:", sprint(showerror, e))
+    @test occursin("ForwardDiff", sprint(showerror, e))
 end

@@ -10,6 +10,14 @@
 
 using AbstractQAtlas
 using AbstractQAtlas: _disagreement, derivation_steps, typed_derivation_steps
+
+why(f) =
+    try
+        f()
+        ""
+    catch e
+        sprint(showerror, e)
+    end
 using Test: @test, @test_throws, @testset
 
 slope(c) = 2 * c / 6   # CFTEntanglementSlope: dS/dlnℓ = ncuts·c/6, ncuts = 2
@@ -91,13 +99,21 @@ end
     @test nameof(typeof(threw.relation)) === :FreeEnergyFromZ
     @test occursin("DomainError", threw.error)
     @test threw.value === nothing
+    # The row DISPLAYS as a failure. Printing `r.value` unconditionally would show
+    # `nothing`, and the refusal message is built from `string.(rows)`.
+    @test occursin("THREW", string(threw))
+    @test occursin("DomainError", string(threw))
+    # Neither state and both states are unrepresentable, so no consumer's
+    # `error === nothing` branch can be wrong about what `value` holds.
+    @test_throws ArgumentError DerivationRouteRow(threw.relation, Any[], nothing, nothing)
+    @test_throws ArgumentError DerivationRouteRow(threw.relation, Any[], 1.0, "boom")
     msg = try
         derive_crosschecked(FreeEnergy, impossible)
         ""
     catch e
         sprint(showerror, e)
     end
-    @test occursin("raised on this data", msg)
+    @test occursin("never got to disagree", msg)
     @test occursin("FreeEnergyFromZ", msg)
     # A relation merely declining to be solved for a slot is NOT a broken route, or
     # every ordinary call would refuse. The consistent bag still passes.
@@ -260,4 +276,32 @@ end
     end
     @test total > 300               # the sweep reached the registry, not two rows
     @test isempty(leaked)
+end
+
+@testset "a guard on the solver's probe must not make a slot unreachable" begin
+    # `solve` probes its target at 0, 1, 2. A relation guarding one of those points
+    # then refuses for EVERY input, and the refusal names a value the caller never
+    # supplied. Both shapes below did that, and the fix is the closed form each
+    # relation already had in prose.
+    #
+    # `EntanglementSpectrumCorrelation` is `ε - log((1-ζ)/ζ)`: at the probe ζ = 2
+    # the argument of `log` is -0.5. Its docstring carried `ζ = 1/(e^ε + 1)` already.
+    @test derive(:ζ; ε=0.7) ≈ 1 / (exp(0.7) + 1)
+    @test derive_crosschecked(:ζ; ε=0.7) ≈ 1 / (exp(0.7) + 1)
+    @test isempty([r for r in derivation_routes(:ζ; ε=0.7) if r.error !== nothing])
+
+    # The slope relations guard `ncuts = 0`, which is exactly the first probe.
+    @test derive(:ncuts; dS_dlogℓ=slope(0.5), c=0.5) ≈ 2
+    @test derive_crosschecked(:ncuts; dS_dlogℓ=slope(0.5), c=0.5) ≈ 2
+    @test isempty([
+        r for
+        r in derivation_routes(:ncuts; dS_dlogℓ=slope(0.5), c=0.5) if r.error !== nothing
+    ])
+    # The guard still holds, now read off the ANSWER rather than the probe, and it
+    # reaches the caller. Through `derive` it does not: that verb drops the route
+    # and reports the target unreachable, which is the difference this layer makes.
+    @test occursin("ncuts = 0", only(derivation_routes(:ncuts; dS_dlogℓ=0.0, c=0.5)).error)
+    @test occursin("ncuts = 0", why(() -> derive_crosschecked(:ncuts; dS_dlogℓ=0.0, c=0.5)))
+    @test occursin("c = 0", why(() -> derive_crosschecked(:ncuts; dS_dlogℓ=0.3, c=0.0)))
+    @test occursin("not reachable", why(() -> derive(:ncuts; dS_dlogℓ=0.0, c=0.5)))
 end

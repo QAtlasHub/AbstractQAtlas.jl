@@ -84,6 +84,10 @@ struct Richardson <: DerivativeRoute
 end
 export Richardson
 
+# Whether the named package is loaded at all, which separates "install it" from
+# "it is here and the route's own method is missing".
+_package_loaded(name::Symbol) = any(k -> k.name == String(name), keys(Base.loaded_modules))
+
 """
     nth_derivative(route::DerivativeRoute, f, x, n::Integer) -> value
 
@@ -93,8 +97,17 @@ The `n`-th derivative of the scalar function `f` at `x`, taken along `route`.
 This is the one method a new route has to define.
 """
 function nth_derivative(route::DerivativeRoute, f, x, n::Integer)
-    backend_package(route) === nothing || throw(MissingRouteBackend(route))
-    return error("nth_derivative: no method for $(typeof(route)).")
+    pkg = backend_package(route)
+    pkg === nothing && return error("nth_derivative: no method for $(typeof(route)).")
+    # Reaching the fallback with the backend LOADED means the route's own method is
+    # missing or its signature does not match, which reinstalling does not fix.
+    # Saying "not loaded" there points away from the defect.
+    _package_loaded(pkg) && return error(
+        "nth_derivative: $(typeof(route)) declares the $pkg backend and $pkg is " *
+        "loaded, but no method matched. The route's own `nth_derivative` is missing " *
+        "or its signature differs.",
+    )
+    return throw(MissingRouteBackend(route))
 end
 export nth_derivative
 
@@ -111,6 +124,16 @@ the same `NaN` row as an unloaded backend.
 """
 struct MissingRouteBackend <: Exception
     route::DerivativeRoute
+    function MissingRouteBackend(route::DerivativeRoute)
+        backend_package(route) === nothing && throw(
+            ArgumentError(
+                "MissingRouteBackend: $(typeof(route)) declares no `backend_package`, " *
+                "so there is no extension for it to be missing. Its failure is not a " *
+                "missing backend.",
+            ),
+        )
+        return new(route)
+    end
 end
 export MissingRouteBackend
 
@@ -170,9 +193,11 @@ The step `route` takes, and the same route at a different step. `nothing` means
 the route has no step, which is what [`AutoDiff`](@ref) reports.
 
 Part of the route contract alongside [`nth_derivative`](@ref), and the pair
-[`observed_order`](@ref) needs. A route that carries a step and defines neither
-gets the honest refusal rather than the false claim that it has no step, which is
-what a closed `Union` over the routes that happened to exist would have told it.
+[`observed_order`](@ref) needs. Each missing half names itself: a route reporting
+a `step_size` with no `with_step_size` is told so by `with_step_size`, and one
+declaring neither is told it reports no step, which for it is true. A closed
+`Union` over the routes that happened to exist told a third route the second
+thing whether or not it was true.
 """
 step_size(::DerivativeRoute) = nothing
 export step_size
@@ -269,11 +294,10 @@ end
 # `U`, and `U = ∂(βF)/∂β` takes `βF`. Both are a plain first derivative of the
 # function passed, with no sign flip, which is why they cannot go through the
 # generic path above.
-function thermal_derivative(::SpecificHeat, U, T::Number, route::DerivativeRoute)
-    return nth_derivative(route, U, T, 1)
-end
-function thermal_derivative(::Energy, βF, β::Number, route::DerivativeRoute)
-    return nth_derivative(route, βF, β, 1)
+function thermal_derivative(
+    ::Union{SpecificHeat,Energy}, f, x::Number, route::DerivativeRoute
+)
+    return nth_derivative(route, f, x, 1)
 end
 
 # A single-field potential fixes only the DIAGONAL susceptibility: an off-diagonal
@@ -331,9 +355,8 @@ rather than aborting the sweep, since the usual reason is a missing backend and
 the other rows are still the answer.
 """
 function derivative_report(q::AbstractQuantity, F, x::Number, routes)
-    # Refused here rather than per row: `_route_order` would fall back to 1 and the
-    # order column would report a textbook 2.0 beside a value the same call refused,
-    # which reads as "the numerics are fine, only the value failed".
+    # Refused up front, so no row is built for a quantity that has no derivative.
+    # Per row it would surface as `_route_order` throwing inside the order column.
     derivative_edge(q) === nothing && error(
         "derivative_report: $(typeof(q)) is not a response function (no " *
         "derivative_edge), so there is no derivative for a route to take.",
@@ -347,11 +370,19 @@ function derivative_report(q::AbstractQuantity, F, x::Number, routes)
             e isa MissingRouteBackend || rethrow()
             NaN
         end
-        o = try
-            Float64(observed_order(r, F, x, n))
-        catch e
-            (e isa MissingRouteBackend || e isa ErrorException) || rethrow()
+        # Asked whether the route has a step BEFORE calling, so the catch can stay as
+        # narrow as the value's. Absorbing `ErrorException` here instead would turn a
+        # route that reports a `step_size` and defines no `with_step_size` into the
+        # same NaN as one that legitimately has no step.
+        o = if step_size(r) === nothing
             NaN
+        else
+            try
+                Float64(observed_order(r, F, x, n))
+            catch e
+                e isa MissingRouteBackend || rethrow()
+                NaN
+            end
         end
         push!(out, DerivativeRouteRow(r, v, o))
     end

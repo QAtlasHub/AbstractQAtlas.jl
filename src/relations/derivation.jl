@@ -809,15 +809,29 @@ end
 One route to a target: the `relation`, the `inputs` it consumed, and either the
 `value` it returned or the `error` it raised on the way.
 
-A route that raised is a row rather than an absence. An impossible input makes a
-relation throw where it would otherwise have DISAGREED, and dropping it silently
-turns the strongest evidence the data is wrong into one fewer route to compare.
+A route that raised because of the DATA is a row rather than an absence: an
+impossible input makes a relation throw where it would otherwise have DISAGREED,
+and dropping it silently turns the strongest evidence the data is wrong into one
+fewer route to compare. A route the framework declines (`_route_declined`) is
+still an absence, since it was never applicable here.
 """
 struct DerivationRouteRow
     relation::AbstractRelation
     inputs::Vector{Any}
     value::Any
     error::Union{String,Nothing}
+    function DerivationRouteRow(rel, inputs, value, error)
+        # Exactly one of the two, or every consumer's `r.error === nothing` branch is
+        # wrong about what `value` holds. Neither set crashes `_disagreement` with a
+        # `MethodError` on `nothing - nothing` instead of any diagnosis.
+        (value === nothing) == (error === nothing) && throw(
+            ArgumentError(
+                "DerivationRouteRow: a row carries either a value or an error, not " *
+                "both and not neither; got value=$(repr(value)), error=$(repr(error)).",
+            ),
+        )
+        return new(rel, inputs, value, error)
+    end
 end
 DerivationRouteRow(rel, inputs, value) = DerivationRouteRow(rel, inputs, value, nothing)
 export DerivationRouteRow
@@ -829,13 +843,31 @@ end
 
 # Telling "this relation cannot be applied here" from "it applied and the data
 # broke it". The framework declines in exactly two shapes, both raised by
-# relations/interface.jl: `solve:` for the affine, parametric and abstract-group
-# refusals, and the untyped-slot message for a supplied value the caller did not
-# give. Everything else is the DATA, including a relation's OWN physics guard,
+# relations/interface.jl and nowhere else: `solve:` for the affine, parametric and
+# abstract-group refusals, and the untyped-slot message for a supplied value the
+# caller did not give. `solve:` is therefore reserved vocabulary, pinned by a test,
+# because a relation guard that borrows it disappears from the reported set.
+# Everything else is the DATA, including a relation's OWN physics guard,
 # which raises an `ErrorException` like `CFTEntanglementSlope: ncuts = 0 ...` and
 # is a statement about the inputs. Matching the type alone would drop those, and
 # `test_derivation_routes.jl` sweeps every target to pin that neither shape leaks
 # into the reported set.
+_row_ok(r::DerivationRouteRow) = r.error === nothing
+
+# The push is the same on both doors; only the presence test and the `solve` call
+# above it are door-specific. Mirrors `_finite_size_scaling_row!` in finite_size.jl.
+function _route_row!(rows, step, v)
+    return push!(rows, DerivationRouteRow(step.relation, Any[step.inputs...], v))
+end
+function _route_row!(rows, step, e::Exception)
+    return push!(
+        rows,
+        DerivationRouteRow(
+            step.relation, Any[step.inputs...], nothing, sprint(showerror, e)
+        ),
+    )
+end
+
 function _route_declined(e)
     e isa ErrorException || return false
     return startswith(e.msg, "solve:") || occursin("(untyped slot)", e.msg)
@@ -869,18 +901,16 @@ function derivation_routes(target::Symbol; knowns...)
         step.output === target || continue
         all(v -> haskey(known, v), step.inputs) || continue
         try
-            v = solve(
-                step.relation, Val(step.output); (v => known[v] for v in step.inputs)...
-            )
-            push!(rows, DerivationRouteRow(step.relation, Any[step.inputs...], v))
-        catch e
-            _route_declined(e) && continue
-            push!(
+            _route_row!(
                 rows,
-                DerivationRouteRow(
-                    step.relation, Any[step.inputs...], nothing, sprint(showerror, e)
+                step,
+                solve(
+                    step.relation, Val(step.output); (v => known[v] for v in step.inputs)...
                 ),
             )
+        catch e
+            _route_declined(e) && continue
+            _route_row!(rows, step, e)
         end
     end
     return rows
@@ -906,28 +936,21 @@ function derivation_routes(@nospecialize(Q::Type), bag::Bag; extras...)
         step.output == target || continue
         all(k -> _known(k.type, known), step.inputs) || continue
         try
-            v = solve(step.relation, step.output.type, known; extras...)
-            push!(rows, DerivationRouteRow(step.relation, Any[step.inputs...], v))
+            _route_row!(
+                rows, step, solve(step.relation, step.output.type, known; extras...)
+            )
         catch e
             _route_declined(e) && continue
-            push!(
-                rows,
-                DerivationRouteRow(
-                    step.relation, Any[step.inputs...], nothing, sprint(showerror, e)
-                ),
-            )
+            _route_row!(rows, step, e)
         end
     end
     return rows
 end
 export derivation_routes
 
-# The largest pairwise difference in a set of values, and their largest magnitude.
-# `(NaN, NaN)` for fewer than two, which is not agreement and must not read as zero.
-#
-# Compared as `d <= atol + rtol*m`, `isapprox`'s rule, rather than divided by
-# `max(m, 1)`: that floor turns the test absolute below one, and two routes
-# returning `+1e-12` and `-1e-12` are then a sign flip that passes at any rtol.
+# The largest pairwise difference in a set of values, and their largest magnitude,
+# to be compared as `d <= atol + rtol*m`. `nothing` for fewer than two, which is
+# not agreement and must not share a sentinel with what a degenerate route returns.
 function _disagreement(vs)
     length(vs) < 2 && return nothing
     return (maximum(abs(a - b) for a in vs, b in vs), maximum(abs, vs))
@@ -989,7 +1012,7 @@ end
 export derive_crosschecked
 
 function _refuse_disagreement(what, rows, supplied, atol, rtol)
-    vs = Any[r.value for r in rows if r.error === nothing]
+    vs = Any[r.value for r in rows if _row_ok(r)]
     supplied === nothing || push!(vs, supplied)
     # A route that returned NaN makes every difference NaN, and `isnan` as a
     # "nothing to compare" sentinel would then read that as agreement. It is the
@@ -1017,20 +1040,22 @@ end
 # A route that raised is reported before any comparison: it is a relation that
 # would have disagreed, prevented from doing so by the data itself.
 function _refuse_broken_routes(what, rows)
-    broken = [r for r in rows if r.error !== nothing]
+    broken = [r for r in rows if !_row_ok(r)]
     isempty(broken) && return nothing
     return error(
-        "derive_crosschecked: $(length(broken)) route(s) to $what raised on this data " *
-        "rather than returning a value, so they never got to disagree:\n  " *
+        "derive_crosschecked: $(length(broken)) route(s) to $what raised instead of " *
+        "returning a value, so they never got to disagree. Either an input is outside " *
+        "the relation's domain, or the relation guards the point `solve` probed the " *
+        "target at and needs a specialized `_solve`:\n  " *
         join(string.(broken), "\n  "),
     )
 end
 
 function _require_routes(what, rows, min_routes)
-    count(r -> r.error === nothing, rows) >= min_routes && return nothing
+    n = count(_row_ok, rows)
+    n >= min_routes && return nothing
     return error(
-        "derive_crosschecked: $what is reached by " *
-        "$(count(r -> r.error === nothing, rows)) independent " *
+        "derive_crosschecked: $what is reached by $n independent " *
         "route(s), fewer than the $min_routes asked for. The data affords no " *
         "cross-check here, and a value returned from it would not have had one.",
     )

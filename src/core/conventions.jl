@@ -211,24 +211,23 @@ supertype chain SKIPS its own family: `supertype(Energy{:per_site})` is
 `AbstractThermalPotential`, so a walk never reaches the `Energy` a project keyed
 its declaration on, and the value goes into the bag unconverted.
 
-Two declared types that both cover `Q` and are unrelated to each other are
-refused rather than resolved by `Dict` order.
+Covers with no unique most specific member are refused rather than resolved by
+`Dict` order. Decided after collecting every cover, not folded pairwise: two
+unrelated covers can be reconciled by a third that refines both, and a fold that
+errors on meeting the first incomparable pair reports a false ambiguity for four
+of the six orders that Dict iteration can hand it.
 """
 function declared_convention(cs::ConventionSet, @nospecialize(Q::Type))
-    best, bestT = nothing, nothing
-    for (T, c) in cs.declared
-        Q <: T || continue
-        if bestT === nothing || T <: bestT
-            best, bestT = c, T
-        elseif !(bestT <: T)
-            error(
-                "declared_convention: $Q is covered by both $bestT and $T, which are " *
-                "unrelated, so neither is the more specific. Key the declaration on " *
-                "whichever one the values were actually written in.",
-            )
-        end
+    covers = [(T, c) for (T, c) in cs.declared if Q <: T]
+    isempty(covers) && return nothing
+    for (T, c) in covers
+        all(U -> T <: U, first.(covers)) && return c
     end
-    return best
+    return error(
+        "declared_convention: $Q is covered by $(join(first.(covers), ", ")), with no " *
+        "one of them a subtype of all the others, so none is the most specific. Key " *
+        "the declaration on whichever one the values were actually written in.",
+    )
 end
 export declared_convention
 

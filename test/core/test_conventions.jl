@@ -21,6 +21,18 @@ AbstractQAtlas.convert_convention(::WholeUnits, ::HalfUnits, ::Type, v) = 2v
 struct ParametricProbeQuantity{I} <: AbstractQuantity end
 AbstractQAtlas.canonical_convention(::Type{<:ParametricProbeQuantity}) = WholeUnits()
 
+# Three covers of one quantity where two are unrelated to each other and the third
+# refines both. This is the shape a pairwise fold gets wrong.
+abstract type AmbProbeParent <: AbstractQuantity end
+struct AmbProbeSideA <: AbstractQuantity end
+struct AmbProbeSideB <: AbstractQuantity end
+struct AmbProbeQuantity <: AmbProbeParent end
+struct UnitsA <: Convention end
+struct UnitsB <: Convention end
+struct UnitsC <: Convention end
+const AMB_WIDE_A = Union{AmbProbeParent,AmbProbeSideA}
+const AMB_WIDE_B = Union{AmbProbeParent,AmbProbeSideB}
+
 @testset "an axis is declared per quantity, never by supertype" begin
     # The twelve whose ABQ definition contains a logarithm, or is an additive
     # combination of ones that do.
@@ -105,11 +117,36 @@ end
     @test bag(cs, ParametricProbeQuantity{:a}() => 2.5)[VariableKey(
         ParametricProbeQuantity{:a}
     )] == 5.0
-    # Two covers that are unrelated cannot both be what the values are written in.
-    amb = conventions(
-        ParametricProbeQuantity => HalfUnits(), ConventionProbeQuantity => HalfUnits()
+end
+
+@testset "the most specific cover is found whatever order the Dict yields" begin
+    # The earlier spelling of this testset paired the query with a type it is not a
+    # subtype of, so the ambiguity branch was never reached and the assertion held
+    # with the second entry deleted. These two DO both cover it.
+    @test AmbProbeQuantity <: AMB_WIDE_A
+    @test AmbProbeQuantity <: AMB_WIDE_B
+    @test !(AMB_WIDE_A <: AMB_WIDE_B) && !(AMB_WIDE_B <: AMB_WIDE_A)
+    @test AmbProbeParent <: AMB_WIDE_A && AmbProbeParent <: AMB_WIDE_B
+
+    # Every insertion order must give the one cover that refines both. A fold that
+    # errors on meeting the first incomparable pair gets this right for four of the
+    # six orders and reports a false ambiguity for two.
+    entries = [AMB_WIDE_A => UnitsA(), AMB_WIDE_B => UnitsB(), AmbProbeParent => UnitsC()]
+    for o in
+        [[a, b, c] for a in 1:3 for b in 1:3 for c in 1:3 if length(unique([a, b, c])) == 3]
+        cs = ConventionSet(Dict{Type,Convention}(entries[i] for i in o))
+        @test declared_convention(cs, AmbProbeQuantity) === UnitsC()
+    end
+
+    # With no common refinement there IS no most specific cover, and guessing one by
+    # Dict order is the thing being refused.
+    genuine = ConventionSet(
+        Dict{Type,Convention}(AMB_WIDE_A => UnitsA(), AMB_WIDE_B => UnitsB())
     )
-    @test declared_convention(amb, ParametricProbeQuantity{:a}) === HalfUnits()
+    @test occursin(
+        "no one of them a subtype of all the others",
+        why(() -> declared_convention(genuine, AmbProbeQuantity)),
+    )
 end
 
 @testset "conversion" begin
