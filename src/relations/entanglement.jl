@@ -103,6 +103,22 @@ is out of domain and [`CFTEntanglementChordSlope`](@ref) is the one to use.  `nc
     dS_dlogℓ - ncuts * c / 6
 end
 
+# `_require_cuts` fires at the solver's probe of `ncuts = 0` before the slope is
+# ever read, so without these the count is unreachable and the refusal names the
+# probe as though it were the caller's. The guard belongs on the ANSWER.
+function _solve(::CFTEntanglementSlope, ::Val{:ncuts}; dS_dlogℓ, c, _extra...)
+    return _solved_cuts(:CFTEntanglementSlope, dS_dlogℓ, c)
+end
+function _solve(::CFTEntanglementChordSlope, ::Val{:ncuts}; dS_dlogchord, c, _extra...)
+    return _solved_cuts(:CFTEntanglementChordSlope, dS_dlogchord, c)
+end
+function _solved_cuts(what::Symbol, slope, c)
+    iszero(c) && error("$what: c = 0 carries no slope, so it fixes no cut count.")
+    n = 6 * slope / c
+    _require_cuts(what, n)
+    return n
+end
+
 """
     InfiniteRandomnessEntanglementSlope <: AbstractRelation
 
@@ -664,6 +680,18 @@ Variables: `ε`, `ζ`.
 @relation :entanglement EntanglementSpectrumCorrelation(
     ε::EntanglementSpectrumLevel, ζ::CorrelationMatrixEigenvalue
 ) = ε - log((1 - ζ) / ζ)
+
+# The docstring's own inverse, handed to the solver. Without it the generic
+# three-point prober evaluates the kernel at ζ = 2, where `(1-ζ)/ζ = -0.5` and
+# `log` raises, so `derive` called this unreachable and `derivation_routes` filed
+# a broken route, for EVERY ε. The failure is a property of the probe points, not
+# of the caller's data, which no classification downstream can tell apart.
+function _solve(::EntanglementSpectrumCorrelation, ::Val{:ζ}; ε, _extra...)
+    isfinite(ε) || error(
+        "EntanglementSpectrumCorrelation: ζ = 1/(exp(ε) + 1) needs a finite ε; got $ε."
+    )
+    return 1 / (exp(ε) + 1)
+end
 
 """
     free_fermion_entanglement_entropy(ζ) -> Float64

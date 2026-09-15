@@ -49,3 +49,24 @@ end
     @test rows[3].order ≈ 2 atol = 0.05
     @test maximum(r -> abs(r.value - rows[1].value), rows) < 1e-4
 end
+
+@testset "the off-diagonal guard is one guard, not two copies" begin
+    # It used to be pasted in both paths, and the two copies had already drifted
+    # to different wording. Same message from both is what says they are shared.
+    off = Susceptibility(:x, :y)
+    ad = try
+        thermal_derivative(off, Fad, 0.3, AutoDiff())
+        ""
+    catch e
+        sprint(showerror, e)
+    end
+    fd = try
+        thermal_derivative(off, Fad, 0.3, Richardson(1e-2))
+        ""
+    catch e
+        sprint(showerror, e)
+    end
+    @test !isempty(ad)
+    @test ad == fd
+    @test occursin("DIAGONAL", ad)
+end

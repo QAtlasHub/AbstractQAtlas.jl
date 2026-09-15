@@ -136,6 +136,7 @@ end
 module QuantumInformation
     using ..AbstractQAtlas
     import ..AbstractQAtlas: fetch      # unexported, so bare `fetch` here would be Base's
+    import ..AbstractQAtlas: _solve     # extended for a closed-form inverse (EntanglementSpectrumCorrelation:ζ)
     using ExperimentalAPI: @experimental
     include("relations/entanglement.jl")
 end

@@ -117,12 +117,17 @@ end
 # Forward-chaining closure: keep firing any step whose inputs are all known
 # until nothing new is produced.  Records the ordered steps actually used.
 # Stops early once `stop` (if given) becomes known.
-function _forward_chain(known::Dict{Symbol,Any}, stop::Union{Symbol,Nothing})
+function _forward_chain(
+    known::Dict{Symbol,Any},
+    stop::Union{Symbol,Nothing};
+    avoid::Union{Symbol,Nothing}=nothing,
+)
     used = DerivationStep[]
     progress = true
     while progress && !(stop !== nothing && haskey(known, stop))
         progress = false
         for step in derivation_steps()
+            step.output === avoid && continue
             haskey(known, step.output) && continue
             v = _try_step(step, known)
             v === nothing && continue
@@ -334,12 +339,18 @@ end
 # Forward-chaining closure over VariableKey nodes: fire any step whose inputs are all
 # known until nothing new is produced (stopping early once `stop` is known).  All
 # "known" tests are aliasing-aware, so `known` never accumulates both β and T.
-function _typed_chain!(known::Bag, extras, stop::Union{VariableKey,Nothing})
+function _typed_chain!(
+    known::Bag,
+    extras,
+    stop::Union{VariableKey,Nothing};
+    avoid::Union{VariableKey,Nothing}=nothing,
+)
     used = TypedStep[]
     progress = true
     while progress && !(stop !== nothing && _known(stop.type, known))
         progress = false
         for step in typed_derivation_steps()
+            step.output == avoid && continue
             _known(step.output.type, known) && continue
             v = _try_typed_step(step, known, extras)
             v === nothing && continue
@@ -777,4 +788,275 @@ function consistent(b::Bag; kwargs...)
     rows = consistency_report(b; kwargs...)
     _refuse_vacuous(rows)
     return all(r -> r.agree, rows)
+end
+
+# ─── Every route to one target, not the first one found ──────────────────
+#
+# `derive` stops at the first relation that produces the target, and 66 of the
+# 219 symbol-keyed outputs (38 of 84 typed ones) have more than one producing
+# relation, up to nineteen. Which one runs is registry iteration order, and if
+# two disagree the caller is handed a number and told nothing.
+#
+# The trap in checking them is circular confirmation: derive the target first
+# and an intermediate built FROM it will confirm a second route trivially. So
+# the closure here is built with the target held out, both as a given and as a
+# derivable node, and every route is then run against data that does not contain
+# it.
+
+"""
+    DerivationRouteRow
+
+One route to a target: the `relation`, the `inputs` it consumed, and either the
+`value` it returned or the `error` it raised on the way.
+
+A route that raised because of the DATA is a row rather than an absence: an
+impossible input makes a relation throw where it would otherwise have DISAGREED,
+and dropping it silently turns the strongest evidence the data is wrong into one
+fewer route to compare. A route the framework declines (`_route_declined`) is
+still an absence, since it was never applicable here.
+"""
+struct DerivationRouteRow
+    relation::AbstractRelation
+    inputs::Vector{Any}
+    value::Any
+    error::Union{String,Nothing}
+    function DerivationRouteRow(rel, inputs, value, error)
+        # Exactly one of the two, or every consumer's `r.error === nothing` branch is
+        # wrong about what `value` holds. Neither set crashes `_disagreement` with a
+        # `MethodError` on `nothing - nothing` instead of any diagnosis.
+        (value === nothing) == (error === nothing) && throw(
+            ArgumentError(
+                "DerivationRouteRow: a row carries either a value or an error, not " *
+                "both and not neither; got value=$(repr(value)), error=$(repr(error)).",
+            ),
+        )
+        return new(rel, inputs, value, error)
+    end
+end
+DerivationRouteRow(rel, inputs, value) = DerivationRouteRow(rel, inputs, value, nothing)
+export DerivationRouteRow
+
+function Base.show(io::IO, r::DerivationRouteRow)
+    print(io, nameof(typeof(r.relation)), ": {", join(r.inputs, ", "), "} → ")
+    return print(io, r.error === nothing ? r.value : "THREW $(r.error)")
+end
+
+# Telling "this relation cannot be applied here" from "it applied and the data
+# broke it". The framework declines in exactly two shapes, both raised by
+# relations/interface.jl and nowhere else: `solve:` for the affine, parametric and
+# abstract-group refusals, and the untyped-slot message for a supplied value the
+# caller did not give. `solve:` is therefore reserved vocabulary, pinned by a test,
+# because a relation guard that borrows it disappears from the reported set.
+# Everything else is the DATA, including a relation's OWN physics guard,
+# which raises an `ErrorException` like `CFTEntanglementSlope: ncuts = 0 ...` and
+# is a statement about the inputs. Matching the type alone would drop those, and
+# `test_derivation_routes.jl` sweeps every target to pin that neither shape leaks
+# into the reported set.
+_row_ok(r::DerivationRouteRow) = r.error === nothing
+
+# The push is the same on both doors; only the presence test and the `solve` call
+# above it are door-specific. Mirrors `_finite_size_scaling_row!` in finite_size.jl.
+function _route_row!(rows, step, v)
+    return push!(rows, DerivationRouteRow(step.relation, Any[step.inputs...], v))
+end
+function _route_row!(rows, step, e::Exception)
+    return push!(
+        rows,
+        DerivationRouteRow(
+            step.relation, Any[step.inputs...], nothing, sprint(showerror, e)
+        ),
+    )
+end
+
+function _route_declined(e)
+    e isa ErrorException || return false
+    return startswith(e.msg, "solve:") || occursin("(untyped slot)", e.msg)
+end
+
+"""
+    derivation_routes(target::Symbol; knowns...) -> Vector{DerivationRouteRow}
+    derivation_routes(Q::Type, bag::Bag; extras...) -> Vector{DerivationRouteRow}
+
+EVERY relation that can produce `target` from the knowns, each with the value it
+gives, where [`derive`](@ref) runs whichever one the registry reaches first.
+
+The target is held out of the data the routes are run against, as a given and as
+a derivable node both, so a route cannot read a value that was itself derived
+from the target and confirm itself. A route needing something only reachable
+through the target therefore does not appear, which is the correct answer for it.
+
+Supplying the target is the useful case: the rows are then what the rest of the
+data predicts for a number already measured.
+
+```julia
+derivation_routes(:c; dS_dlogℓ = 0.1667, ncuts = 2)
+```
+"""
+function derivation_routes(target::Symbol; knowns...)
+    known = Dict{Symbol,Any}(pairs(knowns))
+    pop!(known, target, nothing)
+    _forward_chain(known, nothing; avoid=target)
+    rows = DerivationRouteRow[]
+    for step in derivation_steps()
+        step.output === target || continue
+        all(v -> haskey(known, v), step.inputs) || continue
+        try
+            _route_row!(
+                rows,
+                step,
+                solve(
+                    step.relation, Val(step.output); (v => known[v] for v in step.inputs)...
+                ),
+            )
+        catch e
+            _route_declined(e) && continue
+            _route_row!(rows, step, e)
+        end
+    end
+    return rows
+end
+
+# β and T are one quantity under two names, so holding out the target means
+# holding out whichever of the pair the bag carries.
+function _holdout!(known::Bag, @nospecialize(Q::Type))
+    delete!(known, VariableKey(Q))
+    Q === Temperature && delete!(known, VariableKey(InverseTemperature))
+    Q === InverseTemperature && delete!(known, VariableKey(Temperature))
+    return known
+end
+
+function derivation_routes(@nospecialize(Q::Type), bag::Bag; extras...)
+    known = copy(bag)
+    _check_one_temperature(known)
+    _holdout!(known, Q)
+    target = VariableKey(Q)
+    _typed_chain!(known, values(extras), nothing; avoid=target)
+    rows = DerivationRouteRow[]
+    for step in typed_derivation_steps()
+        step.output == target || continue
+        all(k -> _known(k.type, known), step.inputs) || continue
+        try
+            _route_row!(
+                rows, step, solve(step.relation, step.output.type, known; extras...)
+            )
+        catch e
+            _route_declined(e) && continue
+            _route_row!(rows, step, e)
+        end
+    end
+    return rows
+end
+export derivation_routes
+
+# The largest pairwise difference in a set of values, and their largest magnitude,
+# to be compared as `d <= atol + rtol*m`. `nothing` for fewer than two, which is
+# not agreement and must not share a sentinel with what a degenerate route returns.
+function _disagreement(vs)
+    length(vs) < 2 && return nothing
+    return (maximum(abs(a - b) for a in vs, b in vs), maximum(abs, vs))
+end
+
+"""
+    derive_crosschecked(target::Symbol; atol=0, rtol=1e-8, min_routes=1, knowns...)
+    derive_crosschecked(Q::Type, bag::Bag; atol=0, rtol=1e-8, min_routes=1, extras...)
+
+[`derive`](@ref), refusing when the data reaches the target two ways that differ
+by more than `atol + rtol * max|value|`, which is `isapprox`'s rule.
+
+`atol` defaults to `0`, so small values are judged relatively. A quantity whose
+routes are genuinely noise-dominated near zero needs an `atol` saying so, rather
+than a floor built into the comparison.
+
+One route returning a number is not evidence the data is consistent about it:
+several relations can produce one target, and which one [`derive`](@ref) ran was
+chosen by registry order.
+
+Supplying the target is the case to reach for. [`derive`](@ref) hands it straight
+back without looking at anything else, and this compares it against every route
+the rest of the data affords, which is the question a measured number raises.
+
+`min_routes` defaults to `1`: data affording no independent route is refused,
+because returning a number from it is what this verb's name would otherwise be
+claiming it had checked. `min_routes = 0` is the opt-out, and `2` or more is how
+to demand a genuine cross-check rather than a single unopposed route.
+"""
+function derive_crosschecked(
+    target::Symbol; atol::Real=0, rtol::Real=1e-8, min_routes::Int=1, knowns...
+)
+    rows = derivation_routes(target; knowns...)
+    supplied = get(Dict{Symbol,Any}(pairs(knowns)), target, nothing)
+    _refuse_broken_routes(":$target", rows)
+    _require_routes(":$target", rows, min_routes)
+    isempty(rows) && return supplied === nothing ? derive(target; knowns...) : supplied
+    _refuse_disagreement(":$target", rows, supplied, atol, rtol)
+    return supplied === nothing ? first(rows).value : supplied
+end
+
+function derive_crosschecked(
+    @nospecialize(Q::Type),
+    bag::Bag;
+    atol::Real=0,
+    rtol::Real=1e-8,
+    min_routes::Int=1,
+    extras...,
+)
+    rows = derivation_routes(Q, bag; extras...)
+    sup = _slot_value(Q, bag)
+    supplied = sup === nothing ? nothing : something(sup)
+    _refuse_broken_routes(string(nameof(Q)), rows)
+    _require_routes(string(nameof(Q)), rows, min_routes)
+    isempty(rows) && return supplied === nothing ? derive(Q, bag; extras...) : supplied
+    _refuse_disagreement(string(nameof(Q)), rows, supplied, atol, rtol)
+    return supplied === nothing ? first(rows).value : supplied
+end
+export derive_crosschecked
+
+function _refuse_disagreement(what, rows, supplied, atol, rtol)
+    vs = Any[r.value for r in rows if _row_ok(r)]
+    supplied === nothing || push!(vs, supplied)
+    # A route that returned NaN makes every difference NaN, and `isnan` as a
+    # "nothing to compare" sentinel would then read that as agreement. It is the
+    # opposite: a route degenerated and the others were never compared to it.
+    bad = findall(v -> v isa Number && isnan(v), vs)
+    isempty(bad) || error(
+        "derive_crosschecked: $(length(bad)) of the $(length(vs)) values for $what is " *
+        "NaN, so nothing was compared. A route degenerated on this data:\n  " *
+        join(string.(rows), "\n  "),
+    )
+    dm = _disagreement(vs)
+    dm === nothing && return nothing
+    d, m = dm
+    d <= atol + rtol * m && return nothing
+    lines = string.(rows)
+    supplied === nothing || push!(lines, "supplied: $supplied")
+    return error(
+        "derive_crosschecked: the data reaches $what $(length(vs)) ways that differ by " *
+        "$d, past the $(atol + rtol * m) allowed (atol = $atol, rtol = $rtol). One of " *
+        "the inputs is wrong, or they are not all describing the same system:\n  " *
+        join(lines, "\n  "),
+    )
+end
+
+# A route that raised is reported before any comparison: it is a relation that
+# would have disagreed, prevented from doing so by the data itself.
+function _refuse_broken_routes(what, rows)
+    broken = [r for r in rows if !_row_ok(r)]
+    isempty(broken) && return nothing
+    return error(
+        "derive_crosschecked: $(length(broken)) route(s) to $what raised instead of " *
+        "returning a value, so they never got to disagree. Either an input is outside " *
+        "the relation's domain, or the relation guards the point `solve` probed the " *
+        "target at and needs a specialized `_solve`:\n  " *
+        join(string.(broken), "\n  "),
+    )
+end
+
+function _require_routes(what, rows, min_routes)
+    n = count(_row_ok, rows)
+    n >= min_routes && return nothing
+    return error(
+        "derive_crosschecked: $what is reached by $n independent " *
+        "route(s), fewer than the $min_routes asked for. The data affords no " *
+        "cross-check here, and a value returned from it would not have had one.",
+    )
 end

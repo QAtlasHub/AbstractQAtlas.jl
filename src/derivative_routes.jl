@@ -84,6 +84,10 @@ struct Richardson <: DerivativeRoute
 end
 export Richardson
 
+# Whether the named package is loaded at all, which separates "install it" from
+# "it is here and the route's own method is missing".
+_package_loaded(name::Symbol) = any(k -> k.name == String(name), keys(Base.loaded_modules))
+
 """
     nth_derivative(route::DerivativeRoute, f, x, n::Integer) -> value
 
@@ -93,18 +97,70 @@ The `n`-th derivative of the scalar function `f` at `x`, taken along `route`.
 This is the one method a new route has to define.
 """
 function nth_derivative(route::DerivativeRoute, f, x, n::Integer)
-    return error("nth_derivative: no method for $(typeof(route)).")
+    pkg = backend_package(route)
+    pkg === nothing && return error("nth_derivative: no method for $(typeof(route)).")
+    # Reaching the fallback with the backend LOADED means the route's own method is
+    # missing or its signature does not match, which reinstalling does not fix.
+    # Saying "not loaded" there points away from the defect.
+    _package_loaded(pkg) && return error(
+        "nth_derivative: $(typeof(route)) declares the $pkg backend and $pkg is " *
+        "loaded, but no method matched. The route's own `nth_derivative` is missing " *
+        "or its signature differs.",
+    )
+    return throw(MissingRouteBackend(route))
 end
 export nth_derivative
 
-function nth_derivative(::AutoDiff, f, x, n::Integer)
-    return error(
-        "nth_derivative(AutoDiff(), ...) needs an automatic-differentiation " *
-        "backend: run `using ForwardDiff` to load the AbstractQAtlas AD extension, " *
-        "or take a finite-difference route (CentralDifference / Richardson), which " *
-        "needs none.",
+"""
+    MissingRouteBackend(route) <: Exception
+
+Thrown when a [`DerivativeRoute`](@ref) needs a package extension that is not
+loaded.
+
+Its own type, because [`derivative_report`](@ref) has to tell it from every other
+way a route can fail. Catching `Exception` there would turn a diagnosed refusal,
+an off-diagonal susceptibility or a potential evaluated outside its domain, into
+the same `NaN` row as an unloaded backend.
+"""
+struct MissingRouteBackend <: Exception
+    route::DerivativeRoute
+    function MissingRouteBackend(route::DerivativeRoute)
+        backend_package(route) === nothing && throw(
+            ArgumentError(
+                "MissingRouteBackend: $(typeof(route)) declares no `backend_package`, " *
+                "so there is no extension for it to be missing. Its failure is not a " *
+                "missing backend.",
+            ),
+        )
+        return new(route)
+    end
+end
+export MissingRouteBackend
+
+function Base.showerror(io::IO, e::MissingRouteBackend)
+    return print(
+        io,
+        "MissingRouteBackend: $(typeof(e.route)) needs the $(backend_package(e.route)) ",
+        "extension, which is not loaded. Run `using $(backend_package(e.route))`, or ",
+        "take a finite-difference route (CentralDifference / Richardson), which needs ",
+        "no backend.",
     )
 end
+
+"""
+    backend_package(route::DerivativeRoute) -> Union{Symbol,Nothing}
+
+The package whose extension supplies `route`'s [`nth_derivative`](@ref), or
+`nothing` for a route that needs none.
+
+A route declaring one and finding no method gets
+[`MissingRouteBackend`](@ref) rather than a bare "no method", which is the
+difference between "install this" and "this route does not exist". Declared here
+and not in the extension: the point is to answer when the extension is ABSENT.
+"""
+backend_package(::DerivativeRoute) = nothing
+backend_package(::AutoDiff) = :ForwardDiff
+export backend_package
 
 _central(f, x, h) = (f(x + h) - f(x - h)) / (2h)
 
@@ -130,41 +186,70 @@ function nth_derivative(route::Richardson, f, x, n::Integer)
 end
 
 """
+    step_size(route::DerivativeRoute) -> Union{Real,Nothing}
+    with_step_size(route::DerivativeRoute, h::Real) -> DerivativeRoute
+
+The step `route` takes, and the same route at a different step. `nothing` means
+the route has no step, which is what [`AutoDiff`](@ref) reports.
+
+Part of the route contract alongside [`nth_derivative`](@ref), and the pair
+[`observed_order`](@ref) needs. Each missing half names itself: a route reporting
+a `step_size` with no `with_step_size` is told so by `with_step_size`, and one
+declaring neither is told it reports no step, which for it is true. A closed
+`Union` over the routes that happened to exist told a third route the second
+thing whether or not it was true.
+"""
+step_size(::DerivativeRoute) = nothing
+export step_size
+
+function with_step_size(route::DerivativeRoute, h::Real)
+    return error(
+        "with_step_size: $(typeof(route)) defines no `with_step_size`. A route that " *
+        "reports a `step_size` needs one, so `observed_order` can halve it.",
+    )
+end
+export with_step_size
+
+step_size(r::CentralDifference) = r.h
+step_size(r::Richardson) = r.h
+with_step_size(::CentralDifference, h::Real) = CentralDifference(h)
+with_step_size(r::Richardson, h::Real) = Richardson(h; levels=r.levels)
+
+"""
     observed_order(route::DerivativeRoute, f, x, n::Integer) -> Float64
 
 The convergence order the route actually shows on `f` at `x`, from the values at
 `h`, `h/2` and `h/4`: `log2(|D(h) - D(h/2)| / |D(h/2) - D(h/4)|)`.
 
 The number to look at before trusting a step, rather than a tolerance guessed in
-advance. A central difference on a smooth potential returns close to 2; a value
-well below that means `h` has reached the roundoff side, and a value near 0 means
-`f` is not smooth at `x`. Returns `NaN` when the two differences are both zero,
-which is the step being so small that the quotient stopped moving.
+advance. A central difference on a smooth potential returns close to 2. Anything
+else says the step or the potential is not what the route assumed, and the value
+does not identify which: `h` on the roundoff side and a non-smooth `f` both land
+off 2, and a kink gives exactly 1 rather than anything near 0.
+
+`Inf` when only the second difference vanishes and `NaN` when both do, which is
+the quotient having stopped moving between halvings.
 
 Meaningful only while the successive differences are above roundoff. A route that
 has already reached machine precision, which [`Richardson`](@ref) does on a smooth
 potential, is differencing noise and reports a number with no order in it.
 
-Defined for the step-carrying routes; [`AutoDiff`](@ref) has no step to halve.
+Defined for any route reporting a [`step_size`](@ref); [`AutoDiff`](@ref) reports
+`nothing` and is refused.
 """
 function observed_order(route::DerivativeRoute, f, x, n::Integer)
-    return error("observed_order: $(typeof(route)) carries no step to halve.")
-end
-export observed_order
-
-_with_step(r::CentralDifference, h) = CentralDifference(h)
-_with_step(r::Richardson, h) = Richardson(h; levels=r.levels)
-_step(r::CentralDifference) = r.h
-_step(r::Richardson) = r.h
-
-function observed_order(route::Union{CentralDifference,Richardson}, f, x, n::Integer)
-    h = _step(route)
-    d = [nth_derivative(_with_step(route, h / 2^k), f, x, n) for k in 0:2]
+    h = step_size(route)
+    h === nothing && error(
+        "observed_order: $(typeof(route)) reports no `step_size`, so there is no step " *
+        "to halve.",
+    )
+    d = [nth_derivative(with_step_size(route, h / 2^k), f, x, n) for k in 0:2]
     a, b = abs(d[2] - d[1]), abs(d[3] - d[2])
     (a == 0 && b == 0) && return NaN
     b == 0 && return Inf
     return log2(a / b)
 end
+export observed_order
 
 # ── the genealogy, written once ──────────────────────────────────────────
 #
@@ -202,7 +287,6 @@ thermal_derivative(Magnetization(:z), F, 0.3, Richardson(1e-2))   # tanh(0.3)
 ```
 """
 function thermal_derivative(q::AbstractQuantity, F, x::Number, route::DerivativeRoute)
-    route isa AutoDiff && return thermal_derivative(q, F, x)
     return _genealogy_derivative(q, F, x, (g, y, n) -> nth_derivative(route, g, y, n))
 end
 
@@ -210,33 +294,37 @@ end
 # `U`, and `U = ∂(βF)/∂β` takes `βF`. Both are a plain first derivative of the
 # function passed, with no sign flip, which is why they cannot go through the
 # generic path above.
-function thermal_derivative(::SpecificHeat, U, T::Number, route::DerivativeRoute)
-    route isa AutoDiff && return thermal_derivative(SpecificHeat(), U, T)
-    return nth_derivative(route, U, T, 1)
-end
-function thermal_derivative(::Energy, βF, β::Number, route::DerivativeRoute)
-    route isa AutoDiff && return thermal_derivative(Energy(), βF, β)
-    return nth_derivative(route, βF, β, 1)
+function thermal_derivative(
+    ::Union{SpecificHeat,Energy}, f, x::Number, route::DerivativeRoute
+)
+    return nth_derivative(route, f, x, 1)
 end
 
-# A single-field potential fixes only the DIAGONAL susceptibility; the same guard
-# the AD path carries, so a route change cannot turn a refusal into a wrong number.
-function thermal_derivative(χ::Susceptibility, F, h::Number, route::DerivativeRoute)
-    route isa AutoDiff && return thermal_derivative(χ, F, h)
+# A single-field potential fixes only the DIAGONAL susceptibility: an off-diagonal
+# component is a mixed partial in distinct field directions. Shared with the
+# extension for the same reason `_genealogy_derivative` is, so a route change
+# cannot turn a refusal into a wrong number.
+function _susceptibility_derivative(χ::Susceptibility, F, h, nth)
     idx = indices(χ)
     all(==(idx[1]), idx) || error(
         "thermal_derivative: with a single-field function only the DIAGONAL χ⁽ⁿ⁾ " *
         "(all indices equal) is defined; got off-diagonal $(idx). Pass a multi-field " *
         "potential F(h⃗) and the field-component ordering.",
     )
-    return -nth_derivative(route, F, h, response_order(χ) + 1)
+    return -nth(F, h, response_order(χ) + 1)
+end
+
+function thermal_derivative(χ::Susceptibility, F, h::Number, route::DerivativeRoute)
+    return _susceptibility_derivative(χ, F, h, (g, y, n) -> nth_derivative(route, g, y, n))
 end
 
 # The `n` the route is asked for, so a report on a third-order response halves its
-# step against the third derivative and not the first.
+# step against the third derivative and not the first. Callers check the edge first:
+# there is no order to report for a quantity that is not a derivative of anything.
 function _route_order(q::AbstractQuantity)
     e = derivative_edge(q)
-    e === nothing && return 1
+    e === nothing &&
+        error("_route_order: $(typeof(q)) has no derivative_edge, so it has no order.")
     return derivative_order(q, e.field())
 end
 
@@ -267,17 +355,34 @@ rather than aborting the sweep, since the usual reason is a missing backend and
 the other rows are still the answer.
 """
 function derivative_report(q::AbstractQuantity, F, x::Number, routes)
+    # Refused up front, so no row is built for a quantity that has no derivative.
+    # Per row it would surface as `_route_order` throwing inside the order column.
+    derivative_edge(q) === nothing && error(
+        "derivative_report: $(typeof(q)) is not a response function (no " *
+        "derivative_edge), so there is no derivative for a route to take.",
+    )
+    n = _route_order(q)
     out = DerivativeRouteRow[]
     for r in routes
         v = try
             Float64(thermal_derivative(q, F, x, r))
-        catch
+        catch e
+            e isa MissingRouteBackend || rethrow()
             NaN
         end
-        o = try
-            Float64(observed_order(r, F, x, _route_order(q)))
-        catch
+        # Asked whether the route has a step BEFORE calling, so the catch can stay as
+        # narrow as the value's. Absorbing `ErrorException` here instead would turn a
+        # route that reports a `step_size` and defines no `with_step_size` into the
+        # same NaN as one that legitimately has no step.
+        o = if step_size(r) === nothing
             NaN
+        else
+            try
+                Float64(observed_order(r, F, x, n))
+            catch e
+                e isa MissingRouteBackend || rethrow()
+                NaN
+            end
         end
         push!(out, DerivativeRouteRow(r, v, o))
     end

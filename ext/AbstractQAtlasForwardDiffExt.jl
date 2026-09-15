@@ -10,14 +10,23 @@
 module AbstractQAtlasForwardDiffExt
 
 using AbstractQAtlas
-import AbstractQAtlas: peierls_current, thermal_derivative   # extended below → must import
+import AbstractQAtlas: nth_derivative, peierls_current, thermal_derivative
 using AbstractQAtlas:
-    _genealogy_derivative, response_order, indices, Susceptibility, SpecificHeat, Energy
+    _genealogy_derivative,
+    _susceptibility_derivative,
+    indices,
+    Susceptibility,
+    SpecificHeat,
+    Energy
 using ForwardDiff: derivative
 
 # n-th derivative of a scalar function by nested ForwardDiff (n small —
 # response orders are 1–3).
 _nth(f, x, n::Integer) = n == 0 ? f(x) : _nth(y -> derivative(f, y), x, n - 1)
+
+# `AutoDiff` is a route like the others: this is the method whose absence made
+# every route-taking entry point special-case it by name.
+nth_derivative(::AbstractQAtlas.AutoDiff, f, x, n::Integer) = _nth(f, x, n)
 
 # ── generic, genealogy-driven response ────────────────────────────────────
 # Which order, which field and the net sign all come from `_genealogy_derivative`
@@ -28,19 +37,11 @@ function thermal_derivative(q::AbstractQuantity, F, x::Number)
     return _genealogy_derivative(q, F, x, _nth)
 end
 
-# χ⁽ⁿ⁾_{α;β₁…βₙ} = −∂ⁿ⁺¹F/∂h_α∂h_{β₁}…∂h_{βₙ}.  With a SINGLE-field function
-# F(h) only the DIAGONAL component (all indices equal) is defined — an
-# off-diagonal component needs partials w.r.t. distinct field directions,
-# so guard against silently returning the diagonal for an off-diagonal ask.
+# χ⁽ⁿ⁾_{α;β₁…βₙ} = −∂ⁿ⁺¹F/∂h_α∂h_{β₁}…∂h_{βₙ}, diagonal only from a single-field
+# F(h). The guard and the order live in `_susceptibility_derivative`, shared with
+# the finite-difference routes; this supplies the AD `nth`.
 function thermal_derivative(χ::Susceptibility, F, h::Number)
-    idx = indices(χ)
-    all(==(idx[1]), idx) || error(
-        "thermal_derivative(::Susceptibility, F, h::Number) with a single-field " *
-        "function computes only the DIAGONAL χ⁽ⁿ⁾ (all indices equal); got " *
-        "off-diagonal $(idx). Pass a multi-field potential F(h⃗) and the field-" *
-        "component ordering: thermal_derivative(χ, F, h⃗, components).",
-    )
-    return -_nth(F, h, response_order(χ) + 1)
+    return _susceptibility_derivative(χ, F, h, _nth)
 end
 
 # Multi-field / off-diagonal: F is a function of a field VECTOR `h⃗`, and

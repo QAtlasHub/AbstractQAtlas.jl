@@ -762,7 +762,7 @@ Variables: `dlogδTc_dlogL` (caller-computed), `ν`.
 # a flat slope returns an infinity whose SIGN comes from the caller's zero.
 function _solve(::PseudocriticalWidthScaling, ::Val{:ν}; dlogδTc_dlogL, _extra...)
     iszero(dlogδTc_dlogL) && error(
-        "solve: PseudocriticalWidthScaling has no ν at dlogδTc_dlogL = 0. A width " *
+        "PseudocriticalWidthScaling: no ν at dlogδTc_dlogL = 0. A width " *
         "that does not shift with L does not identify a correlation-length exponent.",
     )
     return -1 / dlogδTc_dlogL
