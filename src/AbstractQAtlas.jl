@@ -228,4 +228,8 @@ include("evaluation.jl")
 # automatic-differentiation entry point (methods live in ext/, ForwardDiff)
 include("autodiff.jl")
 
+# HOW a genealogy edge is evaluated: the finite-difference routes, which need no
+# backend, and the route comparison. Needs `thermal_derivative` to exist.
+include("derivative_routes.jl")
+
 end # module AbstractQAtlas
