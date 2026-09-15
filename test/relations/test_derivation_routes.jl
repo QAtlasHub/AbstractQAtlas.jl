@@ -305,3 +305,28 @@ end
     @test occursin("c = 0", why(() -> derive_crosschecked(:ncuts; dS_dlogℓ=0.3, c=0.0)))
     @test occursin("not reachable", why(() -> derive(:ncuts; dS_dlogℓ=0.0, c=0.5)))
 end
+
+@testset "`solve:` is the framework's vocabulary, and only the framework's" begin
+    # `_route_declined` classifies by message prefix, so a relation guard that
+    # borrows `solve:` is silently SKIPPED instead of reported. The sweep above
+    # cannot see that direction: a skipped route leaves no row to inspect. One
+    # guard in `scaling.jl` had borrowed it, and only a reader caught that.
+    #
+    # Read off the source, because the claim is about what future authors write.
+    dir = joinpath(@__DIR__, "..", "..", "src", "relations")
+    offenders = String[]
+    for f in sort(readdir(dir))
+        endswith(f, ".jl") && f != "interface.jl" || continue
+        text = replace(read(joinpath(dir, f), String), "\r\n" => "\n")
+        for (i, line) in enumerate(split(text, "\n"))
+            occursin("\"solve: ", line) && push!(offenders, "$f:$i")
+        end
+    end
+    @test isempty(offenders)
+    # The positive control: the vocabulary IS used, in the one file that owns it.
+    iface = replace(
+        read(joinpath(@__DIR__, "..", "..", "src", "relations", "interface.jl"), String),
+        "\r\n" => "\n",
+    )
+    @test count(!isempty, [m.match for m in eachmatch(r"\"solve: ", iface)]) >= 5
+end
