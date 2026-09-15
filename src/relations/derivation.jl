@@ -827,12 +827,19 @@ function Base.show(io::IO, r::DerivationRouteRow)
     return print(io, r.error === nothing ? r.value : "THREW $(r.error)")
 end
 
-# A relation declining to be solved for a slot raises `ErrorException`, which is
-# how this package says no (`solve: ... is not affine in :X`). Anything else, a
-# `DomainError` from `log` of a negative partition function, an `InexactError`, a
-# `MethodError` from a caller's own potential, is the DATA or the CALLER breaking,
-# and is the thing worth reporting rather than skipping.
-_route_declined(e) = e isa ErrorException
+# Telling "this relation cannot be applied here" from "it applied and the data
+# broke it". The framework declines in exactly two shapes, both raised by
+# relations/interface.jl: `solve:` for the affine, parametric and abstract-group
+# refusals, and the untyped-slot message for a supplied value the caller did not
+# give. Everything else is the DATA, including a relation's OWN physics guard,
+# which raises an `ErrorException` like `CFTEntanglementSlope: ncuts = 0 ...` and
+# is a statement about the inputs. Matching the type alone would drop those, and
+# `test_derivation_routes.jl` sweeps every target to pin that neither shape leaks
+# into the reported set.
+function _route_declined(e)
+    e isa ErrorException || return false
+    return startswith(e.msg, "solve:") || occursin("(untyped slot)", e.msg)
+end
 
 """
     derivation_routes(target::Symbol; knowns...) -> Vector{DerivationRouteRow}

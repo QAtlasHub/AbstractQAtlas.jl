@@ -216,3 +216,48 @@ end
     @test n_typed >= 35
     @test max_typed >= 12
 end
+
+@testset "the declining/broken split holds across the whole registry" begin
+    # `_route_declined` separates "this relation cannot be applied here" (skip)
+    # from "it applied and the data broke it" (report). Getting it wrong in either
+    # direction is invisible: too narrow and a broken input is silently dropped,
+    # too wide and ordinary calls refuse.
+    #
+    # Both framework declination shapes, on fixtures that actually produce them.
+    @test isempty(derivation_routes(:β; C=1.0, var_E=1.0))          # solve: not affine
+    @test isempty(                                                   # untyped slot absent
+        derivation_routes(
+            Temperature, bag(InverseTemperature => 0.5, Thermopower(:x, :x) => 3.0)
+        ),
+    )
+    # A relation's own physics guard is about the DATA and must be reported, not
+    # skipped. `ncuts = 0` makes the residual independent of `c`.
+    ncz = derivation_routes(:c; dS_dlogℓ=0.1667, ncuts=0)
+    @test length(ncz) == 1
+    @test occursin("ncuts = 0", only(ncz).error)
+
+    # The sweep: hand every target's inputs the same nonsense value and check that
+    # nothing the framework MEANT as a declination ends up in the reported set. A
+    # seventh declination site added to interface.jl and not registered here fails
+    # this, which is the whole point of the assertion.
+    leaked = String[]
+    total = 0
+    for t in unique(s.output for s in derivation_steps())
+        ins = unique(
+            vcat([collect(s.inputs) for s in derivation_steps() if s.output === t]...)
+        )
+        rows = try
+            derivation_routes(t; (i => 0.7 for i in ins)...)
+        catch
+            continue
+        end
+        total += length(rows)
+        for r in rows
+            r.error === nothing && continue
+            (startswith(r.error, "solve:") || occursin("(untyped slot)", r.error)) &&
+                push!(leaked, r.error)
+        end
+    end
+    @test total > 300               # the sweep reached the registry, not two rows
+    @test isempty(leaked)
+end
