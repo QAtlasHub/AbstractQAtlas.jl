@@ -19,6 +19,11 @@ AbstractQAtlas.convert_convention(::WholeUnits, ::HalfUnits, ::Type, v) = 2v
 
 # A parametric quantity, which is where a supertype WALK loses the declaration.
 struct ParametricProbeQuantity{I} <: AbstractQuantity end
+# A default parameter, as the package's own parametric quantities carry: without
+# one, `test/core/test_invariants.jl`'s reflection sweep over every concrete
+# `AbstractQuantity` leaf cannot build this and goes red, but only when the two
+# files land in the same shard.
+ParametricProbeQuantity() = ParametricProbeQuantity{:probe}()
 AbstractQAtlas.canonical_convention(::Type{<:ParametricProbeQuantity}) = WholeUnits()
 
 # Three covers of one quantity where two are unrelated to each other and the third
