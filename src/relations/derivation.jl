@@ -806,21 +806,33 @@ end
 """
     DerivationRouteRow
 
-One route to a target: the `relation` that produced it, the `inputs` it consumed,
-and the `value` it returned.
+One route to a target: the `relation`, the `inputs` it consumed, and either the
+`value` it returned or the `error` it raised on the way.
+
+A route that raised is a row rather than an absence. An impossible input makes a
+relation throw where it would otherwise have DISAGREED, and dropping it silently
+turns the strongest evidence the data is wrong into one fewer route to compare.
 """
 struct DerivationRouteRow
     relation::AbstractRelation
     inputs::Vector{Any}
     value::Any
+    error::Union{String,Nothing}
 end
+DerivationRouteRow(rel, inputs, value) = DerivationRouteRow(rel, inputs, value, nothing)
 export DerivationRouteRow
 
 function Base.show(io::IO, r::DerivationRouteRow)
-    return print(
-        io, nameof(typeof(r.relation)), ": {", join(r.inputs, ", "), "} → ", r.value
-    )
+    print(io, nameof(typeof(r.relation)), ": {", join(r.inputs, ", "), "} → ")
+    return print(io, r.error === nothing ? r.value : "THREW $(r.error)")
 end
+
+# A relation declining to be solved for a slot raises `ErrorException`, which is
+# how this package says no (`solve: ... is not affine in :X`). Anything else, a
+# `DomainError` from `log` of a negative partition function, an `InexactError`, a
+# `MethodError` from a caller's own potential, is the DATA or the CALLER breaking,
+# and is the thing worth reporting rather than skipping.
+_route_declined(e) = e isa ErrorException
 
 """
     derivation_routes(target::Symbol; knowns...) -> Vector{DerivationRouteRow}
@@ -848,9 +860,21 @@ function derivation_routes(target::Symbol; knowns...)
     rows = DerivationRouteRow[]
     for step in derivation_steps()
         step.output === target || continue
-        v = _try_step(step, known)
-        v === nothing && continue
-        push!(rows, DerivationRouteRow(step.relation, Any[step.inputs...], v))
+        all(v -> haskey(known, v), step.inputs) || continue
+        try
+            v = solve(
+                step.relation, Val(step.output); (v => known[v] for v in step.inputs)...
+            )
+            push!(rows, DerivationRouteRow(step.relation, Any[step.inputs...], v))
+        catch e
+            _route_declined(e) && continue
+            push!(
+                rows,
+                DerivationRouteRow(
+                    step.relation, Any[step.inputs...], nothing, sprint(showerror, e)
+                ),
+            )
+        end
     end
     return rows
 end
@@ -873,83 +897,133 @@ function derivation_routes(@nospecialize(Q::Type), bag::Bag; extras...)
     rows = DerivationRouteRow[]
     for step in typed_derivation_steps()
         step.output == target || continue
-        v = _try_typed_step(step, known, values(extras))
-        v === nothing && continue
-        push!(rows, DerivationRouteRow(step.relation, Any[step.inputs...], v))
+        all(k -> _known(k.type, known), step.inputs) || continue
+        try
+            v = solve(step.relation, step.output.type, known; extras...)
+            push!(rows, DerivationRouteRow(step.relation, Any[step.inputs...], v))
+        catch e
+            _route_declined(e) && continue
+            push!(
+                rows,
+                DerivationRouteRow(
+                    step.relation, Any[step.inputs...], nothing, sprint(showerror, e)
+                ),
+            )
+        end
     end
     return rows
 end
 export derivation_routes
 
-# The spread a set of values shows, relative to their largest magnitude. `NaN` for
-# fewer than two, which is not agreement and must not read as zero.
-function _value_spread(vs)
-    length(vs) < 2 && return NaN
-    m = max(maximum(abs, vs), 1)
-    return maximum(abs(a - b) for a in vs, b in vs) / m
+# The largest pairwise difference in a set of values, and their largest magnitude.
+# `(NaN, NaN)` for fewer than two, which is not agreement and must not read as zero.
+#
+# Compared as `d <= atol + rtol*m`, `isapprox`'s rule, rather than divided by
+# `max(m, 1)`: that floor turns the test absolute below one, and two routes
+# returning `+1e-12` and `-1e-12` are then a sign flip that passes at any rtol.
+function _disagreement(vs)
+    length(vs) < 2 && return nothing
+    return (maximum(abs(a - b) for a in vs, b in vs), maximum(abs, vs))
 end
 
 """
-    derive_crosschecked(target::Symbol; rtol=1e-8, knowns...) -> value
-    derive_crosschecked(Q::Type, bag::Bag; rtol=1e-8, extras...) -> value
+    derive_crosschecked(target::Symbol; atol=0, rtol=1e-8, min_routes=1, knowns...)
+    derive_crosschecked(Q::Type, bag::Bag; atol=0, rtol=1e-8, min_routes=1, extras...)
 
-[`derive`](@ref), refusing when the data reaches the target two ways that
-disagree by more than `rtol`.
+[`derive`](@ref), refusing when the data reaches the target two ways that differ
+by more than `atol + rtol * max|value|`, which is `isapprox`'s rule.
 
-One route returning a number is not evidence the data is consistent about it,
-and with up to nineteen relations producing one symbol the route that ran was
-chosen by iteration order. A single route is accepted, since there is nothing to
-compare it against; the refusal fires only where the data contradicts itself.
+`atol` defaults to `0`, so small values are judged relatively. A quantity whose
+routes are genuinely noise-dominated near zero needs an `atol` saying so, rather
+than a floor built into the comparison.
+
+One route returning a number is not evidence the data is consistent about it:
+several relations can produce one target, and which one [`derive`](@ref) ran was
+chosen by registry order.
 
 Supplying the target is the case to reach for. [`derive`](@ref) hands it straight
 back without looking at anything else, and this compares it against every route
 the rest of the data affords, which is the question a measured number raises.
 
-`min_routes` is how to ask that a cross-check actually happened. The default of
-`0` accepts data that affords no independent route, which returns a number this
-verb's name would otherwise claim it had checked.
+`min_routes` defaults to `1`: data affording no independent route is refused,
+because returning a number from it is what this verb's name would otherwise be
+claiming it had checked. `min_routes = 0` is the opt-out, and `2` or more is how
+to demand a genuine cross-check rather than a single unopposed route.
 """
-function derive_crosschecked(target::Symbol; rtol::Real=1e-8, min_routes::Int=0, knowns...)
+function derive_crosschecked(
+    target::Symbol; atol::Real=0, rtol::Real=1e-8, min_routes::Int=1, knowns...
+)
     rows = derivation_routes(target; knowns...)
     supplied = get(Dict{Symbol,Any}(pairs(knowns)), target, nothing)
+    _refuse_broken_routes(":$target", rows)
     _require_routes(":$target", rows, min_routes)
     isempty(rows) && return supplied === nothing ? derive(target; knowns...) : supplied
-    _refuse_disagreement(":$target", rows, supplied, rtol)
+    _refuse_disagreement(":$target", rows, supplied, atol, rtol)
     return supplied === nothing ? first(rows).value : supplied
 end
 
 function derive_crosschecked(
-    @nospecialize(Q::Type), bag::Bag; rtol::Real=1e-8, min_routes::Int=0, extras...
+    @nospecialize(Q::Type),
+    bag::Bag;
+    atol::Real=0,
+    rtol::Real=1e-8,
+    min_routes::Int=1,
+    extras...,
 )
     rows = derivation_routes(Q, bag; extras...)
     sup = _slot_value(Q, bag)
     supplied = sup === nothing ? nothing : something(sup)
+    _refuse_broken_routes(string(nameof(Q)), rows)
     _require_routes(string(nameof(Q)), rows, min_routes)
     isempty(rows) && return supplied === nothing ? derive(Q, bag; extras...) : supplied
-    _refuse_disagreement(string(nameof(Q)), rows, supplied, rtol)
+    _refuse_disagreement(string(nameof(Q)), rows, supplied, atol, rtol)
     return supplied === nothing ? first(rows).value : supplied
 end
 export derive_crosschecked
 
-function _refuse_disagreement(what, rows, supplied, rtol)
-    vs = Any[r.value for r in rows]
+function _refuse_disagreement(what, rows, supplied, atol, rtol)
+    vs = Any[r.value for r in rows if r.error === nothing]
     supplied === nothing || push!(vs, supplied)
-    sp = _value_spread(vs)
-    (isnan(sp) || sp <= rtol) && return nothing
+    # A route that returned NaN makes every difference NaN, and `isnan` as a
+    # "nothing to compare" sentinel would then read that as agreement. It is the
+    # opposite: a route degenerated and the others were never compared to it.
+    bad = findall(v -> v isa Number && isnan(v), vs)
+    isempty(bad) || error(
+        "derive_crosschecked: $(length(bad)) of the $(length(vs)) values for $what is " *
+        "NaN, so nothing was compared. A route degenerated on this data:\n  " *
+        join(string.(rows), "\n  "),
+    )
+    dm = _disagreement(vs)
+    dm === nothing && return nothing
+    d, m = dm
+    d <= atol + rtol * m && return nothing
     lines = string.(rows)
     supplied === nothing || push!(lines, "supplied: $supplied")
     return error(
-        "derive_crosschecked: the data reaches $what $(length(vs)) ways that disagree " *
-        "by $(sp) (rtol = $rtol). One of the inputs is wrong, or they are not all " *
-        "describing the same system:\n  " *
+        "derive_crosschecked: the data reaches $what $(length(vs)) ways that differ by " *
+        "$d, past the $(atol + rtol * m) allowed (atol = $atol, rtol = $rtol). One of " *
+        "the inputs is wrong, or they are not all describing the same system:\n  " *
         join(lines, "\n  "),
     )
 end
 
-function _require_routes(what, rows, min_routes)
-    length(rows) >= min_routes && return nothing
+# A route that raised is reported before any comparison: it is a relation that
+# would have disagreed, prevented from doing so by the data itself.
+function _refuse_broken_routes(what, rows)
+    broken = [r for r in rows if r.error !== nothing]
+    isempty(broken) && return nothing
     return error(
-        "derive_crosschecked: $what is reached by $(length(rows)) independent " *
+        "derive_crosschecked: $(length(broken)) route(s) to $what raised on this data " *
+        "rather than returning a value, so they never got to disagree:\n  " *
+        join(string.(broken), "\n  "),
+    )
+end
+
+function _require_routes(what, rows, min_routes)
+    count(r -> r.error === nothing, rows) >= min_routes && return nothing
+    return error(
+        "derive_crosschecked: $what is reached by " *
+        "$(count(r -> r.error === nothing, rows)) independent " *
         "route(s), fewer than the $min_routes asked for. The data affords no " *
         "cross-check here, and a value returned from it would not have had one.",
     )

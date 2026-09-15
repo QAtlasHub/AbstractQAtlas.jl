@@ -9,7 +9,15 @@ using Test: @test, @test_throws, @testset
 
 F(h) = -log(2cosh(h))          # M = -F'(h) = tanh(h)
 Φ(T) = -T * log(2cosh(1 / T))  # S = -Φ'(T)
-kinked(x) = x < 0 ? x^2 : 2x^2 # derivative discontinuous at 0
+kinked(x) = x < 0 ? x^2 : 2x^2 # f and f' continuous at 0, f'' jumps 2 -> 4
+
+# A genealogy that roots somewhere other than a thermodynamic potential, so
+# `_genealogy_derivative`'s root guard has something that can actually fire it.
+struct RootProbeParent <: AbstractQuantity end
+struct RootProbeQuantity <: AbstractQuantity end
+function AbstractQAtlas.derivative_edge(::Type{RootProbeQuantity})
+    return DerivativeEdge(RootProbeParent, Temperature)
+end
 
 @testset "a finite-difference route reaches the closed form" begin
     x = 0.3
@@ -43,15 +51,72 @@ end
     # In the asymptotic regime a central difference shows its nominal order.
     @test observed_order(CentralDifference(1e-2), F, 0.3, 1) ≈ 2 atol = 0.05
     # A step small enough to be dominated by cancellation does not, even though
-    # its error happens to be smaller. Stated as "does not show the nominal
-    # order" rather than a number, because the value there is roundoff and would
-    # be a different number on another machine (NaN included, when the successive
-    # differences both vanish).
-    @test !(observed_order(CentralDifference(1e-9), F, 0.3, 1) > 1.9)
-    # The control the diagnostic needs: a function it should FAIL on. A kink at
-    # the evaluation point leaves the quotient first-order, exactly.
+    # its error happens to be smaller. Written as "outside the band around 2"
+    # rather than "below 2": within one decade of this step the quotient also
+    # returns `Inf` (only the second difference vanishes) and `NaN` (both do), and
+    # `!(o > 1.9)` is false for `Inf`, so that spelling would fail on a step 12%
+    # away in log space with no platform difference needed.
+    @test !(1.9 <= observed_order(CentralDifference(1e-9), F, 0.3, 1) <= 2.1)
+    @test !(1.9 <= observed_order(CentralDifference(1e-11), F, 0.3, 1) <= 2.1)
+    # The control the diagnostic needs: a function it should FAIL on. The second
+    # derivative jumps at 0, which leaves the quotient first-order exactly: the
+    # h^2 term of the central difference does not cancel, so D(h) = h/2.
     @test observed_order(CentralDifference(1e-3), kinked, 0.0, 1) ≈ 1 atol = 1e-9
-    @test_throws ErrorException observed_order(AutoDiff(), F, 0.3, 1)
+    # AutoDiff reports no step, so there is nothing to halve. The message has to
+    # say that, not the generic "no method".
+    msg = try
+        observed_order(AutoDiff(), F, 0.3, 1)
+        ""
+    catch e
+        sprint(showerror, e)
+    end
+    @test occursin("step_size", msg)
+    @test step_size(AutoDiff()) === nothing
+    @test step_size(CentralDifference(1e-3)) == 1e-3
+    @test step_size(Richardson(1e-2)) == 1e-2
+    # Richardson carries a step too, so it must not fall out of `observed_order`
+    # the way a closed Union over the routes that happened to exist would drop a
+    # third one. Its value is noise once the route is at machine precision, so the
+    # claim is that it RUNS and returns a number, not what the number is.
+    @test isfinite(observed_order(Richardson(1e-1), F, 0.3, 1)) ||
+        isnan(observed_order(Richardson(1e-1), F, 0.3, 1))
+end
+
+@testset "a route that carries a step must say so, not be named in a Union" begin
+    # The contract is `step_size` + `with_step_size`, so a future route gets the
+    # honest refusal instead of the false claim that it carries no step.
+    @test with_step_size(CentralDifference(1e-2), 1e-3) == CentralDifference(1e-3)
+    @test with_step_size(Richardson(1e-2; levels=4), 1e-3) == Richardson(1e-3; levels=4)
+    @test_throws ErrorException with_step_size(AutoDiff(), 1e-3)
+end
+
+@testset "Richardson's levels is a knob, not a decoration" begin
+    x, exact = 0.3, tanh(0.3)
+    errs = [
+        abs(
+            thermal_derivative(Magnetization(:z), F, x, Richardson(1e-1; levels=L)) - exact
+        ) for L in 2:5
+    ]
+    # Each level removes one more order of h^2, so the error falls monotonically.
+    @test issorted(errs; rev=true)
+    @test errs[1] / errs[end] > 1e3
+    # And a bad `levels` is refused rather than silently behaving as the default.
+    @test_throws ArgumentError Richardson(1e-2; levels=1)
+    @test_throws ArgumentError Richardson(1e-2; levels=0)
+end
+
+@testset "the root guard can fire" begin
+    # Every shipped derivative_edge chains to FreeEnergy or GrandPotential, so
+    # without a quantity rooted elsewhere this guard is unreachable and deleting it
+    # changes nothing.
+    @test potential_root(RootProbeQuantity()) === RootProbeParent
+    msg = try
+        thermal_derivative(RootProbeQuantity(), F, 0.3, CentralDifference(1e-3))
+        ""
+    catch e
+        sprint(showerror, e)
+    end
+    @test occursin("RootProbeParent", msg)
 end
 
 @testset "a route change cannot turn a refusal into a number" begin
@@ -81,6 +146,17 @@ end
     for r in (CentralDifference(1e-3), Richardson(1e-2))
         @test nth_derivative(r, F, 0.3, 0) == F(0.3)
     end
+    # `nth_derivative` is exported, so a caller can reach the AutoDiff route
+    # directly rather than through `thermal_derivative`. Without a backend it has
+    # to name the routes that need none, not fall through to the generic
+    # "no method" of an unrecognised route.
+    msg = try
+        nth_derivative(AutoDiff(), F, 0.3, 2)
+        ""
+    catch e
+        sprint(showerror, e)
+    end
+    @test isempty(msg) || occursin("CentralDifference", msg)
 end
 
 @testset "a report compares routes instead of trusting one" begin
@@ -95,4 +171,40 @@ end
     @test isnan(ad.value) || isapprox(ad.value, tanh(0.3); atol=1e-12)
     @test isnan(ad.order)
     @test all(r -> isapprox(r.value, tanh(0.3); atol=1e-3), rows[1:2])
+    # The row has to name the route it ran, or a report that always stored the
+    # first route would read the same.
+    @test [r.route for r in rows] == [CentralDifference(1e-2), Richardson(1e-2), AutoDiff()]
+    # Only a missing backend is absorbed into a NaN row. A quantity with no
+    # genealogy edge, and a guard the route itself raises, both propagate: a NaN
+    # there would read as "install a package" for a mistake no package fixes.
+    @test_throws ErrorException derivative_report(
+        PartitionFunction(), F, 0.3, (CentralDifference(1e-2),)
+    )
+    @test_throws ErrorException derivative_report(
+        Susceptibility(:x, :y), F, 0.3, (CentralDifference(1e-2),)
+    )
+end
+
+@testset "the backend route's method belongs to the extension alone" begin
+    # Defining `nth_derivative(::AutoDiff, ...)` in BOTH the package and the
+    # extension is a method overwrite, which makes the extension fail to
+    # precompile while every test here stays green, because the fallback path
+    # still loads. So the package must own no method for that signature, and the
+    # "which package" answer lives in a trait instead.
+    owned = [
+        m for m in methods(nth_derivative) if
+        m.module === AbstractQAtlas && m.sig.parameters[2] === AutoDiff
+    ]
+    @test isempty(owned)
+    @test backend_package(AutoDiff()) === :ForwardDiff
+    @test backend_package(CentralDifference(1e-3)) === nothing
+    @test backend_package(Richardson(1e-2)) === nothing
+    # Without the extension the fallback has to say WHICH package, not "no method".
+    msg = try
+        nth_derivative(AutoDiff(), F, 0.3, 1)
+        ""
+    catch e
+        sprint(showerror, e)
+    end
+    @test isempty(msg) || occursin("ForwardDiff", msg)
 end

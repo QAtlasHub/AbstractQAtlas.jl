@@ -17,6 +17,10 @@ struct HalfUnits <: Convention end
 AbstractQAtlas.canonical_convention(::Type{ConventionProbeQuantity}) = WholeUnits()
 AbstractQAtlas.convert_convention(::WholeUnits, ::HalfUnits, ::Type, v) = 2v
 
+# A parametric quantity, which is where a supertype WALK loses the declaration.
+struct ParametricProbeQuantity{I} <: AbstractQuantity end
+AbstractQAtlas.canonical_convention(::Type{<:ParametricProbeQuantity}) = WholeUnits()
+
 @testset "an axis is declared per quantity, never by supertype" begin
     # The twelve whose ABQ definition contains a logarithm, or is an additive
     # combination of ones that do.
@@ -45,16 +49,41 @@ AbstractQAtlas.convert_convention(::WholeUnits, ::HalfUnits, ::Type, v) = 2v
     @test canonical_convention(Temperature) === nothing
 end
 
+why(f) =
+    try
+        f()
+        ""
+    catch e
+        sprint(showerror, e)
+    end
+
 @testset "a declaration is refused when it claims something it cannot mean" begin
-    @test_throws ErrorException conventions(Float64 => Bits)
-    @test_throws ErrorException conventions(VonNeumannEntropy => 2)
-    @test_throws ErrorException conventions(
-        VonNeumannEntropy => Bits, VonNeumannEntropy => Nats
+    # Each branch has to DIAGNOSE, not merely throw: swapping the four messages
+    # between the four conditions leaves every `@test_throws ErrorException` green
+    # while handing the caller the wrong reason for their mistake.
+    @test occursin("not a relation variable", why(() -> conventions(Float64 => Bits)))
+    @test occursin("not a Convention", why(() -> conventions(VonNeumannEntropy => 2)))
+    @test occursin(
+        "duplicate key",
+        why(() -> conventions(VonNeumannEntropy => Bits, VonNeumannEntropy => Nats)),
     )
     # Naming a concrete type is a claim about that type, so a type with no axis
     # is an error; naming its supertype is a sweep, and skips it silently.
-    @test_throws ErrorException conventions(TsallisEntropy => Bits)
+    @test occursin(
+        "declares no convention axis", why(() -> conventions(TsallisEntropy => Bits))
+    )
     @test conventions(AbstractEntanglementMeasure => Bits) isa ConventionSet
+end
+
+@testset "conversion is not restricted to scalars" begin
+    # A bag holds whatever the calculation produced, and a spectrum or a sweep of
+    # region entropies is the normal shape. A conversion narrowed to `Float64`
+    # would ship green against every scalar fixture in this file.
+    cs = conventions(AbstractEntanglementMeasure => Bits)
+    v = bag(cs, VonNeumannEntropy() => [1.0, 2.0, 3.0])[VariableKey(VonNeumannEntropy)]
+    @test v ≈ [1.0, 2.0, 3.0] .* log(2)
+    @test convert_convention(Nats, Bits, VonNeumannEntropy, [1.0 2.0; 3.0 4.0]) ≈
+        [1.0 2.0; 3.0 4.0] .* log(2)
 end
 
 @testset "lookup is most specific first" begin
@@ -62,6 +91,25 @@ end
     @test declared_convention(cs, VonNeumannEntropy) === Nats
     @test declared_convention(cs, RenyiEntropy) === Bits
     @test declared_convention(cs, Temperature) === nothing
+end
+
+@testset "a parametric quantity finds the declaration keyed on its family" begin
+    # The language fact the matching has to survive: a parametric type's supertype
+    # chain SKIPS its own family, so walking `supertype` never reaches the name a
+    # project keyed its declaration on. `Energy{:per_site}` is a live bag key here
+    # (FreeEnergyLegendre takes it), which is what makes this more than academic.
+    @test Energy{:per_site} <: Energy
+    @test supertype(Energy{:per_site}) !== Energy
+    cs = conventions(ParametricProbeQuantity => HalfUnits())
+    @test declared_convention(cs, ParametricProbeQuantity{:a}) === HalfUnits()
+    @test bag(cs, ParametricProbeQuantity{:a}() => 2.5)[VariableKey(
+        ParametricProbeQuantity{:a}
+    )] == 5.0
+    # Two covers that are unrelated cannot both be what the values are written in.
+    amb = conventions(
+        ParametricProbeQuantity => HalfUnits(), ConventionProbeQuantity => HalfUnits()
+    )
+    @test declared_convention(amb, ParametricProbeQuantity{:a}) === HalfUnits()
 end
 
 @testset "conversion" begin

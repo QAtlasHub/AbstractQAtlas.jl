@@ -9,6 +9,7 @@
 # confirmation of something nothing independent touched.
 
 using AbstractQAtlas
+using AbstractQAtlas: _disagreement, derivation_steps, typed_derivation_steps
 using Test: @test, @test_throws, @testset
 
 slope(c) = 2 * c / 6   # CFTEntanglementSlope: dS/dlnℓ = ncuts·c/6, ncuts = 2
@@ -52,7 +53,7 @@ end
     catch e
         sprint(showerror, e)
     end
-    @test occursin("disagree", msg)
+    @test occursin("differ by 0.4", msg)      # the size, not just that it threw
     @test occursin("CFTEntanglementSlope", msg)   # the route is named
     @test occursin("supplied: 0.9", msg)          # and so is the value it contradicts
     # Consistent data passes, and returns the supplied value.
@@ -61,12 +62,68 @@ end
     @test derive_crosschecked(:c; dS_dlogℓ=slope(0.5), ncuts=2) ≈ 0.5
 end
 
-@testset "min_routes asks that a cross-check actually happened" begin
-    # Default is permissive, and returns a number nothing checked.
-    @test derive_crosschecked(:c; c=0.9, ncuts=2) == 0.9
-    @test_throws ErrorException derive_crosschecked(:c; c=0.9, ncuts=2, min_routes=1)
-    # It must not fire where a route does exist.
-    @test derive_crosschecked(:c; c=0.5, dS_dlogℓ=slope(0.5), ncuts=2, min_routes=1) == 0.5
+@testset "min_routes defaults to demanding that a cross-check happened" begin
+    # Data affording no independent route is refused by default: returning 0.9 from
+    # it is what the verb's name would otherwise be claiming it had checked.
+    @test_throws ErrorException derive_crosschecked(:c; c=0.9, ncuts=2)
+    @test derive_crosschecked(:c; c=0.9, ncuts=2, min_routes=0) == 0.9   # opt-out
+    # One route is enough to compare a supplied value against.
+    @test derive_crosschecked(:c; c=0.5, dS_dlogℓ=slope(0.5), ncuts=2) == 0.5
+    # And two can be demanded where one is not evidence.
+    @test_throws ErrorException derive_crosschecked(
+        :c; c=0.5, dS_dlogℓ=slope(0.5), ncuts=2, min_routes=2
+    )
+end
+
+@testset "a route that raised is reported, not dropped" begin
+    # Z must be positive: it is a sum of Boltzmann weights. `FreeEnergyFromZ` needs
+    # log(Z) and throws, which is the relation being PREVENTED from disagreeing.
+    # Dropping it silently leaves one route and a clean "cross-checked" answer.
+    impossible = bag(
+        PartitionFunction => -2.0,
+        InverseTemperature => 1.0,
+        Energy(:per_site) => -0.4,
+        ThermalEntropy => 0.3,
+    )
+    rows = derivation_routes(FreeEnergy, impossible)
+    @test length(rows) == 2
+    threw = only(r for r in rows if r.error !== nothing)
+    @test nameof(typeof(threw.relation)) === :FreeEnergyFromZ
+    @test occursin("DomainError", threw.error)
+    @test threw.value === nothing
+    msg = try
+        derive_crosschecked(FreeEnergy, impossible)
+        ""
+    catch e
+        sprint(showerror, e)
+    end
+    @test occursin("raised on this data", msg)
+    @test occursin("FreeEnergyFromZ", msg)
+    # A relation merely declining to be solved for a slot is NOT a broken route, or
+    # every ordinary call would refuse. The consistent bag still passes.
+    β, Z, U = 0.8, 3.0, 0.4
+    F = -log(Z) / β
+    ok = bag(
+        PartitionFunction => Z,
+        InverseTemperature => β,
+        Energy(:per_site) => U,
+        ThermalEntropy => β * (U - F),
+    )
+    @test all(r -> r.error === nothing, derivation_routes(FreeEnergy, ok))
+    @test derive_crosschecked(FreeEnergy, ok; min_routes=2) ≈ F
+end
+
+@testset "a NaN route is a degeneration, not an agreement" begin
+    # Every difference against NaN is NaN, so an `isnan` short-circuit meant for
+    # "fewer than two values" would read a degenerate route as agreement.
+    msg = try
+        derive_crosschecked(:c; c=NaN, dS_dlogℓ=slope(0.5), ncuts=2)
+        ""
+    catch e
+        sprint(showerror, e)
+    end
+    @test occursin("NaN", msg)
+    @test occursin("nothing was compared", msg)
 end
 
 @testset "the typed door holds the target out the same way" begin
@@ -110,4 +167,52 @@ end
     alias = bag(InverseTemperature => 0.5, Thermopower(:x, :x) => 3.0)
     @test VariableKey(PeltierCoefficient{(:x, :x)}) in derivable(alias)
     @test isempty(derivation_routes(Temperature, alias))
+end
+
+@testset "the tolerance is isapprox's, not a floor that goes absolute below one" begin
+    # Two routes returning +1e-12 and -1e-12 is a sign flip. Dividing the
+    # difference by `max(maximum(abs, vs), 1)` reports it as 2e-12 and passes it
+    # at any sane rtol, which is why the comparison is `d <= atol + rtol*m`.
+    d, m = _disagreement([1e-12, -1e-12])
+    @test (d, m) == (2e-12, 1e-12)
+    @test !(d <= 0 + 1e-8 * m)
+    # A genuine agreement to 1e-9 relative still passes.
+    d2, m2 = _disagreement([1.0, 1.0 + 1e-9])
+    @test d2 <= 0 + 1e-8 * m2
+    # Fewer than two values is not agreement. It gets `nothing`, not a NaN that a
+    # degenerate route would also produce.
+    @test _disagreement([1.0]) === nothing
+    @test _disagreement(Any[]) === nothing
+
+    # `atol` is how a caller says their routes are noise-dominated, and it is the
+    # only thing that lets the broken-entropy bag through.
+    β, Z, U = 0.8, 3.0, 0.4
+    F = -log(Z) / β
+    bad = bag(
+        PartitionFunction => Z,
+        InverseTemperature => β,
+        Energy(:per_site) => U,
+        ThermalEntropy => β * (U - F) + 0.5,
+    )
+    @test_throws ErrorException derive_crosschecked(FreeEnergy, bad)
+    @test derive_crosschecked(FreeEnergy, bad; atol=1.0) ≈ F
+end
+
+@testset "multiple producers is the common case the section comment claims" begin
+    # The comment above `derivation_routes` carries measured counts. Pinned as
+    # floors rather than exact numbers: adding a relation that produces an
+    # already-produced output raises them, and a floor does not rot for that.
+    function multi(steps)
+        d = Dict{Any,Set{Any}}()
+        for st in steps
+            push!(get!(d, st.output, Set{Any}()), nameof(typeof(st.relation)))
+        end
+        return count(v -> length(v) > 1, values(d)), maximum(length, values(d))
+    end
+    n_sym, max_sym = multi(derivation_steps())
+    n_typed, max_typed = multi(typed_derivation_steps())
+    @test n_sym >= 60
+    @test max_sym >= 15
+    @test n_typed >= 35
+    @test max_typed >= 12
 end

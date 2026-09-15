@@ -203,16 +203,32 @@ export conventions
 """
     declared_convention(cs::ConventionSet, Q::Type) -> Union{Convention,Nothing}
 
-What `cs` says `Q`'s values are written in, walking up to `Q`'s supertypes and
-taking the most specific entry; `nothing` when nothing in `cs` covers `Q`.
+What `cs` says `Q`'s values are written in, taking the most specific entry that
+`Q` is a subtype of; `nothing` when nothing in `cs` covers `Q`.
+
+Matched by `<:`, not by walking `supertype`, because a parametric quantity's
+supertype chain SKIPS its own family: `supertype(Energy{:per_site})` is
+`AbstractThermalPotential`, so a walk never reaches the `Energy` a project keyed
+its declaration on, and the value goes into the bag unconverted.
+
+Two declared types that both cover `Q` and are unrelated to each other are
+refused rather than resolved by `Dict` order.
 """
 function declared_convention(cs::ConventionSet, @nospecialize(Q::Type))
-    T = Q
-    while T !== Any
-        haskey(cs.declared, T) && return cs.declared[T]
-        T = supertype(T)
+    best, bestT = nothing, nothing
+    for (T, c) in cs.declared
+        Q <: T || continue
+        if bestT === nothing || T <: bestT
+            best, bestT = c, T
+        elseif !(bestT <: T)
+            error(
+                "declared_convention: $Q is covered by both $bestT and $T, which are " *
+                "unrelated, so neither is the more specific. Key the declaration on " *
+                "whichever one the values were actually written in.",
+            )
+        end
     end
-    return nothing
+    return best
 end
 export declared_convention
 
