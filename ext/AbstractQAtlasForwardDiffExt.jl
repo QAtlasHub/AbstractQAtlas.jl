@@ -12,16 +12,7 @@ module AbstractQAtlasForwardDiffExt
 using AbstractQAtlas
 import AbstractQAtlas: peierls_current, thermal_derivative   # extended below → must import
 using AbstractQAtlas:
-    response_order,
-    indices,
-    derivative_edge,
-    derivative_order,
-    potential_root,
-    FreeEnergy,
-    GrandPotential,
-    Susceptibility,
-    SpecificHeat,
-    Energy
+    _genealogy_derivative, response_order, indices, Susceptibility, SpecificHeat, Energy
 using ForwardDiff: derivative
 
 # n-th derivative of a scalar function by nested ForwardDiff (n small —
@@ -29,31 +20,12 @@ using ForwardDiff: derivative
 _nth(f, x, n::Integer) = n == 0 ? f(x) : _nth(y -> derivative(f, y), x, n - 1)
 
 # ── generic, genealogy-driven response ────────────────────────────────────
-# For a FreeEnergy-rooted response that is a pure single-field derivative of
-# the free energy — the extensive-variable tree `M = −∂F/∂h`, `S = −∂F/∂T`, and
-# any higher single-field response — read the derivative ORDER and FIELD from
-# the genealogy (`derivative_edge` / `derivative_order`) instead of hand-coding
-# each quantity.  A new such quantity is AD-covered the moment it declares its
-# edge — the map is not hand-maintained (core-functions.md, pillar 4).  The net
-# sign is −1 across this tree (the `F → response` edge is `−∂/∂field`, the
-# intra-response edges are `+∂/∂field`).  Irregular members of the genealogy
-# (`Energy`, whose potential is `βF`, and `SpecificHeat`, reached through `U`)
-# keep the explicit methods below; `Susceptibility` keeps its own method for the
-# off-diagonal guard.  `x::Number` on every point argument keeps this generic
-# method and the concrete ones unambiguous.
+# Which order, which field and the net sign all come from `_genealogy_derivative`
+# (src/derivative_routes.jl), shared with the finite-difference routes so the two
+# cannot drift. This supplies the AD `nth` and nothing else. `x::Number` keeps
+# this generic method and the concrete ones below unambiguous.
 function thermal_derivative(q::AbstractQuantity, F, x::Number)
-    e = derivative_edge(q)
-    e === nothing && error(
-        "thermal_derivative: $(typeof(q)) is not a response function " *
-        "(no derivative_edge) — nothing to differentiate.",
-    )
-    root = potential_root(q)
-    (root === FreeEnergy || root === GrandPotential) || error(
-        "thermal_derivative: the generic genealogy path handles the standard response " *
-        "potentials (FreeEnergy `M=−∂F/∂h`, GrandPotential `N=−∂Ω/∂μ`); $(typeof(q)) " *
-        "roots at $root — use its explicit method (e.g. Energy/SpecificHeat).",
-    )
-    return -_nth(F, x, derivative_order(q, e.field()))   # e.field is a TYPE → instantiate
+    return _genealogy_derivative(q, F, x, _nth)
 end
 
 # χ⁽ⁿ⁾_{α;β₁…βₙ} = −∂ⁿ⁺¹F/∂h_α∂h_{β₁}…∂h_{βₙ}.  With a SINGLE-field function
