@@ -71,7 +71,11 @@ end
     @test domain(WiedemannFranz()) == :transport
     @test domain(OpticalSumRule()) == :transport
     @test domain(CurrentNoiseFDT()) == :transport
-    @test variables(WiedemannFranz()) == (:κ, :σ, :T, :L0)
+    # `L0` carries the Sommerfeld default, and a defaulted slot is not a variable
+    # a caller must supply, the same as `FSumRule`'s `N=1`.
+    @test variables(WiedemannFranz()) == (:κ, :σ, :T)
+    @test solve(WiedemannFranz(), Val(:L0); κ=π^2 / 3, σ=1.0, T=1.0) ≈ π^2 / 3
+    @test variables(RighiLeduc()) == (:κxy, :T, :σxy)
     @test variables(MottFormula()) == (:S, :dlnσ_dε, :T)
     @test variables(KelvinRelation()) == (:Π, :S, :T)
 end

@@ -65,6 +65,21 @@ Variables: `GA`, `GR`.  (Complex-valued residual.)
     GA::AdvancedGreensFunction, GR::RetardedGreensFunction
 ) = GA - conj(GR)
 
+# `ζ` names the exchange statistics, so it takes two values and no others. Left
+# unconstrained it absorbs whatever ratio the data happens to have: setting it to
+# `G^</(e^{-βω} G^>)` zeroes the residual for any pair, so the KMS condition can
+# never fail and a pass reports nothing. Measured before this guard: ζ = 7.3 passed.
+function _require_statistics_sign(what::Symbol, ζ)
+    ζ == 1 ||
+        ζ == -1 ||
+        error(
+            "$what: ζ is the exchange-statistics sign, +1 (bosonic) or -1 (fermionic); " *
+            "got $ζ. A free ζ makes the residual vanish for any G^≷ pair, so the " *
+            "condition would pass without being tested.",
+        )
+    return nothing
+end
+
 """
     KeldyshFDT <: AbstractRelation
 
@@ -79,11 +94,38 @@ with `h = coth(βω/2)` (bosons) or `tanh(βω/2)` (fermions), supplied by
 dissipation (`G^R − G^A ∝ Im G^R`) on the right — the two are not
 independent in thermal equilibrium.
 
+Supplied-`h` convention, and the caveat that comes with it: `h` here is whatever
+the caller says the distribution is, so this tests the FDT only when `h` was
+obtained independently. Setting `h = G^K/(G^R − G^A)` zeroes the residual for
+ANY state, a fully non-equilibrium one included, since that is the definition of
+`h` rather than a law about it. [`KeldyshDistributionEquilibrium`](@ref) is the
+half this one does not carry: it pins `h` to `keldysh_distribution`, and the two
+together are the theorem.
+
 Variables: `GK`, `h`, `GR`, `GA`.
 """
 @relation :keldysh KeldyshFDT(
     GK::KeldyshGreensFunction, h, GR::RetardedGreensFunction, GA::AdvancedGreensFunction
 ) = GK - h * (GR - GA)
+
+"""
+    KeldyshDistributionEquilibrium <: AbstractRelation
+
+The equilibrium value of the Keldysh distribution function,
+
+`h(ω) = coth(βω/2)` (bosonic) or `tanh(βω/2)` (fermionic),
+
+i.e. [`keldysh_distribution`](@ref) written as a relation so a supplied `h` can
+be checked rather than assumed.
+
+[`KeldyshFDT`](@ref) alone cannot do this. It reads `h` as given, so it holds out
+of equilibrium by construction; this one is what makes "the system is thermal" a
+falsifiable claim about the same `h`.
+
+Variables: `h`, `ω`, `β` (or `T`), `stat` ([`Fermionic`](@ref) / [`Bosonic`](@ref)).
+"""
+@relation :keldysh KeldyshDistributionEquilibrium(h, ω, β::InverseTemperature, stat) =
+    h - keldysh_distribution(stat, ω; β=β)
 
 """
     KMSGreaterLesser <: AbstractRelation
@@ -104,7 +146,10 @@ Variables: `Gles`, `Ggtr`, `ζ`, `ω`, and `β` (or `T`).
 """
 @relation :keldysh KMSGreaterLesser(
     Gles::LesserGreensFunction, Ggtr::GreaterGreensFunction, ζ, ω, β::InverseTemperature
-) = Gles - ζ * exp(-β * ω) * Ggtr
+) = begin
+    _require_statistics_sign(:KMSGreaterLesser, ζ)
+    Gles - ζ * exp(-β * ω) * Ggtr
+end
 
 """
     SpectralFromKeldysh <: AbstractRelation
