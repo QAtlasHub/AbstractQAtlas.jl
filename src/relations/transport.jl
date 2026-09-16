@@ -31,14 +31,18 @@ conductivity is the temperature times the Lorenz number,
 `κ = L₀ · σ · T`,
 
 with the Sommerfeld value `L₀ = π²/3` (in units `k_B = e = 1`; i.e.
-`π²k_B²/3e²`).  A diagonal-component statement (`κ_xx`, `σ_xx`); the ratio
-`κ/(σT)` is the caller-supplied Lorenz number `L0`, checked against the
-Sommerfeld constant.
+`π²k_B²/3e²`), which is `L0`'s DEFAULT: omit it and this tests the law.
 
-Variables: `κ`, `σ`, `T`, `L0`.
+Supplying `L0` does not test the law, it asserts a different Lorenz number, as a
+non-Fermi liquid has. Supplying `κ/(σT)` in particular makes the residual zero
+for any material, including one whose thermal conductivity is negative, so a
+pass there says nothing. Solving FOR `L0` is the honest way to get that ratio
+out of a measurement.
+
+Variables: `κ`, `σ`, `T`, `L0` (default `π²/3`).
 """
 @relation :transport WiedemannFranz(
-    κ::ThermalConductivity{(:x, :x)}, σ::Conductivity{(:x, :x)}, T::Temperature, L0
+    κ::ThermalConductivity{(:x, :x)}, σ::Conductivity{(:x, :x)}, T::Temperature, L0=π^2 / 3
 ) = κ - L0 * σ * T
 
 """
@@ -236,12 +240,16 @@ conductivities obey the Wiedemann–Franz law in the transverse channel,
 
 `κ_xy = L₀ · T · σ_xy`,
 
-the off-diagonal companion of [`WiedemannFranz`](@ref) (`L₀ = π²/3`).
+the off-diagonal companion of [`WiedemannFranz`](@ref); `L0` defaults to the
+same Sommerfeld `π²/3`, and supplying it carries the same caveat.
 
-Variables: `κxy`, `L0`, `T`, `σxy`.
+Variables: `κxy`, `T`, `σxy`, `L0` (default `π²/3`).
 """
 @relation :transport RighiLeduc(
-    κxy::ThermalConductivity{(:x, :y)}, L0, T::Temperature, σxy::Conductivity{(:x, :y)}
+    κxy::ThermalConductivity{(:x, :y)},
+    T::Temperature,
+    σxy::Conductivity{(:x, :y)},
+    L0=π^2 / 3,
 ) = κxy - L0 * T * σxy
 
 """

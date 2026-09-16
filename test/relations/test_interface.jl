@@ -18,14 +18,14 @@ AbstractQAtlas.domain(::_NonAffineDemo) = :test_only
     # domain that has no line here shows up as a mismatch in this number alone.
     # Universal-only: the model-specific relations (spin glass, Drude mobility,
     # single-band Hall) live in QAtlas.
-    @test length(rels) == 173
+    @test length(rels) == 174
     @test allunique(typeof.(rels))
     @test length(all_relations(; domain=:scaling)) == 33   # +ActivatedDynamicalScaling, ActivatedFiniteSizeScaling, +14 Appendix-A scaling types, +WeinribHalperinExponent, +QuantumHyperscaling; +TypicalCorrelationLength, GriffithsExponentDivergence, GriffithsSusceptibility, GriffithsSpecificHeat, ActivatedMomentGrowth; +CriticalCorrelationDecay, ActivatedCriticalCorrelation (#158); +3 self-averaging
     @test length(all_relations(; domain=:thermodynamic)) == 15
     @test length(all_relations(; domain=:fundamental)) == 9   # +GrandPotentialLegendre, ParticleNumberResponse (grand-canonical); +ElectricCurrentResponse (j = −∂H/∂A)
     @test length(all_relations(; domain=:topology)) == 3
     @test length(all_relations(; domain=:spectral)) == 15   # +MassGapPositivity
-    @test length(all_relations(; domain=:keldysh)) == 15
+    @test length(all_relations(; domain=:keldysh)) == 16   # +KeldyshDistributionEquilibrium: the half that pins h
     @test length(all_relations(; domain=:transport)) == 18
     @test length(all_relations(; domain=:quantum)) == 18   # +VelocityPositivity   # +LoschmidtRate (λ = −log L / N); +7 of the 8 universal bounds
     @test length(all_relations(; domain=:holographic)) == 1   # BekensteinEntropyBound — the one non-quantum universal bound

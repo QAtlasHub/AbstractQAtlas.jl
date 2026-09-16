@@ -290,6 +290,8 @@ end
 
 @testset "Keldysh relations register under :keldysh" begin
     # 6 equilibrium RAK + 4 Langreth + KineticLesser (#101) + 4 non-equilibrium (#64):
-    # SelfEnergyKeldyshFDT, KeldyshKineticGreater, NonequilibriumDistribution, TwoTerminalDistribution
-    @test length(all_relations(; domain=:keldysh)) == 15
+    # SelfEnergyKeldyshFDT, KeldyshKineticGreater, NonequilibriumDistribution,
+    # TwoTerminalDistribution + KeldyshDistributionEquilibrium, which pins the `h`
+    # that KeldyshFDT reads as given.
+    @test length(all_relations(; domain=:keldysh)) == 16
 end
